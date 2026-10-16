@@ -25,3 +25,8 @@
 
 ## ADR-008 — Use custom MCP with restricted capabilities
 **Decisão:** Aegis MCP próprio em TypeScript com ferramentas fixas, allowlist de caminhos e secret guard; sem shell arbitrário.
+
+## ADR-009 — Workspace será a fronteira principal de organização dos recursos
+**Decisão:** `User → Membership → Workspace → (Hosts, Detection Rules, Incidents, Investigations)`.
+**Motivo:** suportar uso individual, equipes e workspace de demonstração sem remodelar dados.
+**Consequência:** autorização verifica membership no workspace do recurso. Ainda não implementado em código ou banco.

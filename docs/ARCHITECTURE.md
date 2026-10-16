@@ -75,3 +75,8 @@ Aegis Web (timeline, grafo de relações, investigações)
 Nota: `aegis_application` e `aegis_data` são `internal: true`, portanto a API não
 tem saída para a internet. Quando a integração de IA chegar (Fase 11), uma rede de
 egress dedicada será adicionada apenas para a API.
+
+### Fronteira de dados (planejada)
+
+Todo recurso de segurança pertence a um **Workspace**; usuários acessam workspaces
+por **Membership** (ADR-009). Ver [PRODUTO.md](PRODUTO.md#modelo-de-workspace).

@@ -56,3 +56,26 @@ TELEMETRIA → EVENTO → REGRA → ALERTA → INCIDENTE → INVESTIGAÇÃO
 | Aegis MCP | Ferramentas seguras para agentes de desenvolvimento | CURRENT (base) |
 | Aegis Verified Core | Núcleo formal em Ada/SPARK | PLANNED |
 | Aegis Labs | Experimentos: eBPF, Assembly, métodos formais, otimizações | PLANNED |
+
+## Modelo de Workspace
+
+Hosts e demais recursos **não** pertencem diretamente ao usuário. O Workspace é a
+fronteira principal de organização e isolamento (ver ADR-009).
+
+```
+User
+  │
+  └── Membership
+         │
+         ▼
+      Workspace
+         │
+         ├── Hosts
+         ├── Detection Rules
+         ├── Incidents
+         └── Investigations
+```
+
+Permite: uso individual, equipes, empresas, workspace de demonstração e múltiplos
+usuários compartilhando recursos. Autorização futura será verificada por
+*membership* no workspace dono do recurso.
