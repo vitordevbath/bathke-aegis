@@ -1,0 +1,29 @@
+{
+  "name": "bathke-aegis",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Bathke Aegis — Experimental AI-Assisted XDR/SIEM Platform",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "tools/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web \"npm run dev -w @aegis/api\" \"npm run dev -w @aegis/web\"",
+    "dev:api": "npm run dev --workspace @aegis/api",
+    "dev:web": "npm run dev --workspace @aegis/web",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run typecheck",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "concurrently": "^10.0.6",
+    "typescript": "~5.9",
+    "vitest": "^5.0.5"
+  }
+}
