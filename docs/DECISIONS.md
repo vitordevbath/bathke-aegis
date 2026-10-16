@@ -42,3 +42,12 @@
 ## ADR-013 — Pareamento temporário será o mecanismo futuro para demonstrações com hosts de laboratório
 **Decisão:** hosts são adicionados por código/token temporário gerado no painel.
 **Consequência:** tokens expiram, são revogáveis, limitados a ingestão em um workspace e auditados.
+
+## ADR-011 — A primeira versão prioriza observar, detectar e investigar antes de resposta remota
+**Decisão:** nenhuma ação remota (matar processo, alterar firewall, bloquear conexão, isolar host) na primeira versão.
+**Motivo:** menor risco, escopo menor, postura claramente defensiva.
+**Consequência:** o Collector é somente leitura; o canal API → Collector não aceita comandos até uma fase futura com ADR próprio.
+
+## ADR-014 — IA será externa, opcional e não essencial para funcionamento do produto
+**Decisão:** refina o ADR-007. A IA recebe apenas incidentes estruturados e devolve explicação; não controla hosts, não monitora máquinas, não substitui o Detection Engine.
+**Consequência:** saída da IA é marcada como interpretação, separada da evidência original, que permanece imutável.

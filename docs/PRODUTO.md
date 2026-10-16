@@ -146,3 +146,22 @@ Usuário autenticado
 
 Requisitos: token temporário, revogável, de escopo limitado (um workspace, apenas
 ingestão) e com registro de auditoria.
+
+## IA: componente auxiliar
+
+A IA **não** recebe controle do host, **não** monitora máquinas diretamente e
+**não** substitui o Detection Engine (ADR-014).
+
+```
+telemetria → normalização → regras → correlação → incidente estruturado → IA externa → explicação
+```
+
+| A IA poderá | A IA não poderá |
+| --- | --- |
+| resumir incidente | criar evidência falsa |
+| explicar timeline | modificar evidência |
+| destacar relações | executar ação remota automaticamente |
+| auxiliar triagem | ser tratada como fonte factual |
+| sugerir pontos para análise | |
+
+A plataforma funciona integralmente com a IA offline.

@@ -76,3 +76,8 @@ O projeto **não** implementa e não aceitará contribuições de:
 
 - **AEGIS DEMO:** somente dados gerados/curados; nenhuma telemetria real; acesso de visitantes preferencialmente somente leitura (ADR-012).
 - **Pareamento:** token temporário com expiração curta, revogável, escopo limitado à ingestão de um workspace, armazenado apenas como hash e com auditoria de uso (ADR-013).
+
+## Limites de resposta e IA
+
+- **Sem resposta remota na primeira versão** (ADR-011): o Collector apenas observa; não executa comandos recebidos da API.
+- **IA** (ADR-014): recebe somente incidentes estruturados; não acessa hosts; não altera evidências; nunca dispara ações. Resultados são exibidos como análise, não como fato.
