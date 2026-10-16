@@ -51,3 +51,7 @@
 ## ADR-014 — IA será externa, opcional e não essencial para funcionamento do produto
 **Decisão:** refina o ADR-007. A IA recebe apenas incidentes estruturados e devolve explicação; não controla hosts, não monitora máquinas, não substitui o Detection Engine.
 **Consequência:** saída da IA é marcada como interpretação, separada da evidência original, que permanece imutável.
+
+## ADR-015 — Site público e aplicação operacional terão linguagens visuais relacionadas, porém níveis diferentes de movimento/efeitos
+**Decisão:** mesmos tokens de marca; site público pode usar WebGL/Three.js e animação expressiva; aplicação autenticada prioriza densidade, legibilidade e desempenho.
+**Consequência:** dependências 3D/WebGL ficam isoladas no site público e não entram no bundle da aplicação operacional.

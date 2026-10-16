@@ -165,3 +165,29 @@ telemetria → normalização → regras → correlação → incidente estrutur
 | sugerir pontos para análise | |
 
 A plataforma funciona integralmente com a IA offline.
+
+## Direção visual
+
+Duas experiências com linguagens visuais relacionadas, mas níveis diferentes de
+movimento e efeitos (ADR-015).
+
+### Site público
+
+Acabamento visual de produto moderno e preciso — referência de **nível** de
+qualidade semelhante à Linear, sem copiar sua identidade.
+
+Planejado: React, TypeScript, WebGL, Three.js / React Three Fiber se fizer sentido,
+animações e transições com função, profundidade, tipografia forte, visualização de
+rede/hosts, identidade Aegis própria.
+
+### Aplicação autenticada
+
+Mais contida. Prioridades: legibilidade, densidade de informação, desempenho,
+hierarquia, navegação rápida, grafos, timelines, tabelas e estados claros.
+Animações apenas quando apoiam o entendimento — o dashboard operacional não é uma
+página de vitrine.
+
+### Evitar (ambas)
+
+Matrix verde, caveiras, neon hacker, estética genérica de "cybersecurity",
+animação excessiva sem função.
