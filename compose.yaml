@@ -1,0 +1,72 @@
+# Bathke Aegis — container topology.
+# Only nginx publishes a host port. web, api and mysql are reachable only
+# through the internal networks below.
+name: bathke-aegis
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - web
+      - api
+    ports:
+      - "8080:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - aegis_edge
+      - aegis_application
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    networks:
+      - aegis_application
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 3000
+      DATABASE_URL: mysql://${MYSQL_USER:-aegis}:${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}@mysql:3306/${MYSQL_DATABASE:-aegis}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - aegis_application
+      - aegis_data
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-aegis}
+      MYSQL_USER: ${MYSQL_USER:-aegis}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+    # No `ports:` — 3306 is never published to the host.
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - aegis_data
+    restart: unless-stopped
+
+networks:
+  aegis_edge: {}
+  aegis_application:
+    internal: true
+  aegis_data:
+    internal: true
+
+volumes:
+  mysql_data: {}
