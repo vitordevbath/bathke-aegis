@@ -106,3 +106,43 @@ macOS Collector   ─┘   (eventual)
 
 **Nunca coletado:** teclas, senhas, conteúdo privado, mensagens, documentos pessoais,
 payload de rede.
+
+## Modos de uso
+
+### Workspace pessoal
+
+```
+Usuário → Workspace pessoal → Hosts autorizados
+```
+
+Uso normal: acesso completo aos recursos do próprio workspace.
+
+### Workspace de demonstração — AEGIS DEMO
+
+Permite que professor, avaliador ou visitante autorizado conheça o produto **sem
+instalar o Collector e sem acessar máquinas reais** (ADR-012).
+
+- dados seguros, hosts simulados ou previamente preparados;
+- eventos e incidentes demonstrativos;
+- navegação completa;
+- preferencialmente somente leitura.
+
+O workspace de demonstração **jamais** revela dados de hosts reais do desenvolvedor:
+os dados demo são gerados/curados, nunca copiados de telemetria real.
+
+### Pareamento temporário de laboratório
+
+Modo futuro para demonstração ao vivo (ADR-013):
+
+```
+Usuário autenticado
+  → Adicionar host
+  → Aegis gera código/token temporário
+  → Collector é iniciado em Linux / VM / WSL autorizado
+  → Collector usa o código
+  → Host aparece no painel
+  → Telemetria começa a chegar
+```
+
+Requisitos: token temporário, revogável, de escopo limitado (um workspace, apenas
+ingestão) e com registro de auditoria.

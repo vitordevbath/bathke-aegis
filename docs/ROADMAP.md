@@ -16,4 +16,4 @@
 | 11 | AI Assistance | Resumo/triagem de incidentes via API externa | TODO |
 | 12 | Observability | Métricas, logs estruturados, tracing | TODO |
 | 13 | Hardening | TLS, rate limiting, headers, revisão de segurança | TODO |
-| 14 | Presentation / Demo | Roteiro de demonstração mapeado à rubrica | TODO |
+| 14 | Presentation / Demo | Workspace AEGIS DEMO, pareamento temporário de laboratório, roteiro mapeado à rubrica | TODO |

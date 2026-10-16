@@ -34,3 +34,11 @@
 ## ADR-010 — Linux será a plataforma de referência inicial, mas a arquitetura não será Linux-only
 **Decisão:** primeiro Collector é Linux (Rust + Aya/eBPF). A API recebe eventos por um contrato de telemetria independente de SO.
 **Consequência:** campos específicos de plataforma ficam em extensões do evento, não no núcleo do contrato; collectors Windows/macOS podem ser adicionados sem alterar o pipeline.
+
+## ADR-012 — O produto terá workspace de demonstração seguro e preferencialmente somente leitura
+**Decisão:** workspace "AEGIS DEMO" com dados gerados/curados para avaliação sem instalar nada.
+**Consequência:** nunca contém telemetria real; escrita bloqueada ou restrita para visitantes.
+
+## ADR-013 — Pareamento temporário será o mecanismo futuro para demonstrações com hosts de laboratório
+**Decisão:** hosts são adicionados por código/token temporário gerado no painel.
+**Consequência:** tokens expiram, são revogáveis, limitados a ingestão em um workspace e auditados.

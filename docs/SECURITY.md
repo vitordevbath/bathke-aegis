@@ -71,3 +71,8 @@ O projeto **não** implementa e não aceitará contribuições de:
 - exploração automatizada ou invasão de terceiros;
 - execução remota não autorizada;
 - criptografia própria.
+
+## Workspace de demonstração e pareamento (planejado)
+
+- **AEGIS DEMO:** somente dados gerados/curados; nenhuma telemetria real; acesso de visitantes preferencialmente somente leitura (ADR-012).
+- **Pareamento:** token temporário com expiração curta, revogável, escopo limitado à ingestão de um workspace, armazenado apenas como hash e com auditoria de uso (ADR-013).
