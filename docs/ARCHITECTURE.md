@@ -80,3 +80,9 @@ egress dedicada será adicionada apenas para a API.
 
 Todo recurso de segurança pertence a um **Workspace**; usuários acessam workspaces
 por **Membership** (ADR-009). Ver [PRODUTO.md](PRODUTO.md#modelo-de-workspace).
+
+### Contrato de telemetria (planejado)
+
+Collectors de qualquer sistema operacional enviam eventos no mesmo
+**Telemetry Event Contract** (futuro `@aegis/contracts`). O pipeline de detecção
+não depende de detalhes de um SO específico (ADR-010).

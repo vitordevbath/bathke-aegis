@@ -30,3 +30,7 @@
 **Decisão:** `User → Membership → Workspace → (Hosts, Detection Rules, Incidents, Investigations)`.
 **Motivo:** suportar uso individual, equipes e workspace de demonstração sem remodelar dados.
 **Consequência:** autorização verifica membership no workspace do recurso. Ainda não implementado em código ou banco.
+
+## ADR-010 — Linux será a plataforma de referência inicial, mas a arquitetura não será Linux-only
+**Decisão:** primeiro Collector é Linux (Rust + Aya/eBPF). A API recebe eventos por um contrato de telemetria independente de SO.
+**Consequência:** campos específicos de plataforma ficam em extensões do evento, não no núcleo do contrato; collectors Windows/macOS podem ser adicionados sem alterar o pipeline.

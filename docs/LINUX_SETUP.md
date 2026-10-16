@@ -44,3 +44,16 @@
 1. Clonar o repositório, `npm ci`, `npm run typecheck && npm run build && npm test`.
 2. `cp .env.example .env`, ajustar senhas, `docker compose up -d --build`.
 3. Instalar toolchains Labs conforme as fases 05, 06, 09 e 10.
+
+## Ambientes de validação
+
+| Ambiente | Papel |
+| --- | --- |
+| Fedora KDE 44 (estação do desenvolvedor) | referência principal |
+| VM Linux / VPS Linux / servidor controlado | validação completa |
+| WSL2 | **opcional**, desenvolvimento e demonstração |
+
+WSL2 é útil para demonstração e desenvolvimento, porém não representa
+necessariamente o comportamento de uma instalação Linux física ou VPS —
+principalmente rede, firewall, integração com o host Windows e
+kernel/configurações específicas. Resultados obtidos em WSL2 não validam o Collector.

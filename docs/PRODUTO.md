@@ -79,3 +79,30 @@ User
 Permite: uso individual, equipes, empresas, workspace de demonstração e múltiplos
 usuários compartilhando recursos. Autorização futura será verificada por
 *membership* no workspace dono do recurso.
+
+## Plataforma: Linux-first, não Linux-only
+
+Linux é a plataforma de referência inicial (eBPF, servidores, VPS, observabilidade
+de kernel, Rust/Aya). Ambiente principal do desenvolvedor: **Fedora KDE 44**.
+
+O backend recebe eventos em formato **independente de sistema operacional**.
+Collectors futuros convergem para um contrato comum (ADR-010):
+
+```
+Linux Collector   ─┐
+Windows Collector ─┼─► Telemetry Event Contract ─► Aegis API
+macOS Collector   ─┘   (eventual)
+```
+
+## Telemetria inicial do Collector (planejada)
+
+| Categoria | Dados |
+| --- | --- |
+| Host | hostname, sistema operacional, versão, arquitetura, uptime, versão do Collector, online/offline |
+| Processos | início, encerramento, PID, PPID, executável, usuário quando apropriado, relação pai/filho |
+| Rede | interfaces, conexões, protocolo, porta local/remota, processo relacionado quando possível, estado técnico |
+| Firewall | status, regras relevantes, portas expostas, serviços escutando (integração concreta definida depois, por plataforma) |
+| Eventos do sistema | apenas eventos técnicos necessários e autorizados |
+
+**Nunca coletado:** teclas, senhas, conteúdo privado, mensagens, documentos pessoais,
+payload de rede.
