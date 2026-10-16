@@ -116,7 +116,7 @@ como concluído sem implementação e evidência.
 
 ## Roadmap
 
-Fases 00–14 em [docs/ROADMAP.md](docs/ROADMAP.md).
+Visão de produto em [docs/PRODUTO.md](docs/PRODUTO.md). Fases 00–14 em [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Licença / Status
 
