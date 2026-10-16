@@ -16,7 +16,7 @@
     "dev:api": "npm run dev --workspace @aegis/api",
     "dev:web": "npm run dev --workspace @aegis/web",
     "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build -w @aegis/contracts -w @aegis/domain && npm run typecheck --workspaces --if-present",
     "lint": "npm run typecheck",
     "test": "npm run test --workspaces --if-present"
   },
