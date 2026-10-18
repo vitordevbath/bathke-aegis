@@ -6,11 +6,13 @@ Fastify + TypeScript backend.
 
 | Layer | Purpose | Current content |
 | --- | --- | --- |
-| `domain/` | Entities, value objects, domain errors | empty — arrives with BF 02 (User) |
-| `application/` | Use cases and ports (interfaces) | empty |
-| `infrastructure/` | Adapters: Drizzle/MySQL, hashing, JWT | Drizzle schema (`users`) + client factory, not yet wired |
-| `presentation/` | HTTP routes, request validation, error mapping | `GET /health` |
-| `shared/` | Cross-cutting config | `env.ts` (Zod-validated env) |
+| `domain/` | Entities | `User`, `Workspace`, `Membership` (value objects and errors come from `@aegis/domain`) |
+| `application/` | Use cases and ports (interfaces) | register, authenticate, resolve token, get/update current user; repository, unit-of-work, hasher and token ports |
+| `infrastructure/` | Adapters | Drizzle/MySQL repositories + transactional unit of work, migrations runner, Argon2id, jose JWT |
+| `presentation/` | HTTP routes, request validation, error mapping | `/health`, `/auth/register`, `/auth/login`, `/users/me`; bearer preHandler; single error handler |
+| `shared/` | Cross-cutting config | `env.ts` (Zod-validated env; strong `JWT_SECRET` required) |
+
+`composition-root.ts` wires use cases to production adapters (`main.ts`) or to test doubles.
 
 Dependency direction: `presentation → application → domain`; `infrastructure` implements application ports.
 
@@ -20,4 +22,10 @@ Dependency direction: `presentation → application → domain`; `infrastructure
 npm run dev -w @aegis/api        # tsx watch
 npm run test -w @aegis/api       # vitest
 npm run build -w @aegis/api
+npm run db:generate -w @aegis/api   # new SQL migration in drizzle/ from schema.ts
+npm run db:migrate -w @aegis/api    # apply pending migrations (needs DATABASE_URL)
 ```
+
+Integration tests (`test/integration/*`) run only when `TEST_DATABASE_URL` points to a
+disposable MySQL server whose user can create databases; each run creates a fresh database,
+applies all migrations from zero and drops it afterwards. CI provides one.

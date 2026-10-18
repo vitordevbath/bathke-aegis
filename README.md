@@ -32,17 +32,18 @@ permitir suporte futuro a coletores para outros sistemas operacionais.
 
 ## Status atual
 
-Fase 00 — Foundation.
+BF 01 — Autenticação, usuário e workspace concluído.
 
 | Componente | Status |
 | --- | --- |
-| Aegis Web (React + TS + Vite): `/`, `/login` (placeholder), `/dashboard` | **IMPLEMENTADO** (base) |
-| Aegis API (Fastify + TS): `GET /health` | **IMPLEMENTADO** (base) |
-| `@aegis/contracts`, `@aegis/domain` | **IMPLEMENTADO** (mínimo) |
+| Aegis Web (React + TS + Vite): `/`, `/login`, `/cadastro`, `/dashboard`, `/perfil` | **IMPLEMENTADO** |
+| Aegis API (Fastify + TS): health, cadastro, login (JWT), `GET/PUT /users/me` | **IMPLEMENTADO** |
+| `@aegis/contracts` (schemas Zod), `@aegis/domain` (Email, CPF, política de senha, erros) | **IMPLEMENTADO** |
 | Aegis MCP (7 ferramentas, secret guard) | **IMPLEMENTADO** (base) |
 | Docker Compose + Nginx (somente Nginx exposto) | **IMPLEMENTADO** (validado localmente) |
-| MySQL + Drizzle | **PARCIAL** — serviço e schema `users`; sem migrations |
-| Autenticação, JWT, usuários, 4 CRUDs | **PLANEJADO** |
+| MySQL + Drizzle: `users`, `workspaces`, `memberships` com migrations versionadas | **IMPLEMENTADO** |
+| Autenticação (Argon2id + JWT), usuário, workspace pessoal + membership OWNER | **IMPLEMENTADO** |
+| 4 CRUDs (Hosts, Detection Rules, Incidents, Investigations), workspaces compartilhados | **PLANEJADO** |
 | Aegis Collector (Rust), camada de telemetria eBPF | **PLANEJADO** |
 | Aegis Verified Core (Ada/SPARK), experimentos x86-64 | **PLANEJADO** |
 | Análise assistida por IA (API externa) | **PLANEJADO** |
@@ -66,7 +67,7 @@ Linux host ─► eBPF (planejado) ─► Aegis Collector (planejado) ─► Aeg
 
 ## Tecnologia
 
-- **Atual:** TypeScript (strict), React, Vite, React Router, TanStack Query, React Hook Form, Zod, Fastify, Drizzle ORM, MySQL 8.4, Nginx, Docker Compose, Vitest, MCP SDK.
+- **Atual:** TypeScript (strict), React, Vite, React Router, TanStack Query, React Hook Form, Zod, Fastify, @fastify/rate-limit, Drizzle ORM, MySQL 8.4, Argon2id (`argon2`), JWT (`jose`), Nginx, Docker Compose, Vitest, Testing Library, MCP SDK.
 - **Planejado (Aegis Labs):** Rust, Aya/eBPF, Ada/SPARK + GNATprove, NASM x86-64.
 
 ## Estrutura do repositório

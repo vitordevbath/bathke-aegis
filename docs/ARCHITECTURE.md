@@ -19,27 +19,56 @@ nginx (única porta publicada: 8080 → 80)     redes: aegis_edge, aegis_applica
 
 | Componente | Local | O que existe |
 | --- | --- | --- |
-| Aegis Web | `apps/web` | Rotas `/`, `/login` (validação client-side, sem autenticação), `/dashboard` (cards zerados, status real da API via `/api/health`) |
-| Aegis API | `apps/api` | `GET /health`; env validado com Zod; schema Drizzle `users` + factory de cliente **não conectados** a nenhuma rota |
-| Contracts | `packages/contracts` | `HealthResponse` |
-| Domain | `packages/domain` | `Entity<TId>`, `DomainError` |
-| MySQL | `compose.yaml` | MySQL 8.4 com healthcheck e volume; sem migrations |
-| Nginx | `infra/nginx` | Reverse proxy + headers básicos |
+| Aegis Web | `apps/web` | `/`, `/login`, `/cadastro` (públicas); `/dashboard`, `/perfil` (protegidas); `AuthContext`, cliente HTTP central, token em localStorage (ADR-017) |
+| Aegis API | `apps/api` | `GET /health`; `POST /auth/register`, `POST /auth/login`; `GET`/`PUT /users/me`; Argon2id, JWT, rate limit em `/auth/*` |
+| Contracts | `packages/contracts` | DTOs + schemas Zod de cadastro, login e edição de usuário; envelope de erro |
+| Domain | `packages/domain` | `Entity<TId>`, hierarquia `DomainError`, value objects `Email`, `Cpf`, `PasswordPolicy` (ADR-018) |
+| MySQL | `compose.yaml` | MySQL 8.4; tabelas `users`, `workspaces`, `memberships` via migrations versionadas aplicadas pelo serviço `migrate` (ADR-019) |
+| Nginx | `infra/nginx` | Reverse proxy, headers de segurança e CSP estrita |
 | Aegis MCP | `tools/aegis-mcp` | Servidor MCP stdio, 7 ferramentas, allowlist e secret guard |
 
 ### Camadas da API
 
 ```
-presentation  → rotas HTTP, validação de request, mapeamento de erros
-application   → casos de uso + ports (interfaces)          [vazio]
-domain        → entidades, value objects, erros de domínio [vazio]
-infrastructure→ adapters (Drizzle/MySQL, hash, JWT) implementam ports
-shared        → configuração transversal
+presentation  → rotas, preHandler de autenticação, error handler, mappers → contracts
+application   → use cases (RegisterUser, AuthenticateUser, ResolveAuthenticatedUser,
+                GetCurrentUser, UpdateCurrentUser) + ports (repositórios, UnitOfWork,
+                PasswordHasher, TokenService)
+domain        → User, Workspace, Membership (value objects/erros vêm de @aegis/domain)
+infrastructure→ Drizzle/MySQL (repositórios + UnitOfWork transacional), Argon2id, jose
+shared        → env validado com Zod
+composition-root.ts → conecta use cases aos adapters (produção ou dublês de teste)
 ```
 
 Dependências apontam para dentro: `presentation → application → domain`.
 `infrastructure` depende de `application` (implementa ports), nunca o contrário.
 Diretórios só são criados quando há código real.
+
+### Modelo de dados (CURRENT)
+
+```
+users (id UUID, name, email UNIQUE, cpf UNIQUE [11 dígitos], password_hash, created_at, updated_at)
+  │ 1
+  │        memberships (user_id FK, workspace_id FK, role, created_at)   PK (user_id, workspace_id)
+  │ N ───────────────────────────────────── N
+workspaces (id UUID, name, kind ∈ personal|demo|organization|lab, created_at, updated_at)
+```
+
+Somente `personal` e `OWNER` têm comportamento nesta fase; os demais valores são reservados
+(ADR-009, ADR-012). Recursos futuros (Hosts, Rules, Incidents, Investigations) pertencerão ao
+workspace, não ao usuário.
+
+### Fluxo de cadastro e sessão (CURRENT)
+
+```
+POST /auth/register ─► Zod (contracts) ─► RegisterUser
+                         valida Email/Cpf/PasswordPolicy, checa duplicidade, Argon2id
+                         UnitOfWork (transação MySQL): INSERT user → workspace → membership OWNER
+                         falha em qualquer passo → ROLLBACK
+POST /auth/login    ─► AuthenticateUser ─► JWT { sub, typ, iss, aud, iat, exp }
+GET|PUT /users/me   ─► Bearer ─► ResolveAuthenticatedUser (token válido + usuário existente)
+web: token em localStorage → AuthContext → GET /users/me ao recarregar → 401 limpa a sessão
+```
 
 ### Contratos vs domínio
 
@@ -76,10 +105,11 @@ Nota: `aegis_application` e `aegis_data` são `internal: true`, portanto a API n
 tem saída para a internet. Quando a integração de IA chegar (Fase 11), uma rede de
 egress dedicada será adicionada apenas para a API.
 
-### Fronteira de dados (planejada)
+### Fronteira de dados
 
-Todo recurso de segurança pertence a um **Workspace**; usuários acessam workspaces
-por **Membership** (ADR-009). Ver [PRODUTO.md](PRODUTO.md#modelo-de-workspace).
+User → Membership → Workspace já existe (CURRENT). Planejado: todo recurso de segurança
+pertencerá a um **Workspace**, e a autorização verificará a membership no workspace do
+recurso (ADR-009). Ver [PRODUTO.md](PRODUTO.md#modelo-de-workspace).
 
 ### Contrato de telemetria (planejado)
 

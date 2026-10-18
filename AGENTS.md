@@ -15,9 +15,9 @@ Quality over quantity: no fake features, no fake architecture, no TODO marked as
 
 | | CURRENT | PLANNED |
 | --- | --- | --- |
-| Web | routes `/`, `/login` (placeholder), `/dashboard` | auth flows, CRUD screens, timeline, graph |
-| API | `GET /health`, env validation, Drizzle `users` schema (unwired) | auth, 4 CRUDs, events, detection |
-| Data | MySQL container | migrations, repositories |
+| Web | `/`, `/login`, `/cadastro`, `/dashboard`, `/perfil`; AuthContext | CRUD screens, timeline, graph |
+| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me` | 4 CRUDs, events, detection |
+| Data | `users`, `workspaces`, `memberships` (versioned migrations, Drizzle repositories) | resource tables per workspace |
 | Tooling | Aegis MCP, CI (typecheck/build/test) | rubric engine expansion |
 | Native | READMEs only | collector, eBPF, SPARK, NASM |
 
@@ -27,9 +27,9 @@ Details: `docs/ARCHITECTURE.md`. Check `aegis_architecture_info` (Aegis MCP) bef
 
 ```
 apps/web            React + TS + Vite (src/app, pages, features, components, lib, styles, types)
-apps/api            Fastify + TS (src/presentation, infrastructure, shared; domain/application added with first use case)
+apps/api            Fastify + TS (src/presentation, application, domain, infrastructure, shared; drizzle/ migrations)
 packages/contracts  transport DTOs shared by web and api — never domain entities
-packages/domain     Entity, DomainError
+packages/domain     Entity, DomainError hierarchy, Email, Cpf, PasswordPolicy
 tools/aegis-mcp     restricted MCP server
 native/             planned low-level components (README only)
 agents/skills/      backend-engineering, frontend-engineering, security-review

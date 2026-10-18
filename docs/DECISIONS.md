@@ -55,3 +55,24 @@
 ## ADR-015 — Site público e aplicação operacional terão linguagens visuais relacionadas, porém níveis diferentes de movimento/efeitos
 **Decisão:** mesmos tokens de marca; site público pode usar WebGL/Three.js e animação expressiva; aplicação autenticada prioriza densidade, legibilidade e desempenho.
 **Consequência:** dependências 3D/WebGL ficam isoladas no site público e não entram no bundle da aplicação operacional.
+
+## ADR-016 — Autenticação com Argon2id e JWT HS256 stateless
+**Decisão:** senhas com Argon2id (`argon2`, m=64 MiB, t=3, p=4 — RFC 9106 §4, segunda opção recomendada; parâmetros em `argon2-password-hasher.ts`). Access token JWT HS256 (`jose`) com apenas `sub`, `typ=access`, `iss`, `aud`, `iat`, `exp`; validade padrão de 1 h (`JWT_TTL_SECONDS`). `JWT_SECRET` é obrigatório, ≥ 32 caracteres e rejeitado se contiver placeholder/valor fraco — não há fallback.
+**Motivo:** KDF memory-hard recomendada; token mínimo sem dado pessoal; nenhuma sessão no servidor nesta fase.
+**Consequências:** logout apenas descarta o token no cliente; token roubado vale até expirar; troca de senha não invalida tokens já emitidos. Revogação (ex.: `token_version` no usuário) fica para fase futura. Rotas protegidas recarregam o usuário a cada requisição: token válido de usuário removido → 401.
+
+## ADR-017 — Token de acesso em localStorage por exigência acadêmica
+**Decisão:** o frontend guarda o JWT em `localStorage` (chave `aegis.auth.token`, acesso só por `apps/web/src/lib/auth-storage.ts`), conforme a rubrica.
+**Riscos:** qualquer script executado na página lê o token; XSS equivale a sequestro de sessão.
+**Mitigações obrigatórias:** CSP estrita no Nginx (`script-src 'self'`, sem inline/terceiros, `frame-ancestors 'none'`); React escapa saída e o projeto não usa `dangerouslySetInnerHTML`; TTL curto; `Cache-Control: no-store` nas respostas de auth.
+**Futuro:** se a exigência deixar de existir, avaliar cookie `HttpOnly` + `SameSite` com proteção CSRF.
+
+## ADR-018 — Regras de validação compartilhadas; entidades apenas na API
+**Decisão:** value objects e políticas puras (`Email`, `Cpf`, `PasswordPolicy`) e a hierarquia `DomainError` ficam em `@aegis/domain`. `@aegis/contracts` adapta essas regras para schemas Zod usados pelos formulários do web e pela validação de entrada da API. Entidades (`User`, `Workspace`, `Membership`), use cases e ports ficam em `apps/api`.
+**Motivo:** uma única implementação do dígito verificador do CPF e da política de senha; contracts continuam sendo DTOs de transporte, sem entidades.
+**Consequência:** `contracts` depende de `domain`; a raiz compila `domain` → `contracts` antes dos apps (`npm run build:packages`).
+
+## ADR-019 — Migrations versionadas aplicadas por serviço one-shot
+**Decisão:** schema Drizzle gera SQL versionado em `apps/api/drizzle` (`npm run db:generate`); `npm run db:migrate` aplica via migrator do Drizzle (runtime, sem `drizzle-kit push`). No Compose, o serviço `migrate` (mesma imagem da API, sem porta, só na rede `aegis_data`) roda antes da API (`service_completed_successfully`).
+**Motivo:** migrations reproduzíveis e auditáveis; a API não altera schema ao iniciar.
+**Consequência:** o CI aplica as migrations num MySQL vazio e os testes de integração criam um banco novo por execução.

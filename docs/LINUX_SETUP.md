@@ -23,12 +23,17 @@ npm ci
 npm run typecheck && npm run build && npm test
 
 cp .env.example .env          # depois substitua TODOS os valores change-me
+                              # JWT_SECRET: openssl rand -base64 48 (placeholder é rejeitado)
 docker compose config --quiet # --quiet: a saída completa imprime as senhas interpoladas
-docker compose up -d --build
+docker compose up -d --build  # o serviço one-shot `migrate` aplica as migrations antes da API
 docker compose ps
 curl http://localhost:8080/api/health   # {"status":"ok","service":"aegis-api"}
 docker compose down
 ```
+
+Testes de integração com MySQL real (opcional localmente; sempre no CI): suba um MySQL
+descartável preso a `127.0.0.1` e exporte `TEST_DATABASE_URL` com um usuário que possa criar
+bancos antes de `npm test`. Sem a variável, esses testes são pulados.
 
 Somente o `nginx` publica porta no host (`8080`). `api`, `web` e `mysql` ficam em redes
 internas. Para gerar senhas locais sem exibi-las: `openssl rand -hex 24`.
