@@ -15,10 +15,11 @@
     "dev": "concurrently -n api,web \"npm run dev -w @aegis/api\" \"npm run dev -w @aegis/web\"",
     "dev:api": "npm run dev --workspace @aegis/api",
     "dev:web": "npm run dev --workspace @aegis/web",
-    "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run build -w @aegis/contracts -w @aegis/domain && npm run typecheck --workspaces --if-present",
+    "build": "npm run build:packages && npm run build -w @aegis/api -w @aegis/web -w @aegis/mcp",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
     "lint": "npm run typecheck",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "build:packages": "npm run build -w @aegis/domain && npm run build -w @aegis/contracts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
