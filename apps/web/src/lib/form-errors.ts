@@ -1,5 +1,5 @@
 import type { FieldValues, Path, UseFormSetError } from 'react-hook-form';
-import { ApiError } from '../../lib/api-client';
+import { ApiError } from './api-client';
 
 /**
  * Applies API field issues to the form. Returns a user-facing message for the
