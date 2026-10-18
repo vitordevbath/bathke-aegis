@@ -85,3 +85,14 @@
 ## ADR-021 — Host: campos administrativos vs. fatos do Collector
 **Decisão:** o usuário edita apenas `displayName` e `description`. `agentId`, `hostname`, `osName`, `osVersion`, `architecture`, `connectionState` e `lastSeenAt` pertencem ao futuro Aegis Collector: começam nulos/`UNPAIRED`, não têm setter na entidade, não são escritos pelo UPDATE e enviá-los à API é 400 (sem mass assignment). A UI mostra "Não pareado" / "Ainda não informado" / "Nunca", nunca "Online"/"Offline" sem Collector. Exclusão é física porque ainda não há telemetria vinculada.
 **Consequência:** quando eventos referenciarem hosts, a política de exclusão será revista (ex.: arquivamento) e um fluxo de pareamento (ADR-013) passará a preencher os fatos do Collector.
+
+## ADR-022 — Detection Rules usam DSL declarativa estruturada e não executável
+**Decisão:** a definição de uma regra é JSON versionado (`version: 1`) com `match` (`ALL`/`ANY`) e 1–10 condições `{ field, operator, value }`. Campos vêm de uma allowlist por categoria (`PROCESS`, `NETWORK`, `SYSTEM`) que reflete o contrato de telemetria **planejado**; operadores são um conjunto fechado (`EQUALS`, `NOT_EQUALS`, `CONTAINS`, `STARTS_WITH`, `ENDS_WITH`, `IN`, `GREATER_THAN`, `LESS_THAN`) restrito ao tipo do campo; valores são tipados e limitados. Um único validador (`validateDetectionDefinition`, `@aegis/domain`) é usado pelo schema da API, pelo formulário web e pela entidade (inclusive ao reidratar do banco); propriedades desconhecidas são rejeitadas.
+**Não usamos:** JavaScript, `eval`/`Function`, SQL, shell, regex arbitrária, templates executáveis, parser ou linguagem própria, grupos booleanos aninhados.
+**Motivo:** regras são dados auditáveis; nenhuma entrada de usuário vira código; a futura avaliação pode ser implementada (e verificada) sobre uma estrutura fechada.
+**Consequência:** mudanças de formato exigem `version: 2` e migração explícita das regras existentes (não implementada ainda). Nesta fase as regras são apenas configuração: nada as avalia, não há eventos nem alertas.
+
+## ADR-023 — Targets regra ↔ host: cascade na regra, restrict no host
+**Decisão:** `detection_rule_targets (detection_rule_id, host_id)` com PK composta. Excluir uma regra remove seus targets (`ON DELETE CASCADE`). Excluir um host que é alvo é bloqueado (`ON DELETE RESTRICT`); a API responde 409 com orientação. Escopo `ALL_HOSTS` não tem targets; `SELECTED_HOSTS` exige ≥ 1. Hosts alvo são validados como pertencentes ao workspace da regra dentro da mesma transação que grava os targets; host inexistente e host de outro workspace recebem o mesmo 400.
+**Motivo:** uma regra `SELECTED_HOSTS` nunca perde silenciosamente seu último alvo; nenhuma regra aponta para host de outro tenant.
+**Consequência:** para excluir um host alvo, o usuário primeiro o remove das regras (ou exclui as regras).

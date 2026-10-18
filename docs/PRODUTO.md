@@ -38,7 +38,7 @@ TELEMETRIA → EVENTO → REGRA → ALERTA → INCIDENTE → INVESTIGAÇÃO
 | Host | Máquina cadastrada em um workspace. Hoje é cadastro manual (nome e descrição); hostname, SO, arquitetura, estado de conexão e último contato serão informados pelo Aegis Collector após o pareamento (PLANNED). Sem Collector, o host é "Não pareado". |
 | Telemetria | Dados técnicos produzidos pelo host/collector |
 | Evento | Ocorrência individual normalizada |
-| Regra | Condição utilizada para detectar comportamento relevante |
+| Regra | Condição declarativa (schema v1: campo da allowlist, operador fechado, valor tipado) para detectar comportamento relevante. Pertence a um workspace e vale para todos os hosts ou para hosts selecionados. Hoje é apenas configuração: o motor de detecção ainda não existe. |
 | Alerta | Resultado de uma regra acionada |
 | Incidente | Conjunto de eventos/alertas relacionados que merece análise |
 | Investigação | Caso humano que agrupa e analisa um ou mais incidentes |

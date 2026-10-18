@@ -6,10 +6,10 @@ Fastify + TypeScript backend.
 
 | Layer | Purpose | Current content |
 | --- | --- | --- |
-| `domain/` | Entities | `User`, `Workspace`, `Membership`, `Host` (value objects and errors come from `@aegis/domain`) |
-| `application/` | Use cases and ports (interfaces) | auth/user use cases; host CRUD use cases; `WorkspaceAccess`; `Page<T>`; repository, unit-of-work, hasher and token ports |
+| `domain/` | Entities | `User`, `Workspace`, `Membership`, `Host`, `DetectionRule` (value objects, errors and the rule schema come from `@aegis/domain`) |
+| `application/` | Use cases and ports (interfaces) | auth/user use cases; host and detection rule CRUD use cases; `WorkspaceAccess`; `Page<T>`; repository, unit-of-work, hasher and token ports |
 | `infrastructure/` | Adapters | Drizzle/MySQL repositories + transactional unit of work, migrations runner, Argon2id, jose JWT |
-| `presentation/` | HTTP routes, request validation, error mapping | `/health`, `/auth/*`, `/users/me`, `/workspaces/:workspaceId/hosts[/:hostId]`; bearer preHandler; single error handler |
+| `presentation/` | HTTP routes, request validation, error mapping | `/health`, `/auth/*`, `/users/me`, `/workspaces/:workspaceId/hosts[/:hostId]`, `/workspaces/:workspaceId/detection-rules[/:ruleId]`; bearer preHandler; single error handler |
 | `shared/` | Cross-cutting config | `env.ts` (Zod-validated env; strong `JWT_SECRET` required) |
 
 `composition-root.ts` wires use cases to production adapters (`main.ts`) or to test doubles.
