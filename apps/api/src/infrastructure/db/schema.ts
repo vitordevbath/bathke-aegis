@@ -1,4 +1,5 @@
-import { char, datetime, index, mysqlEnum, mysqlTable, primaryKey, varchar } from 'drizzle-orm/mysql-core';
+import { boolean, char, datetime, index, json, mysqlEnum, mysqlTable, primaryKey, varchar } from 'drizzle-orm/mysql-core';
+import type { DetectionDefinitionV1 } from '@aegis/domain';
 
 /**
  * Drizzle schema — source for versioned migrations in `apps/api/drizzle`
@@ -76,3 +77,30 @@ export const hosts = mysqlTable(
     index('hosts_workspace_created_idx').on(table.workspaceId, table.createdAt, table.id),
   ],
 );
+
+/**
+ * Declarative detection rules (schema v1, ADR-022). `definition` is validated
+ * JSON data — never code. Rules are configuration only: nothing evaluates them yet.
+ */
+export const detectionRules = mysqlTable(
+  'detection_rules',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    workspaceId: char('workspace_id', { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 120 }).notNull(),
+    description: varchar('description', { length: 1000 }),
+    severity: mysqlEnum('severity', ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    eventCategory: mysqlEnum('event_category', ['PROCESS', 'NETWORK', 'SYSTEM']).notNull(),
+    scope: mysqlEnum('scope', ['ALL_HOSTS', 'SELECTED_HOSTS']).notNull(),
+    definition: json('definition').$type<DetectionDefinitionV1>().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    // Serves the workspace FK and the paginated list (WHERE workspace_id = ? ORDER BY created_at DESC, id DESC).
+    index('detection_rules_workspace_created_idx').on(table.workspaceId, table.createdAt, table.id),
+  ],
+);
+
