@@ -32,7 +32,7 @@ permitir suporte futuro a coletores para outros sistemas operacionais.
 
 ## Status atual
 
-BF 01 — Autenticação, usuário e workspace concluído.
+BF 02 — Hosts CRUD com paginação e isolamento por workspace concluído.
 
 | Componente | Status |
 | --- | --- |
@@ -43,7 +43,8 @@ BF 01 — Autenticação, usuário e workspace concluído.
 | Docker Compose + Nginx (somente Nginx exposto) | **IMPLEMENTADO** (validado localmente) |
 | MySQL + Drizzle: `users`, `workspaces`, `memberships` com migrations versionadas | **IMPLEMENTADO** |
 | Autenticação (Argon2id + JWT), usuário, workspace pessoal + membership OWNER | **IMPLEMENTADO** |
-| 4 CRUDs (Hosts, Detection Rules, Incidents, Investigations), workspaces compartilhados | **PLANEJADO** |
+| Hosts CRUD por workspace (cadastro manual, paginação, busca), workspace ativo | **IMPLEMENTADO** |
+| Detection Rules, Incidents, Investigations, workspaces compartilhados | **PLANEJADO** |
 | Aegis Collector (Rust), camada de telemetria eBPF | **PLANEJADO** |
 | Aegis Verified Core (Ada/SPARK), experimentos x86-64 | **PLANEJADO** |
 | Análise assistida por IA (API externa) | **PLANEJADO** |

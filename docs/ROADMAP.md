@@ -3,9 +3,9 @@
 | Fase | Nome | Escopo | Status |
 | --- | --- | --- | --- |
 | 00 | Foundation | Monorepo, web/api base, health, contracts, Docker/Nginx, MCP, docs, CI | IN_PROGRESS (BF 00) |
-| 01 | Academic Core | Tratamento de erros, paginação genérica, base de repositórios/use cases | IN_PROGRESS — erros, repositórios, use cases e UnitOfWork prontos (BF 01); paginação pendente |
+| 01 | Academic Core | Tratamento de erros, paginação genérica, base de repositórios/use cases | DONE — erros, repositórios, use cases, UnitOfWork (BF 01); paginação genérica (BF 02) |
 | 02 | Authentication & User Management | Cadastro, login, JWT, Argon2, validação de email/CPF/senha, edição do próprio usuário | DONE (BF 01) |
-| 03 | CRUD Domain | Workspace + Membership (ADR-009); Hosts, Detection Rules, Incidents, Investigations por workspace, com relações e paginação | IN_PROGRESS — Workspace pessoal + Membership OWNER criados no cadastro (BF 01); CRUDs TODO |
+| 03 | CRUD Domain | Workspace + Membership (ADR-009); Hosts, Detection Rules, Incidents, Investigations por workspace, com relações e paginação | IN_PROGRESS — Workspace pessoal + Membership OWNER (BF 01); Hosts CRUD com paginação e isolamento por workspace (BF 02); Detection Rules, Incidents, Investigations TODO |
 | 04 | Event Model | Schema de eventos normalizados, ingestão via API | TODO |
 | 05 | Aegis Collector | Agente Rust: buffering, batching, envio autenticado | TODO (Linux) |
 | 06 | eBPF Telemetry | Probes Aya: exec/exit, parent/child, arquivo, rede (sem payload) | TODO (Linux) |

@@ -37,24 +37,26 @@ Workspace
 
 | Requisito | Status | Implementação | Evidência | Testes | Notas |
 | --- | --- | --- | --- | --- | --- |
-| Hosts CRUD | TODO | - | - | - | |
+| Hosts CRUD | PASS | `apps/api/src/presentation/http/routes/hosts.route.ts`, `application/use-cases/hosts/*`, `apps/web/src/pages/hosts/*` | `POST/GET /workspaces/:workspaceId/hosts`, `GET/PUT/DELETE /workspaces/:workspaceId/hosts/:hostId` (201/200/200/200/204); telas `/hosts`, `/hosts/novo`, `/hosts/:hostId`, `/hosts/:hostId/editar` | `apps/api/test/http/hosts.test.ts`, `test/application/hosts.test.ts`, `test/integration/hosts.mysql.test.ts`, `apps/web/test/hosts.test.tsx` | Host manual, sem Collector; campos de telemetria não editáveis (ADR-021) |
 | Detection Rules CRUD | TODO | - | - | - | pertence ao Workspace |
 | Incidents CRUD | TODO | - | - | - | pertence ao Workspace; Host/Rule → Incident |
 | Investigations CRUD | TODO | - | - | - | pertence ao Workspace; Incident → Investigation (autor: User) |
-| Paginação | TODO | - | - | - | |
-| Relacionamentos | TODO | - | - | - | |
-| Recurso inexistente (404) | TODO | - | - | - | |
-| Autorização por CRUD | TODO | - | - | - | |
+| Paginação | PASS | `packages/contracts/src/pagination.ts`, `presentation/http/mappers.ts` (`toPaginatedResponse`), `apps/web/src/components/Pagination.tsx` | `?page=&pageSize=&q=`; padrão 1/20, `pageSize` ≤ 100; `{ items, pagination: { page, pageSize, total, totalPages } }`; ordem `created_at DESC, id DESC` | `test/http/hosts.test.ts` (25 hosts → 10/10/5, inválidos → 400), `test/integration/hosts.mysql.test.ts`, `packages/contracts/test/hosts.test.ts`, `apps/web/test/hosts.test.tsx` | Contrato genérico reutilizável pelos próximos CRUDs |
+| Relacionamentos | IN_PROGRESS | `apps/api/src/infrastructure/db/schema.ts`, `drizzle/0001_hosts.sql` | User–Membership–Workspace; Workspace 1–N Host com FK real (`hosts_workspace_id_workspaces_id_fk`) | `test/integration/hosts.mysql.test.ts` (FK) | Relações entre CRUDs (Host/Rule → Incident) pendentes |
+| Recurso inexistente (404) | PASS | `application/use-cases/hosts/{get,update,delete}-host.ts`, `apps/web/src/pages/hosts/HostNotFound.tsx` | GET/PUT/DELETE de host inexistente → 404; de outro workspace → mesmo 404 | `test/http/hosts.test.ts` ("404 for a missing host on GET, PUT and DELETE"), `apps/web/test/hosts.test.tsx` | Próximos CRUDs devem seguir o mesmo padrão |
+| Autorização por CRUD | IN_PROGRESS | `apps/api/src/application/workspace-access.ts` | Hosts: membership obrigatória, escrita só OWNER, isolamento entre workspaces | `test/http/hosts.test.ts` ("multi-tenant isolation"), `test/application/hosts.test.ts` | 1 de 4 CRUDs |
+| Rotas autenticadas (CRUD) | PASS | `hosts.route.ts` (`preHandler` `authenticate`) | todas as rotas de hosts exigem Bearer | `test/http/hosts.test.ts` ("hosts: authentication") | |
+| Telas separadas de criação e edição | PASS | `apps/web/src/pages/hosts/CreateHostPage.tsx`, `EditHostPage.tsx`, `features/hosts/HostForm.tsx` | rotas `/hosts/novo` e `/hosts/:hostId/editar`; formulário compartilhado | `apps/web/test/hosts.test.tsx` | |
 
 ## TypeScript / POO
 
 | Requisito | Status | Implementação | Evidência | Testes | Notas |
 | --- | --- | --- | --- | --- | --- |
 | TypeScript strict | PASS | `tsconfig.base.json` | `strict`, `noImplicitAny`, `noUncheckedIndexedAccess`; `npm run typecheck` | CI | |
-| Classes / abstract classes | PASS | `packages/domain/src/entity.ts`, `domain-error.ts`, `apps/api/src/domain/*.ts` | `Entity<TId>` abstrata → `User`, `Workspace`; `DomainError` abstrata → 4 erros; construtores `private` + factories | `apps/api/test/domain/entities.test.ts` | Campos `#private` em `User` (hash nunca serializado) |
+| Classes / abstract classes | PASS | `packages/domain/src/entity.ts`, `domain-error.ts`, `apps/api/src/domain/*.ts` | `Entity<TId>` abstrata → `User`, `Workspace`, `Host`; `DomainError` abstrata → 4 erros; construtores `private` + factories | `apps/api/test/domain/entities.test.ts` | Campos `#private` em `User` (hash nunca serializado) |
 | Interfaces / type aliases | PASS | `apps/api/src/application/ports/*.ts`, `packages/contracts/src/*.ts` | ports `UserRepository`, `PasswordHasher`, `TokenService`, `UnitOfWork`; DTOs de transporte | `test/application/use-cases.test.ts` (dublês implementam os ports) | |
 | Generics | PASS | `packages/domain/src/entity.ts`, `application/ports/repositories.ts`, `apps/web/src/lib/api-client.ts` | `Entity<string>`, `UnitOfWork.run<T>`, `apiRequest<T>` | `test/integration/mysql-repositories.test.ts` | |
-| Exceções customizadas | PASS | `packages/domain/src/domain-error.ts`, `apps/api/src/presentation/http/error-handler.ts` | `ValidationError` 400, `AuthenticationError` 401, `ConflictError` 409, `NotFoundError` 404; 500 genérico sem stack | `packages/domain/test/domain-error.test.ts`, `test/http/*.test.ts` | |
+| Exceções customizadas | PASS | `packages/domain/src/domain-error.ts`, `apps/api/src/presentation/http/error-handler.ts` | `ValidationError` 400, `AuthenticationError` 401, `ForbiddenError` 403, `ConflictError` 409, `NotFoundError` 404; 500 genérico sem stack | `packages/domain/test/domain-error.test.ts`, `test/http/*.test.ts` | |
 | SOLID / DIP | PASS | `apps/api/src/application`, `infrastructure`, `composition-root.ts` | use cases dependem de ports; adapters Drizzle/Argon2/jose injetados na composição | `test/application/use-cases.test.ts` (in-memory), `test/integration/*` (MySQL) | |
 
 ## Infraestrutura
