@@ -13,6 +13,10 @@ import { HostsPage } from '../pages/hosts/HostsPage';
 import { CreateHostPage } from '../pages/hosts/CreateHostPage';
 import { HostDetailPage } from '../pages/hosts/HostDetailPage';
 import { EditHostPage } from '../pages/hosts/EditHostPage';
+import { RulesPage } from '../pages/rules/RulesPage';
+import { CreateRulePage } from '../pages/rules/CreateRulePage';
+import { RuleDetailPage } from '../pages/rules/RuleDetailPage';
+import { EditRulePage } from '../pages/rules/EditRulePage';
 
 /** Exported separately so tests can mount the same tree in a memory router. */
 export const routes: RouteObject[] = [
@@ -48,6 +52,10 @@ export const routes: RouteObject[] = [
               { path: '/hosts/novo', element: <CreateHostPage /> },
               { path: '/hosts/:hostId', element: <HostDetailPage /> },
               { path: '/hosts/:hostId/editar', element: <EditHostPage /> },
+              { path: '/regras', element: <RulesPage /> },
+              { path: '/regras/nova', element: <CreateRulePage /> },
+              { path: '/regras/:ruleId', element: <RuleDetailPage /> },
+              { path: '/regras/:ruleId/editar', element: <EditRulePage /> },
             ],
           },
         ],
