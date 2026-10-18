@@ -2,7 +2,11 @@ import { ConflictError, type Cpf, type Email } from '@aegis/domain';
 import { User, type UserSnapshot } from '../../src/domain/user.js';
 import { Workspace, type WorkspaceSnapshot } from '../../src/domain/workspace.js';
 import { Membership, type MembershipSnapshot } from '../../src/domain/membership.js';
+import { Host, type HostSnapshot } from '../../src/domain/host.js';
+import { offsetOf, type Page } from '../../src/application/pagination.js';
 import type {
+  HostListFilter,
+  HostRepository,
   MembershipRepository,
   Repositories,
   UnitOfWork,
@@ -20,12 +24,14 @@ export class InMemoryStore {
   users = new Map<string, UserSnapshot>();
   workspaces = new Map<string, WorkspaceSnapshot>();
   memberships = new Map<string, MembershipSnapshot>();
+  hosts = new Map<string, HostSnapshot>();
 
   clone(): InMemoryStore {
     const copy = new InMemoryStore();
     copy.users = new Map(this.users);
     copy.workspaces = new Map(this.workspaces);
     copy.memberships = new Map(this.memberships);
+    copy.hosts = new Map(this.hosts);
     return copy;
   }
 
@@ -33,6 +39,7 @@ export class InMemoryStore {
     this.users = other.users;
     this.workspaces = other.workspaces;
     this.memberships = other.memberships;
+    this.hosts = other.hosts;
   }
 }
 
@@ -98,6 +105,11 @@ class InMemoryMembershipRepository implements MembershipRepository {
     this.store.memberships.set(key, membership.toSnapshot());
   }
 
+  async find(userId: string, workspaceId: string): Promise<Membership | null> {
+    const snapshot = this.store.memberships.get(`${userId}:${workspaceId}`);
+    return snapshot ? Membership.restore(snapshot) : null;
+  }
+
   async listForUser(userId: string): Promise<WorkspaceMembership[]> {
     return [...this.store.memberships.values()]
       .filter((membership) => membership.userId === userId)
@@ -108,11 +120,55 @@ class InMemoryMembershipRepository implements MembershipRepository {
   }
 }
 
+/** Same contract as the SQL adapter: workspace-scoped, createdAt DESC then id DESC, case-insensitive search. */
+class InMemoryHostRepository implements HostRepository {
+  constructor(private readonly store: InMemoryStore) {}
+
+  async insert(host: Host): Promise<void> {
+    if (!this.store.workspaces.has(host.workspaceId)) throw new Error('foreign key constraint fails');
+    this.store.hosts.set(host.id, host.toSnapshot());
+  }
+
+  async findInWorkspace(workspaceId: string, hostId: string): Promise<Host | null> {
+    const snapshot = this.store.hosts.get(hostId);
+    return snapshot && snapshot.workspaceId === workspaceId ? Host.restore(snapshot) : null;
+  }
+
+  async listInWorkspace(workspaceId: string, filter: HostListFilter): Promise<Page<Host>> {
+    const needle = filter.search?.toLowerCase();
+    const matching = [...this.store.hosts.values()]
+      .filter((host) => host.workspaceId === workspaceId)
+      .filter((host) => !needle || host.displayName.toLowerCase().includes(needle) || (host.description ?? '').toLowerCase().includes(needle))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    const start = offsetOf(filter);
+    return {
+      items: matching.slice(start, start + filter.pageSize).map((host) => Host.restore(host)),
+      total: matching.length,
+      page: filter.page,
+      pageSize: filter.pageSize,
+    };
+  }
+
+  async update(host: Host): Promise<void> {
+    const current = this.store.hosts.get(host.id);
+    if (!current || current.workspaceId !== host.workspaceId) return;
+    const { displayName, description, updatedAt } = host.toSnapshot();
+    this.store.hosts.set(host.id, { ...current, displayName, description, updatedAt });
+  }
+
+  async deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean> {
+    const current = this.store.hosts.get(hostId);
+    if (!current || current.workspaceId !== workspaceId) return false;
+    return this.store.hosts.delete(hostId);
+  }
+}
+
 export function repositoriesFor(store: InMemoryStore): Repositories {
   return {
     users: new InMemoryUserRepository(store),
     workspaces: new InMemoryWorkspaceRepository(store),
     memberships: new InMemoryMembershipRepository(store),
+    hosts: new InMemoryHostRepository(store),
   };
 }
 
