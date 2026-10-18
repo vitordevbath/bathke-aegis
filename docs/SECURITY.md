@@ -50,6 +50,13 @@ configurável e removível.
 - O workspace ativo salvo no navegador (`aegis.workspace.active`) é só preferência: um ID que não pertence mais ao usuário é ignorado, e a API decide.
 - Nenhuma telemetria é simulada: sem Collector, hosts são "Não pareado".
 
+### Definições de regras de detecção (CURRENT, BF 03)
+
+- Regras são dados declarativos (ADR-022): sem JavaScript, `eval`, SQL, shell, regex ou templates. Campos e operadores vêm de allowlists; valores são tipados e limitados; propriedades desconhecidas são rejeitadas, inclusive dentro da definição.
+- O mesmo validador roda na API (autoridade), no formulário web e ao reidratar do banco — uma definição corrompida no banco é recusada, não interpretada.
+- Nenhuma regra é executada nesta fase; não há eventos, alertas ou worker em segundo plano.
+- Targets só apontam para hosts do mesmo workspace (verificado na transação que os grava); host alheio e host inexistente recebem a mesma resposta (ADR-023).
+
 ### Limitações conhecidas
 
 - Logout é local; tokens emitidos continuam válidos até expirar (sem revogação).

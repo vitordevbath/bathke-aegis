@@ -51,3 +51,22 @@ export {
   type HostListQuery,
   type HostResponse,
 } from './hosts.js';
+export {
+  DetectionRuleRequestSchema,
+  CreateDetectionRuleRequestSchema,
+  UpdateDetectionRuleRequestSchema,
+  DetectionRuleListQuerySchema,
+  type CreateDetectionRuleRequest,
+  type UpdateDetectionRuleRequest,
+  type DetectionRuleCommand,
+  type DetectionRuleListQuery,
+  type DetectionRuleSummary,
+  type DetectionRuleTarget,
+  type DetectionRuleResponse,
+  type DetectionCondition,
+  type DetectionDefinitionV1,
+  type DetectionEventCategory,
+  type DetectionOperator,
+  type DetectionScope,
+  type DetectionSeverity,
+} from './detection-rules.js';

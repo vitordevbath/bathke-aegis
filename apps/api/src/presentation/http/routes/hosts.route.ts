@@ -1,6 +1,4 @@
-import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { z } from 'zod';
-import { NotFoundError } from '@aegis/domain';
+import type { FastifyPluginAsync } from 'fastify';
 import {
   CreateHostRequestSchema,
   HostListQuerySchema,
@@ -16,6 +14,7 @@ import type { UpdateHost } from '../../../application/use-cases/hosts/update-hos
 import type { DeleteHost } from '../../../application/use-cases/hosts/delete-host.js';
 import { authenticate, currentUserOf } from '../authenticate.js';
 import { toHostResponse, toPaginatedResponse } from '../mappers.js';
+import { WorkspaceParamsSchema, paramsOf, resourceParamsSchema } from '../route-params.js';
 
 export interface HostsRouteOptions {
   readonly resolveAuthenticatedUser: ResolveAuthenticatedUser;
@@ -26,15 +25,7 @@ export interface HostsRouteOptions {
   readonly deleteHost: DeleteHost;
 }
 
-const WorkspaceParamsSchema = z.object({ workspaceId: z.string().uuid() });
-const HostParamsSchema = WorkspaceParamsSchema.extend({ hostId: z.string().uuid() });
-
-/** Malformed ids are indistinguishable from unknown ones: 404, not 400. */
-function paramsOf<T extends z.ZodTypeAny>(schema: T, request: FastifyRequest): z.output<T> {
-  const parsed = schema.safeParse(request.params);
-  if (!parsed.success) throw new NotFoundError();
-  return parsed.data;
-}
+const HostParamsSchema = resourceParamsSchema('hostId');
 
 /**
  * Hosts are always addressed through their workspace. Every route is

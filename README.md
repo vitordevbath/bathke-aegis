@@ -32,7 +32,7 @@ permitir suporte futuro a coletores para outros sistemas operacionais.
 
 ## Status atual
 
-BF 02 — Hosts CRUD com paginação e isolamento por workspace concluído.
+BF 03 — Detection Rules CRUD (DSL declarativa, targets por host) concluído.
 
 | Componente | Status |
 | --- | --- |
@@ -44,7 +44,8 @@ BF 02 — Hosts CRUD com paginação e isolamento por workspace concluído.
 | MySQL + Drizzle: `users`, `workspaces`, `memberships` com migrations versionadas | **IMPLEMENTADO** |
 | Autenticação (Argon2id + JWT), usuário, workspace pessoal + membership OWNER | **IMPLEMENTADO** |
 | Hosts CRUD por workspace (cadastro manual, paginação, busca), workspace ativo | **IMPLEMENTADO** |
-| Detection Rules, Incidents, Investigations, workspaces compartilhados | **PLANEJADO** |
+| Detection Rules CRUD (regras declarativas v1, escopo por host) — configuração, ainda não executadas | **IMPLEMENTADO** |
+| Detection Engine (execução das regras), Incidents, Investigations, workspaces compartilhados | **PLANEJADO** |
 | Aegis Collector (Rust), camada de telemetria eBPF | **PLANEJADO** |
 | Aegis Verified Core (Ada/SPARK), experimentos x86-64 | **PLANEJADO** |
 | Análise assistida por IA (API externa) | **PLANEJADO** |

@@ -15,9 +15,9 @@ Quality over quantity: no fake features, no fake architecture, no TODO marked as
 
 | | CURRENT | PLANNED |
 | --- | --- | --- |
-| Web | auth pages, `/dashboard`, `/perfil`, `/hosts` (list/create/detail/edit); AuthContext, WorkspaceContext | remaining CRUD screens, timeline, graph |
-| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts CRUD per workspace | 3 remaining CRUDs, events, detection |
-| Data | `users`, `workspaces`, `memberships`, `hosts` (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
+| Web | auth pages, `/dashboard`, `/perfil`, `/hosts` and `/regras` (list/create/detail/edit); AuthContext, WorkspaceContext | remaining CRUD screens, timeline, graph |
+| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts and Detection Rules CRUD per workspace (rules are configuration only) | Incidents, Investigations, events, detection engine |
+| Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets` (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
 | Tooling | Aegis MCP, CI (typecheck/build/test) | rubric engine expansion |
 | Native | READMEs only | collector, eBPF, SPARK, NASM |
 
@@ -29,7 +29,7 @@ Details: `docs/ARCHITECTURE.md`. Check `aegis_architecture_info` (Aegis MCP) bef
 apps/web            React + TS + Vite (src/app, pages, features, components, lib, styles, types)
 apps/api            Fastify + TS (src/presentation, application, domain, infrastructure, shared; drizzle/ migrations)
 packages/contracts  transport DTOs shared by web and api — never domain entities
-packages/domain     Entity, DomainError hierarchy, Email, Cpf, PasswordPolicy
+packages/domain     Entity, DomainError hierarchy, Email, Cpf, PasswordPolicy, host rules, detection rule schema v1
 tools/aegis-mcp     restricted MCP server
 native/             planned low-level components (README only)
 agents/skills/      backend-engineering, frontend-engineering, security-review

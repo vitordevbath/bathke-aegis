@@ -1,9 +1,19 @@
-import type { HostResponse, MeResponse, PaginatedResponse, UserResponse, WorkspaceSummary } from '@aegis/contracts';
+import type {
+  DetectionRuleResponse,
+  DetectionRuleSummary,
+  HostResponse,
+  MeResponse,
+  PaginatedResponse,
+  UserResponse,
+  WorkspaceSummary,
+} from '@aegis/contracts';
 import type { User } from '../../domain/user.js';
 import type { AccountView } from '../../application/account-view.js';
 import type { WorkspaceMembership } from '../../application/ports/repositories.js';
 import type { Page } from '../../application/pagination.js';
 import type { Host } from '../../domain/host.js';
+import type { DetectionRule } from '../../domain/detection-rule.js';
+import type { DetectionRuleView } from '../../application/use-cases/detection-rules/detection-rule-view.js';
 
 /** Explicit allowlist of public user fields — the password hash can never slip through. */
 export function toUserResponse(user: User): UserResponse {
@@ -54,5 +64,31 @@ export function toPaginatedResponse<T, R>(page: Page<T>, map: (item: T) => R): P
       total: page.total,
       totalPages: Math.ceil(page.total / page.pageSize),
     },
+  };
+}
+
+export function toDetectionRuleSummary(rule: DetectionRule): DetectionRuleSummary {
+  const snapshot = rule.toSnapshot();
+  return {
+    id: snapshot.id,
+    workspaceId: snapshot.workspaceId,
+    name: snapshot.name,
+    description: snapshot.description,
+    severity: snapshot.severity,
+    enabled: snapshot.enabled,
+    eventCategory: snapshot.eventCategory,
+    scope: snapshot.scope,
+    targetCount: snapshot.targetHostIds.length,
+    conditionCount: snapshot.definition.conditions.length,
+    createdAt: snapshot.createdAt.toISOString(),
+    updatedAt: snapshot.updatedAt.toISOString(),
+  };
+}
+
+export function toDetectionRuleResponse({ rule, targets }: DetectionRuleView): DetectionRuleResponse {
+  return {
+    ...toDetectionRuleSummary(rule),
+    definition: rule.definition,
+    targets: targets.map((host) => ({ hostId: host.id, displayName: host.displayName, connectionState: host.connectionState })),
   };
 }

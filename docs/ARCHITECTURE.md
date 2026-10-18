@@ -19,11 +19,11 @@ nginx (única porta publicada: 8080 → 80)     redes: aegis_edge, aegis_applica
 
 | Componente | Local | O que existe |
 | --- | --- | --- |
-| Aegis Web | `apps/web` | `/`, `/login`, `/cadastro` (públicas); `/dashboard`, `/perfil`, `/hosts`, `/hosts/novo`, `/hosts/:hostId`, `/hosts/:hostId/editar` (protegidas); `AuthContext`, `WorkspaceContext` (workspace ativo), cliente HTTP central, token em localStorage (ADR-017) |
-| Aegis API | `apps/api` | `GET /health`; `POST /auth/register`, `POST /auth/login`; `GET`/`PUT /users/me`; CRUD `/workspaces/:workspaceId/hosts[/:hostId]` com paginação; Argon2id, JWT, rate limit em `/auth/*` |
-| Contracts | `packages/contracts` | DTOs + schemas Zod de auth, usuário e hosts; `PaginationQuerySchema` + `PaginatedResponse<T>`; envelope de erro |
-| Domain | `packages/domain` | `Entity<TId>`, hierarquia `DomainError`, value objects `Email`, `Cpf`, `PasswordPolicy` (ADR-018) |
-| MySQL | `compose.yaml` | MySQL 8.4; tabelas `users`, `workspaces`, `memberships`, `hosts` via migrations versionadas aplicadas pelo serviço `migrate` (ADR-019) |
+| Aegis Web | `apps/web` | `/`, `/login`, `/cadastro` (públicas); `/dashboard`, `/perfil`, `/hosts`, `/hosts/novo`, `/hosts/:hostId`, `/hosts/:hostId/editar`, `/regras`, `/regras/nova`, `/regras/:ruleId`, `/regras/:ruleId/editar` (protegidas; telas de CRUD carregadas sob demanda); `AuthContext`, `WorkspaceContext` (workspace ativo), cliente HTTP central, token em localStorage (ADR-017) |
+| Aegis API | `apps/api` | `GET /health`; `POST /auth/register`, `POST /auth/login`; `GET`/`PUT /users/me`; CRUD `/workspaces/:workspaceId/hosts[/:hostId]` e `/workspaces/:workspaceId/detection-rules[/:ruleId]` com paginação; Argon2id, JWT, rate limit em `/auth/*` |
+| Contracts | `packages/contracts` | DTOs + schemas Zod de auth, usuário, hosts e detection rules; `PaginationQuerySchema` + `PaginatedResponse<T>`; envelope de erro |
+| Domain | `packages/domain` | `Entity<TId>`, hierarquia `DomainError`, value objects `Email`, `Cpf`, `PasswordPolicy`, regras do Host e schema v1 de regras de detecção (ADR-018, ADR-022) |
+| MySQL | `compose.yaml` | MySQL 8.4; tabelas `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets` via migrations versionadas aplicadas pelo serviço `migrate` (ADR-019) |
 | Nginx | `infra/nginx` | Reverse proxy, headers de segurança e CSP estrita |
 | Aegis MCP | `tools/aegis-mcp` | Servidor MCP stdio, 7 ferramentas, allowlist e secret guard |
 
@@ -32,10 +32,11 @@ nginx (única porta publicada: 8080 → 80)     redes: aegis_edge, aegis_applica
 ```
 presentation  → rotas, preHandler de autenticação, error handler, mappers → contracts
 application   → use cases (RegisterUser, AuthenticateUser, ResolveAuthenticatedUser,
-                GetCurrentUser, UpdateCurrentUser, Create/List/Get/Update/DeleteHost),
+                GetCurrentUser, UpdateCurrentUser, Create/List/Get/Update/DeleteHost,
+                Create/List/Get/Update/DeleteDetectionRule),
                 WorkspaceAccess (membership/papel), Page<T> + ports (repositórios,
                 UnitOfWork, PasswordHasher, TokenService)
-domain        → User, Workspace, Membership, Host (value objects/erros vêm de @aegis/domain)
+domain        → User, Workspace, Membership, Host, DetectionRule (value objects/erros/schema vêm de @aegis/domain)
 infrastructure→ Drizzle/MySQL (repositórios + UnitOfWork transacional), Argon2id, jose
 shared        → env validado com Zod
 composition-root.ts → conecta use cases aos adapters (produção ou dublês de teste)
@@ -59,11 +60,22 @@ hosts (id UUID, workspace_id FK, display_name, description,          ← adminis
        agent_id UNIQUE NULL, hostname, os_name, os_version,          ← fatos do Collector (futuro)
        architecture, connection_state=UNPAIRED, last_seen_at,
        created_at, updated_at)   INDEX (workspace_id, created_at, id)
+  │ 1                                      │ N (RESTRICT)
+  │ N                                      │
+detection_rules (id UUID, workspace_id FK, name, description, severity,
+       enabled, event_category, scope ∈ ALL_HOSTS|SELECTED_HOSTS,
+       definition JSON v1, created_at, updated_at)   INDEX (workspace_id, created_at, id)
+  │ 1 (CASCADE)
+  │ N
+detection_rule_targets (detection_rule_id FK, host_id FK, created_at)   PK (rule, host), INDEX (host_id)
 ```
 
+Detection rules são **configuração**: ficam armazenadas e validadas, mas nada as avalia
+(sem ingestão de eventos, sem Detection Engine). Ver ADR-022 e ADR-023.
+
 Somente `personal` e `OWNER` têm comportamento nesta fase; os demais valores são reservados
-(ADR-009, ADR-012). Hosts já pertencem ao workspace; Detection Rules, Incidents e
-Investigations seguirão o mesmo modelo, nunca vinculados diretamente ao usuário.
+(ADR-009, ADR-012). Hosts e Detection Rules já pertencem ao workspace; Incidents e Investigations
+seguirão o mesmo modelo, nunca vinculados diretamente ao usuário.
 
 ### Acesso a recursos do workspace (CURRENT)
 
