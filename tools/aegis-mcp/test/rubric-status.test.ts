@@ -17,20 +17,18 @@ describe('evaluateRubric', () => {
     'Email immutability',
     'Hosts CRUD',
     'Pagination',
+    'Detection Rules CRUD',
+    'Relationships',
   ])('reports %s as PASS from implementation and test evidence', (requirement) => {
     expect(results.get(requirement)?.state).toBe('PASS');
   });
 
-  it.each(['Detection Rules CRUD', 'Incidents CRUD', 'Investigations CRUD'])(
+  it.each(['Incidents CRUD', 'Investigations CRUD'])(
     'keeps %s as TODO until it exists',
     (requirement) => {
       expect(results.get(requirement)?.state).toBe('TODO');
     },
   );
-
-  it('keeps Relationships IN_PROGRESS until CRUDs reference each other', () => {
-    expect(results.get('Relationships')?.state).toBe('IN_PROGRESS');
-  });
 
   it('degrades to IN_PROGRESS when part of the evidence is missing', () => {
     const partial = Object.create(RepoReader.prototype) as RepoReader;

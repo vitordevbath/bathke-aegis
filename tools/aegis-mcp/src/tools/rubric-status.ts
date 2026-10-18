@@ -131,7 +131,24 @@ const CHECKS: readonly RubricCheck[] = [
       { file: 'apps/web/test/hosts.test.tsx', pattern: /create host \(separate screen\)/ },
     ]),
   },
-  { requirement: 'Detection Rules CRUD', evaluate: todo() },
+  {
+    requirement: 'Detection Rules CRUD',
+    evaluate: implementedAndTested('CRUD under /workspaces/:id/detection-rules; declarative schema v1; host targets; web builder; tests', [
+      { file: `${API}/presentation/http/routes/detection-rules.route.ts`, pattern: /app\.post\('\/workspaces\/:workspaceId\/detection-rules'/ },
+      { file: `${API}/presentation/http/routes/detection-rules.route.ts`, pattern: /app\.get\('\/workspaces\/:workspaceId\/detection-rules'/ },
+      { file: `${API}/presentation/http/routes/detection-rules.route.ts`, pattern: /app\.get\('\/workspaces\/:workspaceId\/detection-rules\/:ruleId'/ },
+      { file: `${API}/presentation/http/routes/detection-rules.route.ts`, pattern: /app\.put\('\/workspaces\/:workspaceId\/detection-rules\/:ruleId'/ },
+      { file: `${API}/presentation/http/routes/detection-rules.route.ts`, pattern: /app\.delete\('\/workspaces\/:workspaceId\/detection-rules\/:ruleId'/ },
+      { file: `${API}/presentation/http/routes/detection-rules.route.ts`, pattern: /addHook\('preHandler', authenticate/ },
+      { file: `${API}/presentation/http/routes/detection-rules.route.ts`, pattern: /toPaginatedResponse/ },
+      { file: 'packages/domain/src/detection-rule-schema.ts', pattern: /validateDetectionDefinition/ },
+      { file: 'apps/web/src/pages/rules/CreateRulePage.tsx', pattern: /DetectionRuleForm/ },
+      { file: 'apps/web/src/pages/rules/EditRulePage.tsx', pattern: /DetectionRuleForm/ },
+      { file: `${API_TEST}/http/detection-rules.test.ts`, pattern: /multi-tenant isolation/ },
+      { file: `${API_TEST}/integration/detection-rules.mysql.test.ts`, pattern: /rolls back the rule row/ },
+      { file: 'apps/web/test/rules.test.tsx', pattern: /condition builder/ },
+    ]),
+  },
   { requirement: 'Incidents CRUD', evaluate: todo() },
   { requirement: 'Investigations CRUD', evaluate: todo() },
   {
@@ -145,10 +162,12 @@ const CHECKS: readonly RubricCheck[] = [
   },
   {
     requirement: 'Relationships',
-    evaluate: (repo) =>
-      contains(repo, `${API}/infrastructure/db/schema.ts`, /workspaceId: char\('workspace_id'[\s\S]*?references\(\(\) => workspaces\.id/)
-        ? { state: 'IN_PROGRESS', evidence: 'User–Membership–Workspace and Workspace 1–N Host with real FKs; CRUD-to-CRUD relations (Incident) pending' }
-        : { state: 'TODO', evidence: 'not implemented' },
+    evaluate: implementedAndTested('DetectionRule ↔ Host via detection_rule_targets (real FKs, same-workspace check in a transaction); Workspace 1–N Host/Rule', [
+      { file: 'apps/api/drizzle/0003_detection_rule_targets.sql', pattern: /FOREIGN KEY \(`host_id`\) REFERENCES `hosts`/ },
+      { file: `${API}/application/use-cases/detection-rules/detection-rule-view.ts`, pattern: /findManyInWorkspace/ },
+      { file: `${API_TEST}/integration/detection-rules.mysql.test.ts`, pattern: /cascades targets on rule delete/ },
+      { file: `${API_TEST}/http/detection-rules.test.ts`, pattern: /host of another workspace/ },
+    ]),
   },
   {
     requirement: 'TypeScript strict',
