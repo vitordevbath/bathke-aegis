@@ -3,6 +3,7 @@ import { Outlet, createBrowserRouter, type RouteObject } from 'react-router-dom'
 import { AuthProvider } from '../features/auth/AuthContext';
 import { GuestRoute, ProtectedRoute } from '../features/auth/route-guards';
 import { AppShell } from '../components/AppShell';
+import { PageLoader } from '../components/PageLoader';
 import { WorkspaceProvider } from '../features/workspaces/WorkspaceContext';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
@@ -19,6 +20,8 @@ function page<M extends Record<string, ComponentType>>(load: () => Promise<M>, n
 /** Exported separately so tests can mount the same tree in a memory router. */
 export const routes: RouteObject[] = [
   {
+    // Shown while a lazily loaded route is fetched on first navigation.
+    hydrateFallbackElement: <PageLoader />,
     element: (
       <AuthProvider>
         <Outlet />
