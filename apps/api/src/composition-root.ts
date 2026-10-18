@@ -1,0 +1,46 @@
+import type { Env } from './shared/env.js';
+import type { AppDependencies } from './presentation/http/app.js';
+import type { PasswordHasher } from './application/ports/password-hasher.js';
+import type { Repositories, UnitOfWork } from './application/ports/repositories.js';
+import type { TokenService } from './application/ports/token-service.js';
+import { RegisterUser } from './application/use-cases/register-user.js';
+import { AuthenticateUser } from './application/use-cases/authenticate-user.js';
+import { ResolveAuthenticatedUser } from './application/use-cases/resolve-authenticated-user.js';
+import { GetCurrentUser } from './application/use-cases/get-current-user.js';
+import { UpdateCurrentUser } from './application/use-cases/update-current-user.js';
+import { createDatabase } from './infrastructure/db/client.js';
+import { DrizzleUnitOfWork, createDrizzleRepositories } from './infrastructure/db/drizzle-repositories.js';
+import { Argon2PasswordHasher } from './infrastructure/security/argon2-password-hasher.js';
+import { JoseTokenService } from './infrastructure/security/jose-token-service.js';
+
+export interface Adapters {
+  readonly repositories: Repositories;
+  readonly unitOfWork: UnitOfWork;
+  readonly hasher: PasswordHasher;
+  readonly tokens: TokenService;
+}
+
+/** Wires use cases to whichever adapters are given (production or test doubles). */
+export function createUseCases(adapters: Adapters, authRateLimitMax: number): AppDependencies {
+  const { repositories, unitOfWork, hasher, tokens } = adapters;
+  return {
+    registerUser: new RegisterUser(repositories, unitOfWork, hasher),
+    authenticateUser: new AuthenticateUser(repositories, hasher, tokens),
+    resolveAuthenticatedUser: new ResolveAuthenticatedUser(tokens, repositories.users),
+    getCurrentUser: new GetCurrentUser(repositories.memberships),
+    updateCurrentUser: new UpdateCurrentUser(repositories, hasher),
+    authRateLimitMax,
+  };
+}
+
+/** Production wiring: MySQL via Drizzle, Argon2id, HS256 JWT. */
+export function createProductionDependencies(env: Env): { dependencies: AppDependencies; close: () => Promise<void> } {
+  const { db, close } = createDatabase(env.DATABASE_URL);
+  const adapters: Adapters = {
+    repositories: createDrizzleRepositories(db),
+    unitOfWork: new DrizzleUnitOfWork(db),
+    hasher: new Argon2PasswordHasher(),
+    tokens: new JoseTokenService({ secret: env.JWT_SECRET, ttlSeconds: env.JWT_TTL_SECONDS }),
+  };
+  return { dependencies: createUseCases(adapters, env.AUTH_RATE_LIMIT_MAX), close };
+}
