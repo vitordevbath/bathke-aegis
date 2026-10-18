@@ -19,17 +19,101 @@ const todo = (evidence = 'not implemented') => () => ({ state: 'TODO' as const, 
 const contains = (repo: RepoReader, file: string, pattern: RegExp): boolean =>
   repo.exists(file) && pattern.test(repo.readText(file));
 
+/** PASS only when every implementation pattern and its test are present; IN_PROGRESS if only some are. */
+const implementedAndTested =
+  (evidence: string, requirements: readonly { file: string; pattern: RegExp }[]) =>
+  (repo: RepoReader): { state: RubricState; evidence: string } => {
+    const met = requirements.filter(({ file, pattern }) => contains(repo, file, pattern));
+    if (met.length === requirements.length) return { state: 'PASS', evidence };
+    if (met.length === 0) return { state: 'TODO', evidence: 'not implemented' };
+    const missing = requirements.filter((requirement) => !met.includes(requirement)).map(({ file }) => file);
+    return { state: 'IN_PROGRESS', evidence: `missing evidence in ${[...new Set(missing)].join(', ')}` };
+  };
+
+const API = 'apps/api/src';
+const API_TEST = 'apps/api/test';
+
 /**
  * PASS requires implementation evidence found in the repository, never
  * documentation alone. Checks are upgraded as features land.
  */
 const CHECKS: readonly RubricCheck[] = [
-  { requirement: 'Authentication', evaluate: todo() },
-  { requirement: 'JWT', evaluate: todo() },
-  { requirement: 'Email validation', evaluate: todo('server-side validation not implemented') },
-  { requirement: 'CPF validation', evaluate: todo() },
-  { requirement: 'Password validation', evaluate: todo() },
-  { requirement: 'User ownership', evaluate: todo() },
+  {
+    requirement: 'User registration',
+    evaluate: implementedAndTested('POST /auth/register: user + personal workspace + OWNER membership in one transaction', [
+      { file: `${API}/presentation/http/routes/auth.route.ts`, pattern: /'\/auth\/register'/ },
+      { file: `${API}/application/use-cases/register-user.ts`, pattern: /unitOfWork\.run/ },
+      { file: `${API_TEST}/http/auth.test.ts`, pattern: /POST \/auth\/register/ },
+      { file: `${API_TEST}/integration/mysql-repositories.test.ts`, pattern: /rolls back/ },
+    ]),
+  },
+  {
+    requirement: 'Authentication',
+    evaluate: implementedAndTested('POST /auth/login with generic error; bearer preHandler on protected routes', [
+      { file: `${API}/presentation/http/routes/auth.route.ts`, pattern: /'\/auth\/login'/ },
+      { file: `${API}/presentation/http/authenticate.ts`, pattern: /Bearer/ },
+      { file: `${API_TEST}/http/auth.test.ts`, pattern: /Email ou senha inválidos/ },
+    ]),
+  },
+  {
+    requirement: 'JWT',
+    evaluate: implementedAndTested('HS256 via jose; sub/typ/iss/aud/exp only; secret validated at startup', [
+      { file: `${API}/infrastructure/security/jose-token-service.ts`, pattern: /jwtVerify/ },
+      { file: `${API}/shared/env.ts`, pattern: /JWT_SECRET/ },
+      { file: `${API_TEST}/security.test.ts`, pattern: /expired token/ },
+    ]),
+  },
+  {
+    requirement: 'Email validation',
+    evaluate: implementedAndTested('Email value object (trim, lower-case, pattern) shared by API and web via contracts', [
+      { file: 'packages/domain/src/email.ts', pattern: /EMAIL_PATTERN/ },
+      { file: 'packages/contracts/src/fields.ts', pattern: /Email\.isValid/ },
+      { file: 'packages/domain/test/value-objects.test.ts', pattern: /describe\('Email'/ },
+    ]),
+  },
+  {
+    requirement: 'CPF validation',
+    evaluate: implementedAndTested('Cpf value object: shape, repeated digits, both check digits; stored as 11 digits', [
+      { file: 'packages/domain/src/cpf.ts', pattern: /checkDigit/ },
+      { file: 'packages/domain/test/value-objects.test.ts', pattern: /rejects repeated digits/ },
+    ]),
+  },
+  {
+    requirement: 'Password validation',
+    evaluate: implementedAndTested('PasswordPolicy (10–128, lower, upper, digit, special) + confirmation on register and edit', [
+      { file: 'packages/domain/src/password-policy.ts', pattern: /MIN_LENGTH = 10/ },
+      { file: 'packages/contracts/src/auth.ts', pattern: /passwordConfirmation/ },
+      { file: 'packages/contracts/test/schemas.test.ts', pattern: /mismatched confirmation/ },
+    ]),
+  },
+  {
+    requirement: 'Password hashing',
+    evaluate: implementedAndTested('Argon2id (m=64 MiB, t=3, p=4) behind PasswordHasher port', [
+      { file: `${API}/infrastructure/security/argon2-password-hasher.ts`, pattern: /argon2id/ },
+      { file: `${API_TEST}/security.test.ts`, pattern: /\$argon2id/ },
+    ]),
+  },
+  {
+    requirement: 'User ownership',
+    evaluate: (repo) => {
+      const selfOnly =
+        contains(repo, `${API}/presentation/http/routes/users.route.ts`, /'\/users\/me'/) &&
+        // No route *registration* with a user id parameter (comments may mention it).
+        !contains(repo, `${API}/presentation/http/routes/users.route.ts`, /app\.\w+\(\s*'\/users\/:/) &&
+        contains(repo, `${API_TEST}/http/users.test.ts`, /another user cannot be targeted/);
+      return selfOnly
+        ? { state: 'PASS', evidence: 'only /users/me (identity from JWT); body identity fields rejected; tested' }
+        : { state: 'TODO', evidence: 'self-service user routes or tests missing' };
+    },
+  },
+  {
+    requirement: 'Email immutability',
+    evaluate: implementedAndTested('PUT /users/me rejects email; repository never writes it', [
+      { file: 'packages/contracts/src/users.ts', pattern: /EMAIL_IMMUTABLE_MESSAGE/ },
+      { file: `${API}/infrastructure/db/drizzle-repositories.ts`, pattern: /`email` is intentionally absent/ },
+      { file: `${API_TEST}/http/users.test.ts`, pattern: /email cannot be changed/ },
+    ]),
+  },
   { requirement: 'Hosts CRUD', evaluate: todo() },
   { requirement: 'Detection Rules CRUD', evaluate: todo() },
   { requirement: 'Incidents CRUD', evaluate: todo() },
@@ -48,14 +132,28 @@ const CHECKS: readonly RubricCheck[] = [
         : { state: 'TODO', evidence: 'strict flags missing in tsconfig.base.json' };
     },
   },
-  { requirement: 'Generics', evaluate: todo('only Entity<TId> base exists; no use in features yet') },
-  { requirement: 'SOLID', evaluate: () => ({ state: 'IN_PROGRESS', evidence: 'layered api structure; no use cases yet' }) },
+  {
+    requirement: 'Generics',
+    evaluate: implementedAndTested('Entity<string> subclasses; UnitOfWork.run<T>; apiRequest<T>', [
+      { file: `${API}/domain/user.ts`, pattern: /extends Entity<string>/ },
+      { file: `${API}/application/ports/repositories.ts`, pattern: /run<T>/ },
+    ]),
+  },
+  {
+    requirement: 'SOLID',
+    evaluate: implementedAndTested('use cases depend on ports; Drizzle/Argon2/jose adapters wired in composition root', [
+      { file: `${API}/application/ports/repositories.ts`, pattern: /interface UserRepository/ },
+      { file: `${API}/composition-root.ts`, pattern: /createUseCases/ },
+      { file: `${API_TEST}/application/use-cases.test.ts`, pattern: /createInMemoryPersistence/ },
+    ]),
+  },
   {
     requirement: 'Custom exceptions',
-    evaluate: (repo) =>
-      repo.exists('packages/domain/src/domain-error.ts')
-        ? { state: 'IN_PROGRESS', evidence: 'DomainError base exists; no concrete domain errors yet' }
-        : { state: 'TODO', evidence: 'no DomainError' },
+    evaluate: implementedAndTested('DomainError → Validation/Authentication/Conflict/NotFound, mapped to HTTP in one handler', [
+      { file: 'packages/domain/src/domain-error.ts', pattern: /class ConflictError extends DomainError/ },
+      { file: `${API}/presentation/http/error-handler.ts`, pattern: /instanceof ConflictError/ },
+      { file: 'packages/domain/test/domain-error.test.ts', pattern: /stable code/ },
+    ]),
   },
   {
     requirement: 'Docker',
@@ -66,10 +164,12 @@ const CHECKS: readonly RubricCheck[] = [
   },
   {
     requirement: 'MySQL',
-    evaluate: (repo) =>
-      contains(repo, 'compose.yaml', /image:\s*mysql/) && repo.exists('apps/api/src/infrastructure/db/schema.ts')
-        ? { state: 'IN_PROGRESS', evidence: 'mysql service + Drizzle schema; no migrations or repositories' }
-        : { state: 'TODO', evidence: 'mysql not configured' },
+    evaluate: implementedAndTested('versioned Drizzle migrations, repositories and integration tests against MySQL 8.4', [
+      { file: 'compose.yaml', pattern: /image:\s*mysql/ },
+      { file: 'apps/api/drizzle/meta/_journal.json', pattern: /init_auth_user_workspace/ },
+      { file: `${API}/infrastructure/db/drizzle-repositories.ts`, pattern: /DrizzleUnitOfWork/ },
+      { file: `${API_TEST}/integration/mysql-repositories.test.ts`, pattern: /MySQL persistence/ },
+    ]),
   },
   {
     requirement: 'Nginx',
