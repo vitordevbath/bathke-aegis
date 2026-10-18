@@ -19,7 +19,9 @@
     "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
     "lint": "npm run typecheck",
     "test": "npm run test --workspaces --if-present",
-    "build:packages": "npm run build -w @aegis/domain && npm run build -w @aegis/contracts"
+    "build:packages": "npm run build -w @aegis/domain && npm run build -w @aegis/contracts",
+    "db:generate": "npm run db:generate -w @aegis/api",
+    "db:migrate": "npm run db:migrate -w @aegis/api"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
