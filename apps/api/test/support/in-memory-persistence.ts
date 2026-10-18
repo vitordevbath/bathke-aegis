@@ -3,8 +3,11 @@ import { User, type UserSnapshot } from '../../src/domain/user.js';
 import { Workspace, type WorkspaceSnapshot } from '../../src/domain/workspace.js';
 import { Membership, type MembershipSnapshot } from '../../src/domain/membership.js';
 import { Host, type HostSnapshot } from '../../src/domain/host.js';
+import { DetectionRule, type DetectionRuleSnapshot } from '../../src/domain/detection-rule.js';
 import { offsetOf, type Page } from '../../src/application/pagination.js';
 import type {
+  DetectionRuleListFilter,
+  DetectionRuleRepository,
   HostListFilter,
   HostRepository,
   MembershipRepository,
@@ -25,6 +28,7 @@ export class InMemoryStore {
   workspaces = new Map<string, WorkspaceSnapshot>();
   memberships = new Map<string, MembershipSnapshot>();
   hosts = new Map<string, HostSnapshot>();
+  detectionRules = new Map<string, DetectionRuleSnapshot>();
 
   clone(): InMemoryStore {
     const copy = new InMemoryStore();
@@ -32,6 +36,7 @@ export class InMemoryStore {
     copy.workspaces = new Map(this.workspaces);
     copy.memberships = new Map(this.memberships);
     copy.hosts = new Map(this.hosts);
+    copy.detectionRules = new Map(this.detectionRules);
     return copy;
   }
 
@@ -40,6 +45,7 @@ export class InMemoryStore {
     this.workspaces = other.workspaces;
     this.memberships = other.memberships;
     this.hosts = other.hosts;
+    this.detectionRules = other.detectionRules;
   }
 }
 
@@ -134,6 +140,13 @@ class InMemoryHostRepository implements HostRepository {
     return snapshot && snapshot.workspaceId === workspaceId ? Host.restore(snapshot) : null;
   }
 
+  async findManyInWorkspace(workspaceId: string, hostIds: readonly string[]): Promise<Host[]> {
+    return [...this.store.hosts.values()]
+      .filter((host) => host.workspaceId === workspaceId && hostIds.includes(host.id))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.id.localeCompare(b.id))
+      .map((host) => Host.restore(host));
+  }
+
   async listInWorkspace(workspaceId: string, filter: HostListFilter): Promise<Page<Host>> {
     const needle = filter.search?.toLowerCase();
     const matching = [...this.store.hosts.values()]
@@ -159,7 +172,70 @@ class InMemoryHostRepository implements HostRepository {
   async deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean> {
     const current = this.store.hosts.get(hostId);
     if (!current || current.workspaceId !== workspaceId) return false;
+    // Mirrors ON DELETE RESTRICT on detection_rule_targets.host_id.
+    if ([...this.store.detectionRules.values()].some((rule) => rule.targetHostIds.includes(hostId))) {
+      throw new Error('foreign key constraint fails (restrict)');
+    }
     return this.store.hosts.delete(hostId);
+  }
+}
+
+/** Same contract as the SQL adapter, including FK checks on workspace and target hosts. */
+class InMemoryDetectionRuleRepository implements DetectionRuleRepository {
+  constructor(private readonly store: InMemoryStore) {}
+
+  private assertForeignKeys(snapshot: DetectionRuleSnapshot): void {
+    if (!this.store.workspaces.has(snapshot.workspaceId)) throw new Error('foreign key constraint fails (workspace)');
+    for (const hostId of snapshot.targetHostIds) {
+      if (!this.store.hosts.has(hostId)) throw new Error('foreign key constraint fails (host)');
+    }
+  }
+
+  async insert(rule: DetectionRule): Promise<void> {
+    const snapshot = rule.toSnapshot();
+    this.assertForeignKeys(snapshot);
+    this.store.detectionRules.set(rule.id, snapshot);
+  }
+
+  async findInWorkspace(workspaceId: string, ruleId: string): Promise<DetectionRule | null> {
+    const snapshot = this.store.detectionRules.get(ruleId);
+    return snapshot && snapshot.workspaceId === workspaceId ? DetectionRule.restore(snapshot) : null;
+  }
+
+  async listInWorkspace(workspaceId: string, filter: DetectionRuleListFilter): Promise<Page<DetectionRule>> {
+    const needle = filter.search?.toLowerCase();
+    const matching = [...this.store.detectionRules.values()]
+      .filter((rule) => rule.workspaceId === workspaceId)
+      .filter((rule) => !needle || rule.name.toLowerCase().includes(needle) || (rule.description ?? '').toLowerCase().includes(needle))
+      .filter((rule) => !filter.severity || rule.severity === filter.severity)
+      .filter((rule) => !filter.eventCategory || rule.eventCategory === filter.eventCategory)
+      .filter((rule) => filter.enabled === undefined || rule.enabled === filter.enabled)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    const start = offsetOf(filter);
+    return {
+      items: matching.slice(start, start + filter.pageSize).map((rule) => DetectionRule.restore(rule)),
+      total: matching.length,
+      page: filter.page,
+      pageSize: filter.pageSize,
+    };
+  }
+
+  async update(rule: DetectionRule): Promise<void> {
+    const current = this.store.detectionRules.get(rule.id);
+    if (!current || current.workspaceId !== rule.workspaceId) return;
+    const snapshot = rule.toSnapshot();
+    this.assertForeignKeys(snapshot);
+    this.store.detectionRules.set(rule.id, { ...snapshot, createdAt: current.createdAt });
+  }
+
+  async deleteInWorkspace(workspaceId: string, ruleId: string): Promise<boolean> {
+    const current = this.store.detectionRules.get(ruleId);
+    if (!current || current.workspaceId !== workspaceId) return false;
+    return this.store.detectionRules.delete(ruleId);
+  }
+
+  async isHostTargeted(hostId: string): Promise<boolean> {
+    return [...this.store.detectionRules.values()].some((rule) => rule.targetHostIds.includes(hostId));
   }
 }
 
@@ -169,6 +245,7 @@ export function repositoriesFor(store: InMemoryStore): Repositories {
     workspaces: new InMemoryWorkspaceRepository(store),
     memberships: new InMemoryMembershipRepository(store),
     hosts: new InMemoryHostRepository(store),
+    detectionRules: new InMemoryDetectionRuleRepository(store),
   };
 }
 

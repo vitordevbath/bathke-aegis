@@ -51,7 +51,7 @@ describe('WorkspaceAccess and host use cases', () => {
     await expect(new ListHosts(access, hosts).execute(viewer.user, owner.workspaceId, { page: 1, pageSize: 10 })).resolves.toMatchObject({ total: 1 });
     await expect(new CreateHost(access, hosts).execute(viewer.user, owner.workspaceId, { displayName: 'Outro' })).rejects.toBeInstanceOf(ForbiddenError);
     await expect(new UpdateHost(access, hosts).execute(viewer.user, owner.workspaceId, host.id, { displayName: 'X1' })).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(new DeleteHost(access, hosts).execute(viewer.user, owner.workspaceId, host.id)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(new DeleteHost(access, hosts, persistence.repositories.detectionRules).execute(viewer.user, owner.workspaceId, host.id)).rejects.toBeInstanceOf(ForbiddenError);
     expect(persistence.store.hosts.size).toBe(1);
   });
 
@@ -64,7 +64,7 @@ describe('WorkspaceAccess and host use cases', () => {
     // A uses their own (valid) workspace with B's host id.
     await expect(new GetHost(access, hosts).execute(a.user, a.workspaceId, hostB.id)).rejects.toBeInstanceOf(NotFoundError);
     await expect(new UpdateHost(access, hosts).execute(a.user, a.workspaceId, hostB.id, { displayName: 'Hack' })).rejects.toBeInstanceOf(NotFoundError);
-    await expect(new DeleteHost(access, hosts).execute(a.user, a.workspaceId, hostB.id)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(new DeleteHost(access, hosts, persistence.repositories.detectionRules).execute(a.user, a.workspaceId, hostB.id)).rejects.toBeInstanceOf(NotFoundError);
     expect(persistence.store.hosts.get(hostB.id)?.displayName).toBe('Host B');
   });
 });

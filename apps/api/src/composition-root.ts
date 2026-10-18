@@ -40,7 +40,7 @@ export function createUseCases(adapters: Adapters, authRateLimitMax: number): Ap
     listHosts: new ListHosts(access, repositories.hosts),
     getHost: new GetHost(access, repositories.hosts),
     updateHost: new UpdateHost(access, repositories.hosts),
-    deleteHost: new DeleteHost(access, repositories.hosts),
+    deleteHost: new DeleteHost(access, repositories.hosts, repositories.detectionRules),
     authRateLimitMax,
   };
 }

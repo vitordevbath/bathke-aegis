@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, like, ne, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, like, ne, or, type SQL } from 'drizzle-orm';
 import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { MySql2PreparedQueryHKT, MySql2QueryResultHKT } from 'drizzle-orm/mysql2';
 import { ConflictError, type Cpf, type Email } from '@aegis/domain';
@@ -6,8 +6,11 @@ import { User } from '../../domain/user.js';
 import { Workspace } from '../../domain/workspace.js';
 import { Membership } from '../../domain/membership.js';
 import { Host } from '../../domain/host.js';
+import { DetectionRule } from '../../domain/detection-rule.js';
 import { offsetOf, type Page } from '../../application/pagination.js';
 import type {
+  DetectionRuleListFilter,
+  DetectionRuleRepository,
   HostListFilter,
   HostRepository,
   MembershipRepository,
@@ -18,9 +21,10 @@ import type {
   WorkspaceRepository,
 } from '../../application/ports/repositories.js';
 import { CPF_TAKEN_MESSAGE, EMAIL_TAKEN_MESSAGE } from '../../application/use-cases/register-user.js';
+import { HOST_TARGETED_MESSAGE } from '../../application/use-cases/hosts/delete-host.js';
 import type { Database } from './client.js';
 import * as schema from './schema.js';
-import { hosts, memberships, users, workspaces } from './schema.js';
+import { detectionRuleTargets, detectionRules, hosts, memberships, users, workspaces } from './schema.js';
 
 /** Either the pooled database or a transaction handle — both expose the same query API. */
 type Executor = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, typeof schema>;
@@ -144,6 +148,16 @@ class DrizzleHostRepository implements HostRepository {
     return row ? Host.restore(row) : null;
   }
 
+  async findManyInWorkspace(workspaceId: string, hostIds: readonly string[]): Promise<Host[]> {
+    if (hostIds.length === 0) return [];
+    const rows = await this.db
+      .select()
+      .from(hosts)
+      .where(and(eq(hosts.workspaceId, workspaceId), inArray(hosts.id, [...hostIds])))
+      .orderBy(asc(hosts.displayName), asc(hosts.id));
+    return rows.map((row) => Host.restore(row));
+  }
+
   async listInWorkspace(workspaceId: string, filter: HostListFilter): Promise<Page<Host>> {
     const search = filter.search
       ? or(like(hosts.displayName, containsPattern(filter.search)), like(hosts.description, containsPattern(filter.search)))
@@ -175,8 +189,115 @@ class DrizzleHostRepository implements HostRepository {
   }
 
   async deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean> {
-    const [result] = await this.db.delete(hosts).where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, hostId)));
+    try {
+      const [result] = await this.db.delete(hosts).where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, hostId)));
+      return result.affectedRows > 0;
+    } catch (error) {
+      // FK RESTRICT from detection_rule_targets (a rule targeted the host concurrently).
+      if (driverError(error)?.code === 'ER_ROW_IS_REFERENCED_2') throw new ConflictError(HOST_TARGETED_MESSAGE);
+      throw error;
+    }
+  }
+}
+
+type DetectionRuleRow = typeof detectionRules.$inferSelect;
+
+class DrizzleDetectionRuleRepository implements DetectionRuleRepository {
+  constructor(private readonly db: Executor) {}
+
+  async insert(rule: DetectionRule): Promise<void> {
+    const { targetHostIds, ...row } = rule.toSnapshot();
+    await this.db.insert(detectionRules).values(row);
+    await this.insertTargets(rule.id, targetHostIds, row.createdAt);
+  }
+
+  async findInWorkspace(workspaceId: string, ruleId: string): Promise<DetectionRule | null> {
+    const [row] = await this.db
+      .select()
+      .from(detectionRules)
+      .where(and(eq(detectionRules.workspaceId, workspaceId), eq(detectionRules.id, ruleId)))
+      .limit(1);
+    if (!row) return null;
+    const targets = await this.targetsOf([row.id]);
+    return this.toEntity(row, targets);
+  }
+
+  async listInWorkspace(workspaceId: string, filter: DetectionRuleListFilter): Promise<Page<DetectionRule>> {
+    const conditions: (SQL | undefined)[] = [eq(detectionRules.workspaceId, workspaceId)];
+    if (filter.search) {
+      const pattern = containsPattern(filter.search);
+      conditions.push(or(like(detectionRules.name, pattern), like(detectionRules.description, pattern)));
+    }
+    if (filter.severity) conditions.push(eq(detectionRules.severity, filter.severity));
+    if (filter.eventCategory) conditions.push(eq(detectionRules.eventCategory, filter.eventCategory));
+    if (filter.enabled !== undefined) conditions.push(eq(detectionRules.enabled, filter.enabled));
+    const where = and(...conditions);
+
+    const [rows, [totals]] = await Promise.all([
+      this.db
+        .select()
+        .from(detectionRules)
+        .where(where)
+        .orderBy(desc(detectionRules.createdAt), desc(detectionRules.id))
+        .limit(filter.pageSize)
+        .offset(offsetOf(filter)),
+      this.db.select({ total: count() }).from(detectionRules).where(where),
+    ]);
+    // One query for the targets of the whole page (no N+1).
+    const targets = await this.targetsOf(rows.map((row) => row.id));
+    return {
+      items: rows.map((row) => this.toEntity(row, targets)),
+      total: totals?.total ?? 0,
+      page: filter.page,
+      pageSize: filter.pageSize,
+    };
+  }
+
+  async update(rule: DetectionRule): Promise<void> {
+    const { id, workspaceId, createdAt: _createdAt, targetHostIds, ...changes } = rule.toSnapshot();
+    await this.db
+      .update(detectionRules)
+      .set(changes)
+      .where(and(eq(detectionRules.workspaceId, workspaceId), eq(detectionRules.id, id)));
+    await this.db.delete(detectionRuleTargets).where(eq(detectionRuleTargets.detectionRuleId, id));
+    await this.insertTargets(id, targetHostIds, changes.updatedAt);
+  }
+
+  async deleteInWorkspace(workspaceId: string, ruleId: string): Promise<boolean> {
+    const [result] = await this.db
+      .delete(detectionRules)
+      .where(and(eq(detectionRules.workspaceId, workspaceId), eq(detectionRules.id, ruleId)));
     return result.affectedRows > 0;
+  }
+
+  async isHostTargeted(hostId: string): Promise<boolean> {
+    const rows = await this.db
+      .select({ hostId: detectionRuleTargets.hostId })
+      .from(detectionRuleTargets)
+      .where(eq(detectionRuleTargets.hostId, hostId))
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  private async insertTargets(ruleId: string, hostIds: readonly string[], createdAt: Date): Promise<void> {
+    if (hostIds.length === 0) return;
+    await this.db.insert(detectionRuleTargets).values(hostIds.map((hostId) => ({ detectionRuleId: ruleId, hostId, createdAt })));
+  }
+
+  private async targetsOf(ruleIds: readonly string[]): Promise<Map<string, string[]>> {
+    const byRule = new Map<string, string[]>();
+    if (ruleIds.length === 0) return byRule;
+    const rows = await this.db
+      .select({ ruleId: detectionRuleTargets.detectionRuleId, hostId: detectionRuleTargets.hostId })
+      .from(detectionRuleTargets)
+      .where(inArray(detectionRuleTargets.detectionRuleId, [...ruleIds]))
+      .orderBy(asc(detectionRuleTargets.createdAt), asc(detectionRuleTargets.hostId));
+    for (const row of rows) byRule.set(row.ruleId, [...(byRule.get(row.ruleId) ?? []), row.hostId]);
+    return byRule;
+  }
+
+  private toEntity(row: DetectionRuleRow, targets: Map<string, string[]>): DetectionRule {
+    return DetectionRule.restore({ ...row, targetHostIds: targets.get(row.id) ?? [] });
   }
 }
 
@@ -186,6 +307,7 @@ export function createDrizzleRepositories(db: Executor): Repositories {
     workspaces: new DrizzleWorkspaceRepository(db),
     memberships: new DrizzleMembershipRepository(db),
     hosts: new DrizzleHostRepository(db),
+    detectionRules: new DrizzleDetectionRuleRepository(db),
   };
 }
 

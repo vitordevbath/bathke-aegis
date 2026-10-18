@@ -3,6 +3,8 @@ import type { User } from '../../domain/user.js';
 import type { Workspace } from '../../domain/workspace.js';
 import type { Membership } from '../../domain/membership.js';
 import type { Host } from '../../domain/host.js';
+import type { DetectionRule } from '../../domain/detection-rule.js';
+import type { DetectionEventCategory, DetectionSeverity } from '@aegis/domain';
 import type { Page, PageRequest } from '../pagination.js';
 
 export interface UserRepository {
@@ -46,6 +48,8 @@ export interface HostListFilter extends PageRequest {
 export interface HostRepository {
   insert(host: Host): Promise<void>;
   findInWorkspace(workspaceId: string, hostId: string): Promise<Host | null>;
+  /** The subset of `hostIds` that exist in that workspace (others are silently absent), ordered by name. */
+  findManyInWorkspace(workspaceId: string, hostIds: readonly string[]): Promise<Host[]>;
   /** Ordered by `createdAt` DESC, then `id` DESC (stable across pages). */
   listInWorkspace(workspaceId: string, filter: HostListFilter): Promise<Page<Host>>;
   /** Persists the administrative fields only. */
@@ -54,11 +58,36 @@ export interface HostRepository {
   deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean>;
 }
 
+export interface DetectionRuleListFilter extends PageRequest {
+  /** Case-insensitive substring match on name or description. */
+  readonly search?: string | undefined;
+  readonly severity?: DetectionSeverity | undefined;
+  readonly eventCategory?: DetectionEventCategory | undefined;
+  readonly enabled?: boolean | undefined;
+}
+
+/**
+ * Workspace-scoped like `HostRepository`. `insert` and `update` write the rule
+ * row and its targets, so they must run inside a `UnitOfWork`.
+ */
+export interface DetectionRuleRepository {
+  insert(rule: DetectionRule): Promise<void>;
+  findInWorkspace(workspaceId: string, ruleId: string): Promise<DetectionRule | null>;
+  /** Ordered by `createdAt` DESC, then `id` DESC. Targets are loaded in one extra query per page (no N+1). */
+  listInWorkspace(workspaceId: string, filter: DetectionRuleListFilter): Promise<Page<DetectionRule>>;
+  /** Updates the row and replaces the targets. */
+  update(rule: DetectionRule): Promise<void>;
+  /** Targets are removed by cascade. Returns false when no such rule exists in that workspace. */
+  deleteInWorkspace(workspaceId: string, ruleId: string): Promise<boolean>;
+  isHostTargeted(hostId: string): Promise<boolean>;
+}
+
 export interface Repositories {
   readonly users: UserRepository;
   readonly workspaces: WorkspaceRepository;
   readonly memberships: MembershipRepository;
   readonly hosts: HostRepository;
+  readonly detectionRules: DetectionRuleRepository;
 }
 
 /**
