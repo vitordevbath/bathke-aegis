@@ -9,6 +9,10 @@ import { RegisterPage } from '../pages/RegisterPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
+import { HostsPage } from '../pages/hosts/HostsPage';
+import { CreateHostPage } from '../pages/hosts/CreateHostPage';
+import { HostDetailPage } from '../pages/hosts/HostDetailPage';
+import { EditHostPage } from '../pages/hosts/EditHostPage';
 
 /** Exported separately so tests can mount the same tree in a memory router. */
 export const routes: RouteObject[] = [
@@ -39,6 +43,11 @@ export const routes: RouteObject[] = [
             children: [
               { path: '/dashboard', element: <DashboardPage /> },
               { path: '/perfil', element: <ProfilePage /> },
+              // Create and edit are separate screens (rubric), sharing HostForm.
+              { path: '/hosts', element: <HostsPage /> },
+              { path: '/hosts/novo', element: <CreateHostPage /> },
+              { path: '/hosts/:hostId', element: <HostDetailPage /> },
+              { path: '/hosts/:hostId/editar', element: <EditHostPage /> },
             ],
           },
         ],

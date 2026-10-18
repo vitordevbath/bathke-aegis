@@ -16,6 +16,9 @@ export function AppShell() {
             <NavLink to="/dashboard" className="nav__link">
               Painel
             </NavLink>
+            <NavLink to="/hosts" className="nav__link">
+              Hosts
+            </NavLink>
             <NavLink to="/perfil" className="nav__link">
               Perfil
             </NavLink>
