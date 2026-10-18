@@ -3,6 +3,8 @@
 # through the internal networks below.
 name: bathke-aegis
 
+x-database-url: &database-url mysql://${MYSQL_USER:-aegis}:${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}@mysql:3306/${MYSQL_DATABASE:-aegis}
+
 services:
   nginx:
     image: nginx:1.27-alpine
@@ -26,17 +28,39 @@ services:
       - aegis_application
     restart: unless-stopped
 
+  # One-shot: applies versioned migrations (apps/api/drizzle) and exits.
+  migrate:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    image: bathke-aegis-api:local
+    command: ["node", "apps/api/dist/infrastructure/db/migrate.js"]
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - aegis_data
+    restart: "no"
+
   api:
     build:
       context: .
       dockerfile: infra/docker/api.Dockerfile
+    image: bathke-aegis-api:local
     environment:
       API_HOST: 0.0.0.0
       API_PORT: 3000
-      DATABASE_URL: mysql://${MYSQL_USER:-aegis}:${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}@mysql:3306/${MYSQL_DATABASE:-aegis}
+      DATABASE_URL: *database-url
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-3600}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
     depends_on:
       mysql:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     networks:
       - aegis_application
       - aegis_data
