@@ -114,12 +114,42 @@ const CHECKS: readonly RubricCheck[] = [
       { file: `${API_TEST}/http/users.test.ts`, pattern: /email cannot be changed/ },
     ]),
   },
-  { requirement: 'Hosts CRUD', evaluate: todo() },
+  {
+    requirement: 'Hosts CRUD',
+    evaluate: implementedAndTested('create/list/read/update/delete under /workspaces/:id/hosts; authenticated; membership-checked; web screens; tests', [
+      { file: `${API}/presentation/http/routes/hosts.route.ts`, pattern: /app\.post\('\/workspaces\/:workspaceId\/hosts'/ },
+      { file: `${API}/presentation/http/routes/hosts.route.ts`, pattern: /app\.get\('\/workspaces\/:workspaceId\/hosts'/ },
+      { file: `${API}/presentation/http/routes/hosts.route.ts`, pattern: /app\.get\('\/workspaces\/:workspaceId\/hosts\/:hostId'/ },
+      { file: `${API}/presentation/http/routes/hosts.route.ts`, pattern: /app\.put\('\/workspaces\/:workspaceId\/hosts\/:hostId'/ },
+      { file: `${API}/presentation/http/routes/hosts.route.ts`, pattern: /app\.delete\('\/workspaces\/:workspaceId\/hosts\/:hostId'/ },
+      { file: `${API}/presentation/http/routes/hosts.route.ts`, pattern: /addHook\('preHandler', authenticate/ },
+      { file: `${API}/application/workspace-access.ts`, pattern: /requireMember/ },
+      { file: 'apps/web/src/pages/hosts/CreateHostPage.tsx', pattern: /HostForm/ },
+      { file: 'apps/web/src/pages/hosts/EditHostPage.tsx', pattern: /HostForm/ },
+      { file: 'apps/web/src/pages/hosts/HostsPage.tsx', pattern: /Pagination/ },
+      { file: `${API_TEST}/http/hosts.test.ts`, pattern: /multi-tenant isolation/ },
+      { file: 'apps/web/test/hosts.test.tsx', pattern: /create host \(separate screen\)/ },
+    ]),
+  },
   { requirement: 'Detection Rules CRUD', evaluate: todo() },
   { requirement: 'Incidents CRUD', evaluate: todo() },
   { requirement: 'Investigations CRUD', evaluate: todo() },
-  { requirement: 'Pagination', evaluate: todo() },
-  { requirement: 'Relationships', evaluate: todo() },
+  {
+    requirement: 'Pagination',
+    evaluate: implementedAndTested('generic PaginationQuerySchema + PaginatedResponse<T>; Hosts list; reusable web Pagination', [
+      { file: 'packages/contracts/src/pagination.ts', pattern: /interface PaginatedResponse<T>/ },
+      { file: `${API}/presentation/http/mappers.ts`, pattern: /toPaginatedResponse/ },
+      { file: 'apps/web/src/components/Pagination.tsx', pattern: /aria-current/ },
+      { file: `${API_TEST}/http/hosts.test.ts`, pattern: /paginates 25 hosts/ },
+    ]),
+  },
+  {
+    requirement: 'Relationships',
+    evaluate: (repo) =>
+      contains(repo, `${API}/infrastructure/db/schema.ts`, /workspaceId: char\('workspace_id'[\s\S]*?references\(\(\) => workspaces\.id/)
+        ? { state: 'IN_PROGRESS', evidence: 'User–Membership–Workspace and Workspace 1–N Host with real FKs; CRUD-to-CRUD relations (Incident) pending' }
+        : { state: 'TODO', evidence: 'not implemented' },
+  },
   {
     requirement: 'TypeScript strict',
     evaluate: (repo) => {
