@@ -2,6 +2,7 @@ import { Outlet, createBrowserRouter, type RouteObject } from 'react-router-dom'
 import { AuthProvider } from '../features/auth/AuthContext';
 import { GuestRoute, ProtectedRoute } from '../features/auth/route-guards';
 import { AppShell } from '../components/AppShell';
+import { WorkspaceProvider } from '../features/workspaces/WorkspaceContext';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { RegisterPage } from '../pages/RegisterPage';
@@ -30,7 +31,11 @@ export const routes: RouteObject[] = [
         element: <ProtectedRoute />,
         children: [
           {
-            element: <AppShell />,
+            element: (
+              <WorkspaceProvider>
+                <AppShell />
+              </WorkspaceProvider>
+            ),
             children: [
               { path: '/dashboard', element: <DashboardPage /> },
               { path: '/perfil', element: <ProfilePage /> },

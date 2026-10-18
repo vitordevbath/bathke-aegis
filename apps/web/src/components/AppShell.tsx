@@ -1,11 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { Brand } from './Brand';
 import { useAuth } from '../features/auth/AuthContext';
+import { WorkspaceSelector } from '../features/workspaces/WorkspaceSelector';
 
 /** Layout of the authenticated area: navigation, current user and sign-out. */
 export function AppShell() {
-  const { user, workspaces, logout } = useAuth();
-  const workspace = workspaces[0];
+  const { user, logout } = useAuth();
 
   return (
     <div className="shell">
@@ -22,10 +22,8 @@ export function AppShell() {
           </nav>
         </div>
         <div className="topbar__end">
-          <div className="identity">
-            <span className="identity__name">{user?.name}</span>
-            {workspace && <span className="identity__workspace">{workspace.name}</span>}
-          </div>
+          <WorkspaceSelector />
+          <span className="identity__name">{user?.name}</span>
           <button type="button" className="button button--ghost" onClick={logout}>
             Sair
           </button>
