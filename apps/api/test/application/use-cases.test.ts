@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AuthenticationError, ConflictError, ValidationError } from '@aegis/domain';
 import type { PasswordHasher } from '../../src/application/ports/password-hasher.js';
-import type { Repositories, UnitOfWork } from '../../src/application/ports/repositories.js';
 import type { TokenService } from '../../src/application/ports/token-service.js';
 import { RegisterUser } from '../../src/application/use-cases/register-user.js';
 import { AuthenticateUser, INVALID_CREDENTIALS_MESSAGE } from '../../src/application/use-cases/authenticate-user.js';
 import { ResolveAuthenticatedUser } from '../../src/application/use-cases/resolve-authenticated-user.js';
 import { UpdateCurrentUser } from '../../src/application/use-cases/update-current-user.js';
 import { createInMemoryPersistence } from '../support/in-memory-persistence.js';
+import { failingOn } from '../support/failing-unit-of-work.js';
 import { OTHER_PASSWORD, TEST_PASSWORD, makeCpf, makeRegistration } from '../support/fixtures.js';
 
 /** Transparent fake: records calls so tests can assert on hashing behavior without Argon2 cost. */
@@ -29,23 +29,6 @@ const tokens: TokenService = {
     return { userId: token.slice('token-for-'.length) };
   },
 };
-
-/** Decorates a unit of work so that one repository insert fails mid-transaction. */
-function failingOn(unitOfWork: UnitOfWork, table: 'workspaces' | 'memberships'): UnitOfWork {
-  return {
-    run: (work) =>
-      unitOfWork.run((repositories) => {
-        const boom = async () => {
-          throw new Error(`simulated ${table} failure`);
-        };
-        const sabotaged: Repositories =
-          table === 'workspaces'
-            ? { ...repositories, workspaces: { insert: boom } }
-            : { ...repositories, memberships: { insert: boom, listForUser: (id) => repositories.memberships.listForUser(id) } };
-        return work(sabotaged);
-      }),
-  };
-}
 
 describe('RegisterUser', () => {
   let persistence: ReturnType<typeof createInMemoryPersistence>;
