@@ -15,9 +15,9 @@ Quality over quantity: no fake features, no fake architecture, no TODO marked as
 
 | | CURRENT | PLANNED |
 | --- | --- | --- |
-| Web | `/`, `/login`, `/cadastro`, `/dashboard`, `/perfil`; AuthContext | CRUD screens, timeline, graph |
-| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me` | 4 CRUDs, events, detection |
-| Data | `users`, `workspaces`, `memberships` (versioned migrations, Drizzle repositories) | resource tables per workspace |
+| Web | auth pages, `/dashboard`, `/perfil`, `/hosts` (list/create/detail/edit); AuthContext, WorkspaceContext | remaining CRUD screens, timeline, graph |
+| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts CRUD per workspace | 3 remaining CRUDs, events, detection |
+| Data | `users`, `workspaces`, `memberships`, `hosts` (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
 | Tooling | Aegis MCP, CI (typecheck/build/test) | rubric engine expansion |
 | Native | READMEs only | collector, eBPF, SPARK, NASM |
 

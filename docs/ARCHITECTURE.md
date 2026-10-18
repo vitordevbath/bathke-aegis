@@ -19,11 +19,11 @@ nginx (única porta publicada: 8080 → 80)     redes: aegis_edge, aegis_applica
 
 | Componente | Local | O que existe |
 | --- | --- | --- |
-| Aegis Web | `apps/web` | `/`, `/login`, `/cadastro` (públicas); `/dashboard`, `/perfil` (protegidas); `AuthContext`, cliente HTTP central, token em localStorage (ADR-017) |
-| Aegis API | `apps/api` | `GET /health`; `POST /auth/register`, `POST /auth/login`; `GET`/`PUT /users/me`; Argon2id, JWT, rate limit em `/auth/*` |
-| Contracts | `packages/contracts` | DTOs + schemas Zod de cadastro, login e edição de usuário; envelope de erro |
+| Aegis Web | `apps/web` | `/`, `/login`, `/cadastro` (públicas); `/dashboard`, `/perfil`, `/hosts`, `/hosts/novo`, `/hosts/:hostId`, `/hosts/:hostId/editar` (protegidas); `AuthContext`, `WorkspaceContext` (workspace ativo), cliente HTTP central, token em localStorage (ADR-017) |
+| Aegis API | `apps/api` | `GET /health`; `POST /auth/register`, `POST /auth/login`; `GET`/`PUT /users/me`; CRUD `/workspaces/:workspaceId/hosts[/:hostId]` com paginação; Argon2id, JWT, rate limit em `/auth/*` |
+| Contracts | `packages/contracts` | DTOs + schemas Zod de auth, usuário e hosts; `PaginationQuerySchema` + `PaginatedResponse<T>`; envelope de erro |
 | Domain | `packages/domain` | `Entity<TId>`, hierarquia `DomainError`, value objects `Email`, `Cpf`, `PasswordPolicy` (ADR-018) |
-| MySQL | `compose.yaml` | MySQL 8.4; tabelas `users`, `workspaces`, `memberships` via migrations versionadas aplicadas pelo serviço `migrate` (ADR-019) |
+| MySQL | `compose.yaml` | MySQL 8.4; tabelas `users`, `workspaces`, `memberships`, `hosts` via migrations versionadas aplicadas pelo serviço `migrate` (ADR-019) |
 | Nginx | `infra/nginx` | Reverse proxy, headers de segurança e CSP estrita |
 | Aegis MCP | `tools/aegis-mcp` | Servidor MCP stdio, 7 ferramentas, allowlist e secret guard |
 
@@ -32,9 +32,10 @@ nginx (única porta publicada: 8080 → 80)     redes: aegis_edge, aegis_applica
 ```
 presentation  → rotas, preHandler de autenticação, error handler, mappers → contracts
 application   → use cases (RegisterUser, AuthenticateUser, ResolveAuthenticatedUser,
-                GetCurrentUser, UpdateCurrentUser) + ports (repositórios, UnitOfWork,
-                PasswordHasher, TokenService)
-domain        → User, Workspace, Membership (value objects/erros vêm de @aegis/domain)
+                GetCurrentUser, UpdateCurrentUser, Create/List/Get/Update/DeleteHost),
+                WorkspaceAccess (membership/papel), Page<T> + ports (repositórios,
+                UnitOfWork, PasswordHasher, TokenService)
+domain        → User, Workspace, Membership, Host (value objects/erros vêm de @aegis/domain)
 infrastructure→ Drizzle/MySQL (repositórios + UnitOfWork transacional), Argon2id, jose
 shared        → env validado com Zod
 composition-root.ts → conecta use cases aos adapters (produção ou dublês de teste)
@@ -52,11 +53,29 @@ users (id UUID, name, email UNIQUE, cpf UNIQUE [11 dígitos], password_hash, cre
   │        memberships (user_id FK, workspace_id FK, role, created_at)   PK (user_id, workspace_id)
   │ N ───────────────────────────────────── N
 workspaces (id UUID, name, kind ∈ personal|demo|organization|lab, created_at, updated_at)
+  │ 1
+  │ N
+hosts (id UUID, workspace_id FK, display_name, description,          ← administrativos (usuário)
+       agent_id UNIQUE NULL, hostname, os_name, os_version,          ← fatos do Collector (futuro)
+       architecture, connection_state=UNPAIRED, last_seen_at,
+       created_at, updated_at)   INDEX (workspace_id, created_at, id)
 ```
 
 Somente `personal` e `OWNER` têm comportamento nesta fase; os demais valores são reservados
-(ADR-009, ADR-012). Recursos futuros (Hosts, Rules, Incidents, Investigations) pertencerão ao
-workspace, não ao usuário.
+(ADR-009, ADR-012). Hosts já pertencem ao workspace; Detection Rules, Incidents e
+Investigations seguirão o mesmo modelo, nunca vinculados diretamente ao usuário.
+
+### Acesso a recursos do workspace (CURRENT)
+
+```
+GET /workspaces/:workspaceId/hosts/:hostId
+  └─ authenticate (Bearer) ─► WorkspaceAccess.requireMember(user, workspaceId)
+       não membro / id inválido ─► 404 "Recurso não encontrado."
+       └─ HostRepository.findInWorkspace(workspaceId, hostId) ─► ausente ─► 404
+escrita ─► WorkspaceAccess.requireManager (OWNER) ─► senão 403
+```
+
+Ver ADR-020 (isolamento) e ADR-021 (campos do Host).
 
 ### Fluxo de cadastro e sessão (CURRENT)
 
@@ -107,9 +126,9 @@ egress dedicada será adicionada apenas para a API.
 
 ### Fronteira de dados
 
-User → Membership → Workspace já existe (CURRENT). Planejado: todo recurso de segurança
-pertencerá a um **Workspace**, e a autorização verificará a membership no workspace do
-recurso (ADR-009). Ver [PRODUTO.md](PRODUTO.md#modelo-de-workspace).
+User → Membership → Workspace → Host já existe (CURRENT), com autorização por membership
+no workspace do recurso (ADR-009, ADR-020). Planejado: os demais recursos de segurança
+seguem o mesmo caminho. Ver [PRODUTO.md](PRODUTO.md#modelo-de-workspace).
 
 ### Contrato de telemetria (planejado)
 

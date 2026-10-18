@@ -76,3 +76,12 @@
 **Decisão:** schema Drizzle gera SQL versionado em `apps/api/drizzle` (`npm run db:generate`); `npm run db:migrate` aplica via migrator do Drizzle (runtime, sem `drizzle-kit push`). No Compose, o serviço `migrate` (mesma imagem da API, sem porta, só na rede `aegis_data`) roda antes da API (`service_completed_successfully`).
 **Motivo:** migrations reproduzíveis e auditáveis; a API não altera schema ao iniciar.
 **Consequência:** o CI aplica as migrations num MySQL vazio e os testes de integração criam um banco novo por execução.
+
+## ADR-020 — Isolamento por workspace: 404 para recursos de outros tenants
+**Decisão:** recursos são endereçados por `/workspaces/:workspaceId/...`. `WorkspaceAccess` resolve a membership do usuário antes de qualquer consulta; não membro → `NotFoundError` (404), idêntico a recurso inexistente. Repositórios só expõem operações escopadas por workspace (`findInWorkspace`, `listInWorkspace`, `deleteInWorkspace`), sem `findById` solto. IDs malformados também respondem 404. Escrita exige papel que gerencie recursos — por ora apenas OWNER (deny-by-default; ADMIN/ANALYST/VIEWER sem comportamento até o compartilhamento existir; membro sem permissão → 403).
+**Motivo:** não confirmar a existência de workspaces/recursos alheios; impedir que um handler esqueça o filtro de tenant.
+**Consequência:** Detection Rules, Incidents e Investigations reutilizam `WorkspaceAccess`, o padrão de rotas e o contrato `PaginatedResponse<T>`.
+
+## ADR-021 — Host: campos administrativos vs. fatos do Collector
+**Decisão:** o usuário edita apenas `displayName` e `description`. `agentId`, `hostname`, `osName`, `osVersion`, `architecture`, `connectionState` e `lastSeenAt` pertencem ao futuro Aegis Collector: começam nulos/`UNPAIRED`, não têm setter na entidade, não são escritos pelo UPDATE e enviá-los à API é 400 (sem mass assignment). A UI mostra "Não pareado" / "Ainda não informado" / "Nunca", nunca "Online"/"Offline" sem Collector. Exclusão é física porque ainda não há telemetria vinculada.
+**Consequência:** quando eventos referenciarem hosts, a política de exclusão será revista (ex.: arquivamento) e um fluxo de pareamento (ADR-013) passará a preencher os fatos do Collector.

@@ -46,3 +46,33 @@ export const memberships = mysqlTable(
     index('memberships_workspace_idx').on(table.workspaceId),
   ],
 );
+
+/**
+ * Machines registered in a workspace. `display_name`/`description` are
+ * administrative (user-edited); the remaining nullable columns and
+ * `connection_state` are reserved for the future Aegis Collector.
+ */
+export const hosts = mysqlTable(
+  'hosts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    workspaceId: char('workspace_id', { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    displayName: varchar('display_name', { length: 120 }).notNull(),
+    description: varchar('description', { length: 500 }),
+    // UNIQUE allows many NULLs in MySQL: unique only once a collector is paired.
+    agentId: char('agent_id', { length: 36 }).unique('hosts_agent_id_unique'),
+    hostname: varchar('hostname', { length: 255 }),
+    osName: varchar('os_name', { length: 100 }),
+    osVersion: varchar('os_version', { length: 100 }),
+    architecture: varchar('architecture', { length: 32 }),
+    connectionState: mysqlEnum('connection_state', ['UNPAIRED', 'ONLINE', 'OFFLINE']).notNull().default('UNPAIRED'),
+    lastSeenAt: datetime('last_seen_at', { mode: 'date', fsp: 3 }),
+    ...timestamps,
+  },
+  (table) => [
+    // Serves the workspace FK and the paginated list (WHERE workspace_id = ? ORDER BY created_at DESC, id DESC).
+    index('hosts_workspace_created_idx').on(table.workspaceId, table.createdAt, table.id),
+  ],
+);

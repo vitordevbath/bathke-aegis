@@ -8,6 +8,13 @@
       "when": 1792342285907,
       "tag": "0000_init_auth_user_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1792345274303,
+      "tag": "0001_hosts",
+      "breakpoints": true
     }
   ]
 }

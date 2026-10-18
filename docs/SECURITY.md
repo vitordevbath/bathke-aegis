@@ -39,6 +39,17 @@ configurável e removível.
 - **Logs:** Fastify registra método/URL/status, nunca corpo nem cabeçalhos. Erros inesperados são logados só com tipo, código e stack frames — a mensagem de drivers pode conter parâmetros (hash, CPF) e é descartada. Respostas de erro nunca contêm stack trace ou SQL.
 - **Token no navegador:** localStorage por exigência acadêmica (ADR-017), com CSP estrita no Nginx.
 
+### Isolamento entre workspaces (CURRENT, BF 02)
+
+- Toda rota de recurso é autenticada e passa por `WorkspaceAccess` antes de qualquer consulta.
+- Workspace de que o usuário não é membro, recurso inexistente, recurso de outro workspace e ID malformado produzem o **mesmo** 404 ("Recurso não encontrado."), sem IDs, nomes ou metadados alheios (ADR-020).
+- Repositórios só oferecem operações escopadas por workspace; o `workspaceId` vem da rota e da membership, nunca do corpo.
+- Campos controlados pelo sistema (workspace, fatos do Collector, estado de conexão, timestamps) são rejeitados no corpo (400) — sem mass assignment (ADR-021).
+- Escrita restrita a OWNER; demais papéis ainda não têm permissões (deny-by-default).
+- Busca usa `LIKE` parametrizado com `%`/`_`/`\` escapados.
+- O workspace ativo salvo no navegador (`aegis.workspace.active`) é só preferência: um ID que não pertence mais ao usuário é ignorado, e a API decide.
+- Nenhuma telemetria é simulada: sem Collector, hosts são "Não pareado".
+
 ### Limitações conhecidas
 
 - Logout é local; tokens emitidos continuam válidos até expirar (sem revogação).

@@ -44,6 +44,15 @@ export class AuthenticationError extends DomainError {
   }
 }
 
+/** Caller is a member of the workspace, but their role does not allow the action. */
+export class ForbiddenError extends DomainError {
+  override readonly code = 'FORBIDDEN';
+
+  constructor(message = 'Seu papel neste workspace não permite esta ação.') {
+    super(message);
+  }
+}
+
 /** A uniqueness rule would be broken (e.g. email or CPF already registered). */
 export class ConflictError extends DomainError {
   override readonly code = 'CONFLICT';

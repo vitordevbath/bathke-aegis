@@ -7,7 +7,7 @@ import { Cpf } from '@aegis/domain';
 import { AuthLayout } from '../components/AuthLayout';
 import { TextField } from '../components/TextField';
 import { PasswordChecklist } from '../features/auth/PasswordChecklist';
-import { applyApiError } from '../features/auth/form-errors';
+import { applyApiError } from '../lib/form-errors';
 import { apiRequest } from '../lib/api-client';
 
 const FIELDS = ['name', 'email', 'cpf', 'password', 'passwordConfirmation'] as const;

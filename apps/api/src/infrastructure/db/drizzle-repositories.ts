@@ -1,11 +1,15 @@
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, like, ne, or } from 'drizzle-orm';
 import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { MySql2PreparedQueryHKT, MySql2QueryResultHKT } from 'drizzle-orm/mysql2';
 import { ConflictError, type Cpf, type Email } from '@aegis/domain';
 import { User } from '../../domain/user.js';
 import { Workspace } from '../../domain/workspace.js';
 import { Membership } from '../../domain/membership.js';
+import { Host } from '../../domain/host.js';
+import { offsetOf, type Page } from '../../application/pagination.js';
 import type {
+  HostListFilter,
+  HostRepository,
   MembershipRepository,
   Repositories,
   UnitOfWork,
@@ -16,7 +20,7 @@ import type {
 import { CPF_TAKEN_MESSAGE, EMAIL_TAKEN_MESSAGE } from '../../application/use-cases/register-user.js';
 import type { Database } from './client.js';
 import * as schema from './schema.js';
-import { memberships, users, workspaces } from './schema.js';
+import { hosts, memberships, users, workspaces } from './schema.js';
 
 /** Either the pooled database or a transaction handle — both expose the same query API. */
 type Executor = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, typeof schema>;
@@ -99,6 +103,15 @@ class DrizzleMembershipRepository implements MembershipRepository {
     await this.db.insert(memberships).values(membership.toSnapshot());
   }
 
+  async find(userId: string, workspaceId: string): Promise<Membership | null> {
+    const [row] = await this.db
+      .select()
+      .from(memberships)
+      .where(and(eq(memberships.userId, userId), eq(memberships.workspaceId, workspaceId)))
+      .limit(1);
+    return row ? Membership.restore(row) : null;
+  }
+
   async listForUser(userId: string): Promise<WorkspaceMembership[]> {
     const rows = await this.db
       .select({ workspace: workspaces, membership: memberships })
@@ -110,11 +123,69 @@ class DrizzleMembershipRepository implements MembershipRepository {
   }
 }
 
+/** Escapes LIKE wildcards so user input is matched literally. */
+function containsPattern(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+class DrizzleHostRepository implements HostRepository {
+  constructor(private readonly db: Executor) {}
+
+  async insert(host: Host): Promise<void> {
+    await this.db.insert(hosts).values(host.toSnapshot());
+  }
+
+  async findInWorkspace(workspaceId: string, hostId: string): Promise<Host | null> {
+    const [row] = await this.db
+      .select()
+      .from(hosts)
+      .where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, hostId)))
+      .limit(1);
+    return row ? Host.restore(row) : null;
+  }
+
+  async listInWorkspace(workspaceId: string, filter: HostListFilter): Promise<Page<Host>> {
+    const search = filter.search
+      ? or(like(hosts.displayName, containsPattern(filter.search)), like(hosts.description, containsPattern(filter.search)))
+      : undefined;
+    const where = and(eq(hosts.workspaceId, workspaceId), search);
+
+    // Two queries per page (rows + total), both served by hosts_workspace_created_idx.
+    const [rows, [totals]] = await Promise.all([
+      this.db
+        .select()
+        .from(hosts)
+        .where(where)
+        .orderBy(desc(hosts.createdAt), desc(hosts.id))
+        .limit(filter.pageSize)
+        .offset(offsetOf(filter)),
+      this.db.select({ total: count() }).from(hosts).where(where),
+    ]);
+
+    return { items: rows.map((row) => Host.restore(row)), total: totals?.total ?? 0, page: filter.page, pageSize: filter.pageSize };
+  }
+
+  async update(host: Host): Promise<void> {
+    const { workspaceId, displayName, description, updatedAt } = host.toSnapshot();
+    // Only administrative columns are written; collector columns are never touched here.
+    await this.db
+      .update(hosts)
+      .set({ displayName, description, updatedAt })
+      .where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, host.id)));
+  }
+
+  async deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean> {
+    const [result] = await this.db.delete(hosts).where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, hostId)));
+    return result.affectedRows > 0;
+  }
+}
+
 export function createDrizzleRepositories(db: Executor): Repositories {
   return {
     users: new DrizzleUserRepository(db),
     workspaces: new DrizzleWorkspaceRepository(db),
     memberships: new DrizzleMembershipRepository(db),
+    hosts: new DrizzleHostRepository(db),
   };
 }
 

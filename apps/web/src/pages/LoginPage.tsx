@@ -6,7 +6,7 @@ import { LoginRequestSchema, type LoginRequest } from '@aegis/contracts';
 import { AuthLayout } from '../components/AuthLayout';
 import { TextField } from '../components/TextField';
 import { useAuth } from '../features/auth/AuthContext';
-import { applyApiError } from '../features/auth/form-errors';
+import { applyApiError } from '../lib/form-errors';
 import { ApiError } from '../lib/api-client';
 
 interface LoginLocationState {

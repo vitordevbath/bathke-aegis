@@ -11,7 +11,14 @@ export function failingOn(unitOfWork: UnitOfWork, table: 'workspaces' | 'members
         const sabotaged: Repositories =
           table === 'workspaces'
             ? { ...repositories, workspaces: { insert: boom } }
-            : { ...repositories, memberships: { insert: boom, listForUser: (id) => repositories.memberships.listForUser(id) } };
+            : {
+                ...repositories,
+                memberships: {
+                  insert: boom,
+                  find: (userId, workspaceId) => repositories.memberships.find(userId, workspaceId),
+                  listForUser: (id) => repositories.memberships.listForUser(id),
+                },
+              };
         return work(sabotaged);
       }),
   };

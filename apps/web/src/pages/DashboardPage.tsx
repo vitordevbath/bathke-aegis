@@ -2,14 +2,18 @@ import { MetricCard } from '../components/MetricCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { useApiHealth } from '../features/health/use-api-health';
 import { useAuth } from '../features/auth/AuthContext';
+import { useWorkspace } from '../features/workspaces/WorkspaceContext';
+import { useHostList } from '../features/hosts/hosts-api';
 import { ROLE_LABELS, WORKSPACE_KIND_LABELS } from '../features/auth/labels';
 import type { ComponentState, SystemComponent } from '../types/system-status';
 
 export function DashboardPage() {
-  const { user, workspaces } = useAuth();
+  const { user } = useAuth();
+  const { activeWorkspace: workspace } = useWorkspace();
   const health = useApiHealth();
+  // pageSize=1: only `pagination.total` is needed, no summary endpoint.
+  const hosts = useHostList(workspace?.id, { page: 1, pageSize: 1 });
   const apiState: ComponentState = health.isPending ? 'checking' : health.data?.status === 'ok' ? 'online' : 'offline';
-  const workspace = workspaces[0];
   const firstName = user?.name.split(' ')[0] ?? '';
 
   const components: SystemComponent[] = [
@@ -47,14 +51,17 @@ export function DashboardPage() {
         </section>
       )}
 
-      {/* Real zeros: Hosts / Events / Incidents / Investigations APIs do not exist yet. */}
       <section className="grid grid--metrics" aria-label="Visão geral">
-        <MetricCard label="Hosts" value={0} />
+        <MetricCard
+          label="Hosts cadastrados"
+          value={hosts.data ? hosts.data.pagination.total : '—'}
+          hint="Nenhum Collector pareado ainda"
+        />
+        {/* Real zeros: events, incidents and investigations do not exist yet. */}
         <MetricCard label="Eventos" value={0} />
         <MetricCard label="Incidentes" value={0} />
         <MetricCard label="Investigações" value={0} />
       </section>
-      <p className="muted small">Nenhum host conectado a este workspace ainda.</p>
 
       <section className="surface" aria-labelledby="system-status">
         <h2 id="system-status" className="section-title">

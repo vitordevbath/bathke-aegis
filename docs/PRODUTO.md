@@ -35,6 +35,7 @@ TELEMETRIA → EVENTO → REGRA → ALERTA → INCIDENTE → INVESTIGAÇÃO
 
 | Conceito | Definição |
 | --- | --- |
+| Host | Máquina cadastrada em um workspace. Hoje é cadastro manual (nome e descrição); hostname, SO, arquitetura, estado de conexão e último contato serão informados pelo Aegis Collector após o pareamento (PLANNED). Sem Collector, o host é "Não pareado". |
 | Telemetria | Dados técnicos produzidos pelo host/collector |
 | Evento | Ocorrência individual normalizada |
 | Regra | Condição utilizada para detectar comportamento relevante |

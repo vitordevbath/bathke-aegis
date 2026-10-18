@@ -32,6 +32,14 @@ export class Membership {
     return this.role === 'OWNER';
   }
 
+  /**
+   * Create/update/delete workspace resources. Deny-by-default: only OWNER for
+   * now; ADMIN/ANALYST/VIEWER get behavior when workspace sharing exists.
+   */
+  get canManageResources(): boolean {
+    return this.role === 'OWNER';
+  }
+
   toSnapshot(): MembershipSnapshot {
     return { userId: this.userId, workspaceId: this.workspaceId, role: this.role, createdAt: this.createdAt };
   }

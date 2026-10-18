@@ -1,6 +1,6 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
-import { AuthenticationError, ConflictError, NotFoundError, ValidationError } from '@aegis/domain';
+import { AuthenticationError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@aegis/domain';
 import { UNKNOWN_FIELD_MESSAGE, type ApiErrorCode, type ApiErrorResponse, type ApiFieldIssue } from '@aegis/contracts';
 
 const INTERNAL_ERROR_MESSAGE = 'Erro interno. Tente novamente mais tarde.';
@@ -32,6 +32,7 @@ export function errorHandler(error: FastifyError | Error, request: FastifyReques
   if (error instanceof ConflictError) {
     return send(reply, 409, 'CONFLICT', error.message, error.field ? [{ field: error.field, message: error.message }] : undefined);
   }
+  if (error instanceof ForbiddenError) return send(reply, 403, 'FORBIDDEN', error.message);
   if (error instanceof NotFoundError) return send(reply, 404, 'NOT_FOUND', error.message);
 
   const status = 'statusCode' in error ? error.statusCode : undefined;
