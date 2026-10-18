@@ -104,3 +104,28 @@ export const detectionRules = mysqlTable(
   ],
 );
 
+/**
+ * Rule ↔ Host targets for SELECTED_HOSTS rules. Deleting a rule cascades to
+ * its targets; deleting a targeted host is restricted (the application answers
+ * 409) so a SELECTED_HOSTS rule never silently loses its last target.
+ * Same-workspace consistency is enforced by the application inside the same
+ * transaction that writes the targets.
+ */
+export const detectionRuleTargets = mysqlTable(
+  'detection_rule_targets',
+  {
+    detectionRuleId: char('detection_rule_id', { length: 36 })
+      .notNull()
+      .references(() => detectionRules.id, { onDelete: 'cascade' }),
+    hostId: char('host_id', { length: 36 })
+      .notNull()
+      .references(() => hosts.id, { onDelete: 'restrict' }),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    // Composite PK forbids duplicates and serves the rule FK (leftmost column).
+    primaryKey({ name: 'detection_rule_targets_pk', columns: [table.detectionRuleId, table.hostId] }),
+    // Serves the host FK and "is this host targeted?" lookups.
+    index('detection_rule_targets_host_idx').on(table.hostId),
+  ],
+);
