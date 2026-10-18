@@ -10,11 +10,17 @@ import type { ListHosts } from '../../application/use-cases/hosts/list-hosts.js'
 import type { GetHost } from '../../application/use-cases/hosts/get-host.js';
 import type { UpdateHost } from '../../application/use-cases/hosts/update-host.js';
 import type { DeleteHost } from '../../application/use-cases/hosts/delete-host.js';
+import type { CreateDetectionRule } from '../../application/use-cases/detection-rules/create-detection-rule.js';
+import type { ListDetectionRules } from '../../application/use-cases/detection-rules/list-detection-rules.js';
+import type { GetDetectionRule } from '../../application/use-cases/detection-rules/get-detection-rule.js';
+import type { UpdateDetectionRule } from '../../application/use-cases/detection-rules/update-detection-rule.js';
+import type { DeleteDetectionRule } from '../../application/use-cases/detection-rules/delete-detection-rule.js';
 import { errorHandler } from './error-handler.js';
 import { healthRoute } from './routes/health.route.js';
 import { authRoute } from './routes/auth.route.js';
 import { usersRoute } from './routes/users.route.js';
 import { hostsRoute } from './routes/hosts.route.js';
+import { detectionRulesRoute } from './routes/detection-rules.route.js';
 
 /** Use cases the HTTP layer delegates to. Assembled by the composition root (or by tests). */
 export interface AppDependencies {
@@ -28,6 +34,11 @@ export interface AppDependencies {
   readonly getHost: GetHost;
   readonly updateHost: UpdateHost;
   readonly deleteHost: DeleteHost;
+  readonly createDetectionRule: CreateDetectionRule;
+  readonly listDetectionRules: ListDetectionRules;
+  readonly getDetectionRule: GetDetectionRule;
+  readonly updateDetectionRule: UpdateDetectionRule;
+  readonly deleteDetectionRule: DeleteDetectionRule;
   /** Requests per client IP per minute on each auth route. */
   readonly authRateLimitMax: number;
 }
@@ -61,6 +72,14 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
     getHost: dependencies.getHost,
     updateHost: dependencies.updateHost,
     deleteHost: dependencies.deleteHost,
+  });
+  await app.register(detectionRulesRoute, {
+    resolveAuthenticatedUser: dependencies.resolveAuthenticatedUser,
+    createDetectionRule: dependencies.createDetectionRule,
+    listDetectionRules: dependencies.listDetectionRules,
+    getDetectionRule: dependencies.getDetectionRule,
+    updateDetectionRule: dependencies.updateDetectionRule,
+    deleteDetectionRule: dependencies.deleteDetectionRule,
   });
 
   return app;

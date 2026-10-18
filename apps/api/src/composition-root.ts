@@ -14,6 +14,11 @@ import { ListHosts } from './application/use-cases/hosts/list-hosts.js';
 import { GetHost } from './application/use-cases/hosts/get-host.js';
 import { UpdateHost } from './application/use-cases/hosts/update-host.js';
 import { DeleteHost } from './application/use-cases/hosts/delete-host.js';
+import { CreateDetectionRule } from './application/use-cases/detection-rules/create-detection-rule.js';
+import { ListDetectionRules } from './application/use-cases/detection-rules/list-detection-rules.js';
+import { GetDetectionRule } from './application/use-cases/detection-rules/get-detection-rule.js';
+import { UpdateDetectionRule } from './application/use-cases/detection-rules/update-detection-rule.js';
+import { DeleteDetectionRule } from './application/use-cases/detection-rules/delete-detection-rule.js';
 import { createDatabase } from './infrastructure/db/client.js';
 import { DrizzleUnitOfWork, createDrizzleRepositories } from './infrastructure/db/drizzle-repositories.js';
 import { Argon2PasswordHasher } from './infrastructure/security/argon2-password-hasher.js';
@@ -41,6 +46,11 @@ export function createUseCases(adapters: Adapters, authRateLimitMax: number): Ap
     getHost: new GetHost(access, repositories.hosts),
     updateHost: new UpdateHost(access, repositories.hosts),
     deleteHost: new DeleteHost(access, repositories.hosts, repositories.detectionRules),
+    createDetectionRule: new CreateDetectionRule(access, unitOfWork),
+    listDetectionRules: new ListDetectionRules(access, repositories.detectionRules),
+    getDetectionRule: new GetDetectionRule(access, repositories.detectionRules, repositories.hosts),
+    updateDetectionRule: new UpdateDetectionRule(access, unitOfWork),
+    deleteDetectionRule: new DeleteDetectionRule(access, repositories.detectionRules),
     authRateLimitMax,
   };
 }
