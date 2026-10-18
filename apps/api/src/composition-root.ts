@@ -8,6 +8,12 @@ import { AuthenticateUser } from './application/use-cases/authenticate-user.js';
 import { ResolveAuthenticatedUser } from './application/use-cases/resolve-authenticated-user.js';
 import { GetCurrentUser } from './application/use-cases/get-current-user.js';
 import { UpdateCurrentUser } from './application/use-cases/update-current-user.js';
+import { WorkspaceAccess } from './application/workspace-access.js';
+import { CreateHost } from './application/use-cases/hosts/create-host.js';
+import { ListHosts } from './application/use-cases/hosts/list-hosts.js';
+import { GetHost } from './application/use-cases/hosts/get-host.js';
+import { UpdateHost } from './application/use-cases/hosts/update-host.js';
+import { DeleteHost } from './application/use-cases/hosts/delete-host.js';
 import { createDatabase } from './infrastructure/db/client.js';
 import { DrizzleUnitOfWork, createDrizzleRepositories } from './infrastructure/db/drizzle-repositories.js';
 import { Argon2PasswordHasher } from './infrastructure/security/argon2-password-hasher.js';
@@ -23,12 +29,18 @@ export interface Adapters {
 /** Wires use cases to whichever adapters are given (production or test doubles). */
 export function createUseCases(adapters: Adapters, authRateLimitMax: number): AppDependencies {
   const { repositories, unitOfWork, hasher, tokens } = adapters;
+  const access = new WorkspaceAccess(repositories.memberships);
   return {
     registerUser: new RegisterUser(repositories, unitOfWork, hasher),
     authenticateUser: new AuthenticateUser(repositories, hasher, tokens),
     resolveAuthenticatedUser: new ResolveAuthenticatedUser(tokens, repositories.users),
     getCurrentUser: new GetCurrentUser(repositories.memberships),
     updateCurrentUser: new UpdateCurrentUser(repositories, hasher),
+    createHost: new CreateHost(access, repositories.hosts),
+    listHosts: new ListHosts(access, repositories.hosts),
+    getHost: new GetHost(access, repositories.hosts),
+    updateHost: new UpdateHost(access, repositories.hosts),
+    deleteHost: new DeleteHost(access, repositories.hosts),
     authRateLimitMax,
   };
 }
