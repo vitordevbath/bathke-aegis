@@ -25,12 +25,22 @@ os testes `integration/*` rodam contra MySQL 8.4 real (CI e local via `TEST_DATA
 
 ## CRUDs (User não conta)
 
+Todos os recursos pertencem a um **Workspace** (ADR-009); usuários os acessam por Membership:
+
+```
+Workspace
+├── Hosts
+├── Detection Rules
+├── Incidents
+└── Investigations
+```
+
 | Requisito | Status | Implementação | Evidência | Testes | Notas |
 | --- | --- | --- | --- | --- | --- |
 | Hosts CRUD | TODO | - | - | - | |
-| Detection Rules CRUD | TODO | - | - | - | pertence a User |
-| Incidents CRUD | TODO | - | - | - | Host/Rule → Incident |
-| Investigations CRUD | TODO | - | - | - | User, Incident → Investigation |
+| Detection Rules CRUD | TODO | - | - | - | pertence ao Workspace |
+| Incidents CRUD | TODO | - | - | - | pertence ao Workspace; Host/Rule → Incident |
+| Investigations CRUD | TODO | - | - | - | pertence ao Workspace; Incident → Investigation (autor: User) |
 | Paginação | TODO | - | - | - | |
 | Relacionamentos | TODO | - | - | - | |
 | Recurso inexistente (404) | TODO | - | - | - | |
