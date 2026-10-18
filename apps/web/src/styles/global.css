@@ -71,8 +71,9 @@ a { color: inherit; text-decoration: none; }
 /* ── accessibility helpers ─────────────────────────────────────────── */
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-a:not(.button):not(.nav__link) { color: var(--color-accent); }
-a:not(.button):not(.nav__link):hover { color: var(--color-accent-hover); }
+/* Inline text links only (footers, helper text); brand and nav links keep text color. */
+.auth__footer a { color: var(--color-accent); font-weight: 500; }
+.auth__footer a:hover { color: var(--color-accent-hover); }
 
 /* ── buttons (extensions) ──────────────────────────────────────────── */
 .button { transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); min-height: 2.5rem; }
