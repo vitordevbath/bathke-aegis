@@ -10,8 +10,8 @@ configurável e removível.
 
 | Ativo | Ameaça | Mitigação atual / planejada |
 | --- | --- | --- |
-| Credenciais de usuários | vazamento, brute force | PLANNED: Argon2, rate limiting, mensagens genéricas |
-| Tokens JWT | roubo, forja | PLANNED: segredo forte via env, expiração curta |
+| Credenciais de usuários | vazamento, brute force, enumeração | CURRENT: Argon2id, rate limit por IP em `/auth/*`, erro de login genérico + verificação Argon2 também para email inexistente |
+| Tokens JWT | roubo, forja | CURRENT: HS256 com segredo validado no startup, `alg` fixo, `iss`/`aud`/`exp` verificados, TTL 1 h; token em localStorage mitigado por CSP (ADR-017). PLANNED: revogação |
 | Banco MySQL | acesso direto | CURRENT: porta 3306 não publicada; rede `aegis_data` interna |
 | API | exposição direta | CURRENT: somente Nginx publica porta |
 | Telemetria de hosts | coleta excessiva/privada | PLANNED: allowlist de eventos, sem payload |
@@ -21,14 +21,29 @@ configurável e removível.
 ## Segredos
 
 - Somente `.env.example` (valores fictícios) é versionado.
-- `compose.yaml` exige `MYSQL_PASSWORD`/`MYSQL_ROOT_PASSWORD` do ambiente; não há defaults de senha.
+- `compose.yaml` exige `MYSQL_PASSWORD`/`MYSQL_ROOT_PASSWORD`/`JWT_SECRET` do ambiente; não há defaults de senha nem de segredo.
+- O placeholder de `JWT_SECRET` do `.env.example` é rejeitado pela API no startup.
+- Testes geram segredos em tempo de execução; o CI usa credenciais descartáveis apenas para o MySQL de teste.
 - Segredos nunca aparecem em logs, docs, fixtures, testes, commits, issues ou saída do MCP.
 - `loadEnv` reporta apenas nomes de variáveis inválidas, nunca valores.
 
-## Autenticação (planejada, Fase 02)
+## Autenticação e usuários (CURRENT, BF 01)
 
-Hash Argon2id, JWT assinado com segredo de ambiente, ownership verificado no
-servidor para toda escrita, email imutável via edição comum.
+- **Senhas:** Argon2id (m=64 MiB, t=3, p=4), salt aleatório embutido no hash. Política: 10–128 caracteres com minúscula, maiúscula, número e caractere especial, validada no web e — como autoridade — na API.
+- **Login:** erro único "Email ou senha inválidos." para email inexistente e senha errada; o caminho de email inexistente também executa uma verificação Argon2 para não revelar contas pelo tempo de resposta.
+- **Cadastro:** responde 409 para email/CPF já cadastrados (exigência funcional). Isso permite descobrir se um email existe; a mitigação é o rate limit em `/auth/register`.
+- **JWT:** ver ADR-016. Rotas protegidas exigem `Authorization: Bearer`, verificam assinatura/expiração/claims e recarregam o usuário (inexistente → 401).
+- **Autorização:** o usuário só lê/edita a si mesmo (`/users/me`); identidade vem do token; `id`/`userId`/`email` no corpo são rejeitados. Não existe conta universal, superusuário ou bypass.
+- **Rate limiting:** `@fastify/rate-limit` em memória, por IP, `AUTH_RATE_LIMIT_MAX` (padrão 10/min) em `/auth/login` e `/auth/register`. A API confia em exatamente um proxy (Nginx) para obter o IP do cliente. Uma instância só; sem store distribuído.
+- **Dados expostos:** respostas usam mapeamento explícito (`mappers.ts`); `password_hash` nunca sai da API. CPF é retornado apenas ao próprio usuário.
+- **Logs:** Fastify registra método/URL/status, nunca corpo nem cabeçalhos. Erros inesperados são logados só com tipo, código e stack frames — a mensagem de drivers pode conter parâmetros (hash, CPF) e é descartada. Respostas de erro nunca contêm stack trace ou SQL.
+- **Token no navegador:** localStorage por exigência acadêmica (ADR-017), com CSP estrita no Nginx.
+
+### Limitações conhecidas
+
+- Logout é local; tokens emitidos continuam válidos até expirar (sem revogação).
+- Troca de senha não invalida sessões existentes.
+- Rate limit em memória zera quando a API reinicia e não é compartilhado entre instâncias.
 
 ## Fronteiras
 
