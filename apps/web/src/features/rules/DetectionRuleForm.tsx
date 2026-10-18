@@ -70,7 +70,7 @@ export function DetectionRuleForm({ workspaceId, defaultValues, submitLabel, pen
     <form className="form form--wide rule-form" noValidate onSubmit={submit}>
       <EngineNotice />
 
-      <section className="surface fieldset" aria-labelledby="rule-identity">
+      <section className="surface rule-section" aria-labelledby="rule-identity">
         <h2 id="rule-identity" className="section-title">
           Identificação
         </h2>
@@ -116,7 +116,7 @@ export function DetectionRuleForm({ workspaceId, defaultValues, submitLabel, pen
         </label>
       </section>
 
-      <section className="surface fieldset" aria-labelledby="rule-conditions">
+      <section className="surface rule-section" aria-labelledby="rule-conditions">
         <h2 id="rule-conditions" className="section-title">
           Condições
         </h2>
@@ -134,7 +134,7 @@ export function DetectionRuleForm({ workspaceId, defaultValues, submitLabel, pen
         </details>
       </section>
 
-      <section className="surface fieldset" aria-labelledby="rule-scope">
+      <section className="surface rule-section" aria-labelledby="rule-scope">
         <h2 id="rule-scope" className="section-title">
           Escopo
         </h2>

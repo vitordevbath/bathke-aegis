@@ -45,8 +45,7 @@ export function RulesPage() {
           <h1 className="title">Regras de detecção</h1>
           {list.data && (
             <p className="muted small" aria-live="polite">
-              {total} {total === 1 ? 'regra' : 'regras'}
-              {filtered ? ' encontradas' : ' configuradas'}
+              {total} {total === 1 ? 'regra' : 'regras'} {filtered ? (total === 1 ? 'encontrada' : 'encontradas') : total === 1 ? 'configurada' : 'configuradas'}
             </p>
           )}
         </div>
