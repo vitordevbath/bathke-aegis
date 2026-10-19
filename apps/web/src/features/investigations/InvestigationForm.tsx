@@ -102,7 +102,7 @@ export function InvestigationForm({
       {withConclusion && (
         <section className="surface rule-section" aria-labelledby="investigation-conclusion">
           <h2 id="investigation-conclusion" className="section-title">
-            Conclusão preliminar
+            Conclusão
           </h2>
           <TextAreaField
             label="Conclusão preliminar"
