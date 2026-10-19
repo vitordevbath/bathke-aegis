@@ -119,13 +119,13 @@ describe('detection rule use cases', () => {
 
     await expect(new UpdateDetectionRule(access, persistence.unitOfWork).execute(b.user, a.workspaceId, rule.id, details())).rejects.toBeInstanceOf(NotFoundError);
     await expect(new UpdateDetectionRule(access, persistence.unitOfWork).execute(b.user, b.workspaceId, rule.id, details())).rejects.toBeInstanceOf(NotFoundError);
-    await expect(new DeleteDetectionRule(access, persistence.repositories.detectionRules).execute(b.user, b.workspaceId, rule.id)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(new DeleteDetectionRule(access, persistence.repositories.detectionRules, persistence.repositories.incidents).execute(b.user, b.workspaceId, rule.id)).rejects.toBeInstanceOf(NotFoundError);
 
     persistence.store.memberships.set(
       `${b.user.id}:${a.workspaceId}`,
       Membership.restore({ userId: b.user.id, workspaceId: a.workspaceId, role: 'VIEWER', createdAt: new Date() }).toSnapshot(),
     );
-    await expect(new DeleteDetectionRule(access, persistence.repositories.detectionRules).execute(b.user, a.workspaceId, rule.id)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(new DeleteDetectionRule(access, persistence.repositories.detectionRules, persistence.repositories.incidents).execute(b.user, a.workspaceId, rule.id)).rejects.toBeInstanceOf(ForbiddenError);
     expect(persistence.store.detectionRules.has(rule.id)).toBe(true);
   });
 
@@ -135,10 +135,10 @@ describe('detection rule use cases', () => {
     const rule = (
       await new CreateDetectionRule(access, persistence.unitOfWork).execute(a.user, a.workspaceId, details({ scope: 'SELECTED_HOSTS', targetHostIds: [host.id] }))
     ).rule;
-    const deleteHost = new DeleteHost(access, persistence.repositories.hosts, persistence.repositories.detectionRules);
+    const deleteHost = new DeleteHost(access, persistence.repositories.hosts, persistence.repositories.detectionRules, persistence.repositories.incidents);
 
     await expect(deleteHost.execute(a.user, a.workspaceId, host.id)).rejects.toBeInstanceOf(ConflictError);
-    await new DeleteDetectionRule(access, persistence.repositories.detectionRules).execute(a.user, a.workspaceId, rule.id);
+    await new DeleteDetectionRule(access, persistence.repositories.detectionRules, persistence.repositories.incidents).execute(a.user, a.workspaceId, rule.id);
     await expect(deleteHost.execute(a.user, a.workspaceId, host.id)).resolves.toBeUndefined();
   });
 });

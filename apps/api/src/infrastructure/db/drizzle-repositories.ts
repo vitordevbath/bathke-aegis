@@ -24,7 +24,8 @@ import type {
   WorkspaceRepository,
 } from '../../application/ports/repositories.js';
 import { CPF_TAKEN_MESSAGE, EMAIL_TAKEN_MESSAGE } from '../../application/use-cases/register-user.js';
-import { HOST_TARGETED_MESSAGE } from '../../application/use-cases/hosts/delete-host.js';
+import { HOST_IN_INCIDENT_MESSAGE, HOST_TARGETED_MESSAGE } from '../../application/use-cases/hosts/delete-host.js';
+import { RULE_IN_INCIDENT_MESSAGE } from '../../application/use-cases/detection-rules/delete-detection-rule.js';
 import type { Database } from './client.js';
 import * as schema from './schema.js';
 import { detectionRuleTargets, detectionRules, hosts, incidentDetectionRules, incidentHosts, incidents, memberships, users, workspaces } from './schema.js';
@@ -40,6 +41,13 @@ function driverError(error: unknown): { code?: unknown; message?: unknown } | un
     current = (current as { cause?: unknown }).cause;
   }
   return undefined;
+}
+
+/** A FK RESTRICT refused the delete (a referencing row was written concurrently). */
+function referencedBy(error: unknown): string | undefined {
+  const cause = driverError(error);
+  if (cause?.code !== 'ER_ROW_IS_REFERENCED_2') return undefined;
+  return typeof cause.message === 'string' ? cause.message : '';
 }
 
 /** Maps unique-key violations to domain conflicts; anything else propagates unchanged. */
@@ -196,8 +204,9 @@ class DrizzleHostRepository implements HostRepository {
       const [result] = await this.db.delete(hosts).where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, hostId)));
       return result.affectedRows > 0;
     } catch (error) {
-      // FK RESTRICT from detection_rule_targets (a rule targeted the host concurrently).
-      if (driverError(error)?.code === 'ER_ROW_IS_REFERENCED_2') throw new ConflictError(HOST_TARGETED_MESSAGE);
+      // FK RESTRICT from detection_rule_targets or incident_hosts (a reference was added concurrently).
+      const message = referencedBy(error);
+      if (message !== undefined) throw new ConflictError(message.includes('incident_hosts') ? HOST_IN_INCIDENT_MESSAGE : HOST_TARGETED_MESSAGE);
       throw error;
     }
   }
@@ -278,10 +287,16 @@ class DrizzleDetectionRuleRepository implements DetectionRuleRepository {
   }
 
   async deleteInWorkspace(workspaceId: string, ruleId: string): Promise<boolean> {
-    const [result] = await this.db
-      .delete(detectionRules)
-      .where(and(eq(detectionRules.workspaceId, workspaceId), eq(detectionRules.id, ruleId)));
-    return result.affectedRows > 0;
+    try {
+      const [result] = await this.db
+        .delete(detectionRules)
+        .where(and(eq(detectionRules.workspaceId, workspaceId), eq(detectionRules.id, ruleId)));
+      return result.affectedRows > 0;
+    } catch (error) {
+      // FK RESTRICT from incident_detection_rules (an incident related the rule concurrently).
+      if (referencedBy(error) !== undefined) throw new ConflictError(RULE_IN_INCIDENT_MESSAGE);
+      throw error;
+    }
   }
 
   async isHostTargeted(hostId: string): Promise<boolean> {
