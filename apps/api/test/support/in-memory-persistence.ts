@@ -323,6 +323,10 @@ class InMemoryIncidentRepository implements IncidentRepository {
   async deleteInWorkspace(workspaceId: string, incidentId: string): Promise<boolean> {
     const current = this.store.incidents.get(incidentId);
     if (!current || current.workspaceId !== workspaceId) return false;
+    // Mirrors ON DELETE RESTRICT on investigation_incidents.incident_id.
+    if ([...this.store.investigations.values()].some((investigation) => investigation.incidentIds.includes(incidentId))) {
+      throw new Error('foreign key constraint fails (restrict)');
+    }
     return this.store.incidents.delete(incidentId);
   }
 

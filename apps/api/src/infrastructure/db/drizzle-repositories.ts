@@ -29,6 +29,7 @@ import type {
 import { CPF_TAKEN_MESSAGE, EMAIL_TAKEN_MESSAGE } from '../../application/use-cases/register-user.js';
 import { HOST_IN_INCIDENT_MESSAGE, HOST_TARGETED_MESSAGE } from '../../application/use-cases/hosts/delete-host.js';
 import { RULE_IN_INCIDENT_MESSAGE } from '../../application/use-cases/detection-rules/delete-detection-rule.js';
+import { INCIDENT_IN_INVESTIGATION_MESSAGE } from '../../application/use-cases/incidents/delete-incident.js';
 import type { Database } from './client.js';
 import * as schema from './schema.js';
 import {
@@ -429,8 +430,14 @@ class DrizzleIncidentRepository implements IncidentRepository {
   }
 
   async deleteInWorkspace(workspaceId: string, incidentId: string): Promise<boolean> {
-    const [result] = await this.db.delete(incidents).where(and(eq(incidents.workspaceId, workspaceId), eq(incidents.id, incidentId)));
-    return result.affectedRows > 0;
+    try {
+      const [result] = await this.db.delete(incidents).where(and(eq(incidents.workspaceId, workspaceId), eq(incidents.id, incidentId)));
+      return result.affectedRows > 0;
+    } catch (error) {
+      // FK RESTRICT from investigation_incidents (an investigation grouped the incident concurrently).
+      if (referencedBy(error) !== undefined) throw new ConflictError(INCIDENT_IN_INVESTIGATION_MESSAGE);
+      throw error;
+    }
   }
 
   async isHostInvolved(hostId: string): Promise<boolean> {

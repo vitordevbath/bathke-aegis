@@ -65,7 +65,7 @@ export function createUseCases(adapters: Adapters, authRateLimitMax: number): Ap
     listIncidents: new ListIncidents(access, repositories.incidents),
     getIncident: new GetIncident(access, repositories),
     updateIncident: new UpdateIncident(access, unitOfWork),
-    deleteIncident: new DeleteIncident(access, repositories.incidents),
+    deleteIncident: new DeleteIncident(access, repositories.incidents, repositories.investigations),
     createInvestigation: new CreateInvestigation(access, unitOfWork),
     listInvestigations: new ListInvestigations(access, repositories.investigations),
     getInvestigation: new GetInvestigation(access, repositories),

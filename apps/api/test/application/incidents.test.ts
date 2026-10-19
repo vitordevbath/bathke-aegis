@@ -152,7 +152,7 @@ describe('incident use cases', () => {
     await expect(update().execute(a.user, a.workspaceId, incident.id, details({ title: 'Outro', hostIds: [host.id] }))).rejects.toBeInstanceOf(
       InvalidStateError,
     );
-    await new DeleteIncident(access, persistence.repositories.incidents).execute(a.user, a.workspaceId, incident.id);
+    await new DeleteIncident(access, persistence.repositories.incidents, persistence.repositories.investigations).execute(a.user, a.workspaceId, incident.id);
     expect(persistence.store.incidents.size).toBe(0);
   });
 
@@ -166,16 +166,16 @@ describe('incident use cases', () => {
       `${viewer.user.id}:${owner.workspaceId}`,
       Membership.restore({ userId: viewer.user.id, workspaceId: owner.workspaceId, role: 'VIEWER', createdAt: new Date() }).toSnapshot(),
     );
-    const { incidents } = persistence.repositories;
+    const { incidents, investigations } = persistence.repositories;
 
     await expect(new GetIncident(access, persistence.repositories).execute(viewer.user, owner.workspaceId, incident.id)).resolves.toMatchObject({ incident: { id: incident.id } });
     await expect(new ListIncidents(access, incidents).execute(viewer.user, owner.workspaceId, { page: 1, pageSize: 10 })).resolves.toMatchObject({ total: 1 });
     await expect(create().execute(viewer.user, owner.workspaceId, details({ hostIds: [host.id] }))).rejects.toBeInstanceOf(ForbiddenError);
     await expect(update().execute(viewer.user, owner.workspaceId, incident.id, details({ hostIds: [host.id] }), 'RESOLVED')).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(new DeleteIncident(access, incidents).execute(viewer.user, owner.workspaceId, incident.id)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(new DeleteIncident(access, incidents, investigations).execute(viewer.user, owner.workspaceId, incident.id)).rejects.toBeInstanceOf(ForbiddenError);
     await expect(new GetIncident(access, persistence.repositories).execute(outsider.user, owner.workspaceId, incident.id)).rejects.toBeInstanceOf(NotFoundError);
     // The outsider's own workspace with the owner's incident id: still 404.
-    await expect(new DeleteIncident(access, incidents).execute(outsider.user, outsider.workspaceId, incident.id)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(new DeleteIncident(access, incidents, investigations).execute(outsider.user, outsider.workspaceId, incident.id)).rejects.toBeInstanceOf(NotFoundError);
     expect(persistence.store.incidents.get(incident.id)?.status).toBe('OPEN');
   });
 
