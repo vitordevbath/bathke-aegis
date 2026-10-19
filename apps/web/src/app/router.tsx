@@ -61,6 +61,16 @@ export const routes: RouteObject[] = [
               { path: '/incidentes/novo', lazy: page(() => import('../pages/incidents/CreateIncidentPage'), 'CreateIncidentPage') },
               { path: '/incidentes/:incidentId', lazy: page(() => import('../pages/incidents/IncidentDetailPage'), 'IncidentDetailPage') },
               { path: '/incidentes/:incidentId/editar', lazy: page(() => import('../pages/incidents/EditIncidentPage'), 'EditIncidentPage') },
+              { path: '/investigacoes', lazy: page(() => import('../pages/investigations/InvestigationsPage'), 'InvestigationsPage') },
+              { path: '/investigacoes/nova', lazy: page(() => import('../pages/investigations/CreateInvestigationPage'), 'CreateInvestigationPage') },
+              {
+                path: '/investigacoes/:investigationId',
+                lazy: page(() => import('../pages/investigations/InvestigationDetailPage'), 'InvestigationDetailPage'),
+              },
+              {
+                path: '/investigacoes/:investigationId/editar',
+                lazy: page(() => import('../pages/investigations/EditInvestigationPage'), 'EditInvestigationPage'),
+              },
             ],
           },
         ],
