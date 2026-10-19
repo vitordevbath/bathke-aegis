@@ -1,4 +1,5 @@
 import type { FieldIssue } from './domain-error.js';
+import { SEVERITIES, type Severity } from './severity.js';
 
 /**
  * Detection rule schema v1 — a declarative, structured, non-executable
@@ -8,8 +9,9 @@ import type { FieldIssue } from './domain-error.js';
  * operator is restricted to the field's value type.
  */
 
-export const DETECTION_SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
-export type DetectionSeverity = (typeof DETECTION_SEVERITIES)[number];
+/** The shared severity scale (also used by incidents). */
+export const DETECTION_SEVERITIES = SEVERITIES;
+export type DetectionSeverity = Severity;
 
 export const DETECTION_EVENT_CATEGORIES = ['PROCESS', 'NETWORK', 'SYSTEM'] as const;
 export type DetectionEventCategory = (typeof DETECTION_EVENT_CATEGORIES)[number];

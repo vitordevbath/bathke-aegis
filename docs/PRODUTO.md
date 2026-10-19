@@ -40,7 +40,7 @@ TELEMETRIA → EVENTO → REGRA → ALERTA → INCIDENTE → INVESTIGAÇÃO
 | Evento | Ocorrência individual normalizada |
 | Regra | Condição declarativa (schema v1: campo da allowlist, operador fechado, valor tipado) para detectar comportamento relevante. Pertence a um workspace e vale para todos os hosts ou para hosts selecionados. Hoje é apenas configuração: o motor de detecção ainda não existe. |
 | Alerta | Resultado de uma regra acionada |
-| Incidente | Conjunto de eventos/alertas relacionados que merece análise |
+| Incidente | Caso de segurança que merece acompanhamento humano, no workspace, envolvendo um ou mais hosts e, opcionalmente, regras relacionadas. Tem severidade e ciclo de vida (Aberto → Em investigação → Resolvido → Encerrado, com reabertura antes do encerramento). Hoje é **registrado manualmente** (origem "Manual"); no futuro também agrupará eventos/alertas via correlação (PLANNED). |
 | Investigação | Caso humano que agrupa e analisa um ou mais incidentes |
 
 ## Componentes e responsabilidades
@@ -52,7 +52,7 @@ TELEMETRIA → EVENTO → REGRA → ALERTA → INCIDENTE → INVESTIGAÇÃO
 | Aegis Collector | Software instalado em hosts autorizados | PLANNED |
 | Aegis Detection Engine | Avalia regras sobre eventos | PLANNED |
 | Aegis Correlation Engine | Relaciona eventos e alertas | PLANNED |
-| Aegis Incident Engine | Organiza incidentes | PLANNED |
+| Aegis Incident Engine | Organiza incidentes | PARTIAL — CRUD manual com ciclo de vida (BF 04); criação automática PLANNED |
 | Aegis AI | Explicação e auxílio de análise | PLANNED |
 | Aegis MCP | Ferramentas seguras para agentes de desenvolvimento | CURRENT (base) |
 | Aegis Verified Core | Núcleo formal em Ada/SPARK | PLANNED |

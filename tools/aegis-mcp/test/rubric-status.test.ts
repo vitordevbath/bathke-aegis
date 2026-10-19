@@ -18,17 +18,28 @@ describe('evaluateRubric', () => {
     'Hosts CRUD',
     'Pagination',
     'Detection Rules CRUD',
+    'Incidents CRUD',
     'Relationships',
   ])('reports %s as PASS from implementation and test evidence', (requirement) => {
     expect(results.get(requirement)?.state).toBe('PASS');
   });
 
-  it.each(['Incidents CRUD', 'Investigations CRUD'])(
-    'keeps %s as TODO until it exists',
-    (requirement) => {
-      expect(results.get(requirement)?.state).toBe('TODO');
-    },
-  );
+  it('keeps Investigations CRUD as TODO until it exists', () => {
+    expect(results.get('Investigations CRUD')?.state).toBe('TODO');
+  });
+
+  it('degrades Incidents CRUD to IN_PROGRESS without its MySQL evidence', () => {
+    const partial = Object.create(RepoReader.prototype) as RepoReader;
+    const real = new RepoReader(findRepoRoot());
+    Object.assign(partial, {
+      root: real.root,
+      exists: (file: string) => !file.endsWith('incidents.mysql.test.ts') && real.exists(file),
+      readText: (file: string) => real.readText(file),
+    });
+    const incidents = evaluateRubric(partial).find((result) => result.requirement === 'Incidents CRUD');
+    expect(incidents?.state).toBe('IN_PROGRESS');
+    expect(incidents?.evidence).toContain('incidents.mysql.test.ts');
+  });
 
   it('degrades to IN_PROGRESS when part of the evidence is missing', () => {
     const partial = Object.create(RepoReader.prototype) as RepoReader;

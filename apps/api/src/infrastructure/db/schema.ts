@@ -1,5 +1,5 @@
-import { boolean, char, datetime, index, json, mysqlEnum, mysqlTable, primaryKey, varchar } from 'drizzle-orm/mysql-core';
-import type { DetectionDefinitionV1 } from '@aegis/domain';
+import { boolean, char, datetime, index, json, mysqlEnum, mysqlTable, primaryKey, text, varchar } from 'drizzle-orm/mysql-core';
+import { INCIDENT_ORIGINS, INCIDENT_STATUSES, SEVERITIES, type DetectionDefinitionV1 } from '@aegis/domain';
 
 /**
  * Drizzle schema — source for versioned migrations in `apps/api/drizzle`
@@ -127,5 +127,78 @@ export const detectionRuleTargets = mysqlTable(
     primaryKey({ name: 'detection_rule_targets_pk', columns: [table.detectionRuleId, table.hostId] }),
     // Serves the host FK and "is this host targeted?" lookups.
     index('detection_rule_targets_host_idx').on(table.hostId),
+  ],
+);
+
+/**
+ * Security incidents registered manually (ADR-025). `status` follows the
+ * domain lifecycle (ADR-026); `resolved_at` is set only while RESOLVED or
+ * CLOSED. `origin` = DETECTION_ENGINE is reserved: nothing writes it yet.
+ */
+export const incidents = mysqlTable(
+  'incidents',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    workspaceId: char('workspace_id', { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 160 }).notNull(),
+    // Plain text up to 5000 characters (enforced by the domain).
+    description: text('description'),
+    severity: mysqlEnum('severity', SEVERITIES).notNull(),
+    status: mysqlEnum('status', INCIDENT_STATUSES).notNull(),
+    origin: mysqlEnum('origin', INCIDENT_ORIGINS).notNull(),
+    ...timestamps,
+    resolvedAt: datetime('resolved_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    // Serves the workspace FK and the paginated list (WHERE workspace_id = ? ORDER BY created_at DESC, id DESC).
+    index('incidents_workspace_created_idx').on(table.workspaceId, table.createdAt, table.id),
+    // Serves the status filter (the main triage filter) with the same ordering.
+    index('incidents_workspace_status_created_idx').on(table.workspaceId, table.status, table.createdAt, table.id),
+  ],
+);
+
+/**
+ * Incident ↔ Host (N:N, ADR-024): an incident involves at least one host.
+ * Deleting an incident cascades; deleting an involved host is restricted (the
+ * application answers 409). Same-workspace consistency is enforced by the
+ * application inside the transaction that writes the relations.
+ */
+export const incidentHosts = mysqlTable(
+  'incident_hosts',
+  {
+    incidentId: char('incident_id', { length: 36 })
+      .notNull()
+      .references(() => incidents.id, { onDelete: 'cascade' }),
+    hostId: char('host_id', { length: 36 })
+      .notNull()
+      .references(() => hosts.id, { onDelete: 'restrict' }),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    // Composite PK forbids duplicates and serves the incident FK (leftmost column).
+    primaryKey({ name: 'incident_hosts_pk', columns: [table.incidentId, table.hostId] }),
+    // Serves the host FK and "is this host involved in an incident?" lookups.
+    index('incident_hosts_host_idx').on(table.hostId),
+  ],
+);
+
+/** Incident ↔ Detection Rule (N:N, optional, chosen by hand). Same delete policy as hosts. */
+export const incidentDetectionRules = mysqlTable(
+  'incident_detection_rules',
+  {
+    incidentId: char('incident_id', { length: 36 })
+      .notNull()
+      .references(() => incidents.id, { onDelete: 'cascade' }),
+    detectionRuleId: char('detection_rule_id', { length: 36 })
+      .notNull()
+      .references(() => detectionRules.id, { onDelete: 'restrict' }),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    primaryKey({ name: 'incident_detection_rules_pk', columns: [table.incidentId, table.detectionRuleId] }),
+    // Serves the rule FK and "is this rule related to an incident?" lookups.
+    index('incident_detection_rules_rule_idx').on(table.detectionRuleId),
   ],
 );

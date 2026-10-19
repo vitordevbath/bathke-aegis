@@ -70,3 +70,22 @@ export {
   type DetectionScope,
   type DetectionSeverity,
 } from './detection-rules.js';
+export {
+  INCIDENT_STATUSES,
+  INCIDENT_ORIGINS,
+  CreateIncidentRequestSchema,
+  UpdateIncidentRequestSchema,
+  IncidentListQuerySchema,
+  type IncidentStatus,
+  type IncidentOrigin,
+  type IncidentSeverity,
+  type CreateIncidentRequest,
+  type CreateIncidentCommand,
+  type UpdateIncidentRequest,
+  type UpdateIncidentCommand,
+  type IncidentListQuery,
+  type IncidentSummary,
+  type IncidentHost,
+  type IncidentDetectionRule,
+  type IncidentResponse,
+} from './incidents.js';

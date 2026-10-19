@@ -57,6 +57,15 @@ configurável e removível.
 - Nenhuma regra é executada nesta fase; não há eventos, alertas ou worker em segundo plano.
 - Targets só apontam para hosts do mesmo workspace (verificado na transação que os grava); host alheio e host inexistente recebem a mesma resposta (ADR-023).
 
+### Incidentes (CURRENT, BF 04)
+
+- Incidentes são registros manuais: o cliente não escolhe `origin` (sempre `MANUAL`), `status` inicial, `resolvedAt`, ids, workspace ou timestamps — todos rejeitados no cadastro (400). `DETECTION_ENGINE` é reservado e nenhum código o grava (ADR-025).
+- Hosts e regras relacionados são validados no workspace do incidente, na mesma transação que grava as relações; host ou regra de outro workspace e inexistente recebem o mesmo 400; qualquer falha desfaz tudo (ADR-024).
+- Host envolvido ou regra relacionada não podem ser excluídos (409 com orientação; FK `RESTRICT` cobre corridas). A existência no workspace é conferida antes do vínculo, então um id alheio continua 404 e o 409 nunca confirma recurso de outro tenant.
+- Transições de status são decididas só pelo domínio; transição inválida e edição de incidente encerrado → 409 `INVALID_STATE` (ADR-026). O web apenas exibe as `availableTransitions` recebidas.
+- Descrição é texto puro (até 5000 caracteres): armazenada como digitada e renderizada escapada pelo React com `white-space: pre-wrap`, nunca como HTML. Validado em navegador real: `<script>` digitado aparece como texto.
+- Nenhuma ação de resposta existe (matar processo, bloquear IP, isolar host, firewall). Exclusão é física enquanto não há evidência imutável (ADR-027).
+
 ### Limitações conhecidas
 
 - Logout é local; tokens emitidos continuam válidos até expirar (sem revogação).

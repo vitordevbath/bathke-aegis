@@ -73,3 +73,18 @@ export class NotFoundError extends DomainError {
     super(message);
   }
 }
+
+/**
+ * The input is valid, but the resource's current state does not allow the
+ * operation (e.g. an invalid lifecycle transition, editing a closed record).
+ */
+export class InvalidStateError extends DomainError {
+  override readonly code = 'INVALID_STATE';
+
+  constructor(
+    message: string,
+    readonly field?: string,
+  ) {
+    super(message);
+  }
+}

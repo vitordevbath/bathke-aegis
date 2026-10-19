@@ -19,6 +19,11 @@ import { ListDetectionRules } from './application/use-cases/detection-rules/list
 import { GetDetectionRule } from './application/use-cases/detection-rules/get-detection-rule.js';
 import { UpdateDetectionRule } from './application/use-cases/detection-rules/update-detection-rule.js';
 import { DeleteDetectionRule } from './application/use-cases/detection-rules/delete-detection-rule.js';
+import { CreateIncident } from './application/use-cases/incidents/create-incident.js';
+import { ListIncidents } from './application/use-cases/incidents/list-incidents.js';
+import { GetIncident } from './application/use-cases/incidents/get-incident.js';
+import { UpdateIncident } from './application/use-cases/incidents/update-incident.js';
+import { DeleteIncident } from './application/use-cases/incidents/delete-incident.js';
 import { createDatabase } from './infrastructure/db/client.js';
 import { DrizzleUnitOfWork, createDrizzleRepositories } from './infrastructure/db/drizzle-repositories.js';
 import { Argon2PasswordHasher } from './infrastructure/security/argon2-password-hasher.js';
@@ -45,12 +50,17 @@ export function createUseCases(adapters: Adapters, authRateLimitMax: number): Ap
     listHosts: new ListHosts(access, repositories.hosts),
     getHost: new GetHost(access, repositories.hosts),
     updateHost: new UpdateHost(access, repositories.hosts),
-    deleteHost: new DeleteHost(access, repositories.hosts, repositories.detectionRules),
+    deleteHost: new DeleteHost(access, repositories.hosts, repositories.detectionRules, repositories.incidents),
     createDetectionRule: new CreateDetectionRule(access, unitOfWork),
     listDetectionRules: new ListDetectionRules(access, repositories.detectionRules),
     getDetectionRule: new GetDetectionRule(access, repositories.detectionRules, repositories.hosts),
     updateDetectionRule: new UpdateDetectionRule(access, unitOfWork),
-    deleteDetectionRule: new DeleteDetectionRule(access, repositories.detectionRules),
+    deleteDetectionRule: new DeleteDetectionRule(access, repositories.detectionRules, repositories.incidents),
+    createIncident: new CreateIncident(access, unitOfWork),
+    listIncidents: new ListIncidents(access, repositories.incidents),
+    getIncident: new GetIncident(access, repositories),
+    updateIncident: new UpdateIncident(access, unitOfWork),
+    deleteIncident: new DeleteIncident(access, repositories.incidents),
     authRateLimitMax,
   };
 }

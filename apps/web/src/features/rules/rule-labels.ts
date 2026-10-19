@@ -1,8 +1,5 @@
-import type { DetectionEventCategory, DetectionOperator, DetectionScope, DetectionSeverity } from '@aegis/contracts';
+import type { DetectionEventCategory, DetectionOperator, DetectionScope } from '@aegis/contracts';
 import type { DetectionCondition, DetectionMatchMode } from '@aegis/domain';
-
-export const SEVERITY_LABELS: Record<DetectionSeverity, string> = { LOW: 'Baixa', MEDIUM: 'Média', HIGH: 'Alta', CRITICAL: 'Crítica' };
-export const SEVERITY_LEVEL: Record<DetectionSeverity, number> = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
 
 export const CATEGORY_LABELS: Record<DetectionEventCategory, string> = { PROCESS: 'Processo', NETWORK: 'Rede', SYSTEM: 'Sistema' };
 

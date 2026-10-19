@@ -29,6 +29,20 @@
       "when": 1792347369057,
       "tag": "0003_detection_rule_targets",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1792376460134,
+      "tag": "0004_incidents",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1792376471567,
+      "tag": "0005_incident_relations",
+      "breakpoints": true
     }
   ]
 }

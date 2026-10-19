@@ -4,7 +4,7 @@ import { HostStatusBadge } from '../../features/hosts/HostStatusBadge';
 import { formatDateTime } from '../../features/hosts/host-format';
 import { EngineNotice } from '../../features/rules/EngineNotice';
 import { RuleStatusBadge } from '../../features/rules/RuleStatusBadge';
-import { SeverityBadge } from '../../features/rules/SeverityBadge';
+import { SeverityBadge } from '../../components/SeverityBadge';
 import { CATEGORY_LABELS, MATCH_CONNECTOR, MATCH_LABELS, SCOPE_LABELS, describeCondition } from '../../features/rules/rule-labels';
 import { toRequest, useDeleteRule, useRule, useUpdateRule } from '../../features/rules/rules-api';
 import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
@@ -144,7 +144,12 @@ export function RuleDetailPage() {
       </div>
       {(updateRule.isError || deleteRule.isError) && (
         <p className="notice notice--error" role="alert">
-          {deleteRule.isError ? 'Não foi possível excluir a regra agora. Tente novamente.' : 'Não foi possível alterar o status agora. Tente novamente.'}
+          {/* 409: the rule is related to incidents — the API message says what to do. */}
+          {deleteRule.isError
+            ? deleteRule.error instanceof ApiError && deleteRule.error.status === 409
+              ? deleteRule.error.message
+              : 'Não foi possível excluir a regra agora. Tente novamente.'
+            : 'Não foi possível alterar o status agora. Tente novamente.'}
         </p>
       )}
     </main>

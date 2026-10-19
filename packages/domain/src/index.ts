@@ -5,6 +5,7 @@ export {
   AuthenticationError,
   ConflictError,
   ForbiddenError,
+  InvalidStateError,
   NotFoundError,
   type FieldIssue,
 } from './domain-error.js';
@@ -43,3 +44,21 @@ export {
   type DetectionDefinitionV1,
   type DefinitionValidation,
 } from './detection-rule-schema.js';
+export { SEVERITIES, type Severity } from './severity.js';
+export {
+  INCIDENT_STATUSES,
+  INCIDENT_ORIGINS,
+  INCIDENT_STATUS_LABELS,
+  INCIDENT_ORIGIN_LABELS,
+  INCIDENT_TRANSITIONS,
+  INCIDENT_LIMITS,
+  INCIDENT_TITLE_MESSAGE,
+  INCIDENT_DESCRIPTION_MESSAGE,
+  INCIDENT_HOSTS_REQUIRED_MESSAGE,
+  INCIDENT_CLOSED_MESSAGE,
+  InvalidIncidentTransitionError,
+  canTransitionIncident,
+  incidentStatusHasResolution,
+  type IncidentStatus,
+  type IncidentOrigin,
+} from './incident-rules.js';
