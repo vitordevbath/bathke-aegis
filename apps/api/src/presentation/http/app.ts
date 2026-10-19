@@ -15,12 +15,18 @@ import type { ListDetectionRules } from '../../application/use-cases/detection-r
 import type { GetDetectionRule } from '../../application/use-cases/detection-rules/get-detection-rule.js';
 import type { UpdateDetectionRule } from '../../application/use-cases/detection-rules/update-detection-rule.js';
 import type { DeleteDetectionRule } from '../../application/use-cases/detection-rules/delete-detection-rule.js';
+import type { CreateIncident } from '../../application/use-cases/incidents/create-incident.js';
+import type { ListIncidents } from '../../application/use-cases/incidents/list-incidents.js';
+import type { GetIncident } from '../../application/use-cases/incidents/get-incident.js';
+import type { UpdateIncident } from '../../application/use-cases/incidents/update-incident.js';
+import type { DeleteIncident } from '../../application/use-cases/incidents/delete-incident.js';
 import { errorHandler } from './error-handler.js';
 import { healthRoute } from './routes/health.route.js';
 import { authRoute } from './routes/auth.route.js';
 import { usersRoute } from './routes/users.route.js';
 import { hostsRoute } from './routes/hosts.route.js';
 import { detectionRulesRoute } from './routes/detection-rules.route.js';
+import { incidentsRoute } from './routes/incidents.route.js';
 
 /** Use cases the HTTP layer delegates to. Assembled by the composition root (or by tests). */
 export interface AppDependencies {
@@ -39,6 +45,11 @@ export interface AppDependencies {
   readonly getDetectionRule: GetDetectionRule;
   readonly updateDetectionRule: UpdateDetectionRule;
   readonly deleteDetectionRule: DeleteDetectionRule;
+  readonly createIncident: CreateIncident;
+  readonly listIncidents: ListIncidents;
+  readonly getIncident: GetIncident;
+  readonly updateIncident: UpdateIncident;
+  readonly deleteIncident: DeleteIncident;
   /** Requests per client IP per minute on each auth route. */
   readonly authRateLimitMax: number;
 }
@@ -80,6 +91,14 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
     getDetectionRule: dependencies.getDetectionRule,
     updateDetectionRule: dependencies.updateDetectionRule,
     deleteDetectionRule: dependencies.deleteDetectionRule,
+  });
+  await app.register(incidentsRoute, {
+    resolveAuthenticatedUser: dependencies.resolveAuthenticatedUser,
+    createIncident: dependencies.createIncident,
+    listIncidents: dependencies.listIncidents,
+    getIncident: dependencies.getIncident,
+    updateIncident: dependencies.updateIncident,
+    deleteIncident: dependencies.deleteIncident,
   });
 
   return app;

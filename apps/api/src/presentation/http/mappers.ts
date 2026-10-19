@@ -2,6 +2,8 @@ import type {
   DetectionRuleResponse,
   DetectionRuleSummary,
   HostResponse,
+  IncidentResponse,
+  IncidentSummary,
   MeResponse,
   PaginatedResponse,
   UserResponse,
@@ -14,6 +16,8 @@ import type { Page } from '../../application/pagination.js';
 import type { Host } from '../../domain/host.js';
 import type { DetectionRule } from '../../domain/detection-rule.js';
 import type { DetectionRuleView } from '../../application/use-cases/detection-rules/detection-rule-view.js';
+import type { Incident } from '../../domain/incident.js';
+import type { IncidentView } from '../../application/use-cases/incidents/incident-view.js';
 
 /** Explicit allowlist of public user fields — the password hash can never slip through. */
 export function toUserResponse(user: User): UserResponse {
@@ -90,5 +94,35 @@ export function toDetectionRuleResponse({ rule, targets }: DetectionRuleView): D
     ...toDetectionRuleSummary(rule),
     definition: rule.definition,
     targets: targets.map((host) => ({ hostId: host.id, displayName: host.displayName, connectionState: host.connectionState })),
+  };
+}
+
+export function toIncidentSummary(incident: Incident): IncidentSummary {
+  const snapshot = incident.toSnapshot();
+  return {
+    id: snapshot.id,
+    workspaceId: snapshot.workspaceId,
+    title: snapshot.title,
+    severity: snapshot.severity,
+    status: snapshot.status,
+    origin: snapshot.origin,
+    hostCount: snapshot.hostIds.length,
+    ruleCount: snapshot.detectionRuleIds.length,
+    createdAt: snapshot.createdAt.toISOString(),
+    updatedAt: snapshot.updatedAt.toISOString(),
+    resolvedAt: snapshot.resolvedAt?.toISOString() ?? null,
+  };
+}
+
+export function toIncidentResponse({ incident, hosts, detectionRules }: IncidentView): IncidentResponse {
+  return {
+    ...toIncidentSummary(incident),
+    description: incident.toSnapshot().description,
+    hosts: hosts.map((host) => ({ hostId: host.id, displayName: host.displayName, connectionState: host.connectionState })),
+    detectionRules: detectionRules.map((rule) => {
+      const { id, name, severity, enabled } = rule.toSnapshot();
+      return { ruleId: id, name, severity, enabled };
+    }),
+    availableTransitions: [...incident.availableTransitions],
   };
 }
