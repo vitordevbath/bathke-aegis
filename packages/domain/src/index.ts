@@ -62,3 +62,21 @@ export {
   type IncidentStatus,
   type IncidentOrigin,
 } from './incident-rules.js';
+export {
+  INVESTIGATION_STATUSES,
+  INVESTIGATION_STATUS_LABELS,
+  INVESTIGATION_TRANSITIONS,
+  INVESTIGATION_LIMITS,
+  INVESTIGATION_TITLE_MESSAGE,
+  INVESTIGATION_DESCRIPTION_MESSAGE,
+  INVESTIGATION_CONCLUSION_MESSAGE,
+  INVESTIGATION_CONCLUSION_REQUIRED_MESSAGE,
+  INVESTIGATION_CONCLUSION_TOO_SHORT_MESSAGE,
+  INVESTIGATION_INCIDENTS_REQUIRED_MESSAGE,
+  INVESTIGATION_CLOSED_MESSAGE,
+  InvalidInvestigationTransitionError,
+  InvestigationConclusionRequiredError,
+  canTransitionInvestigation,
+  closingConclusionProblem,
+  type InvestigationStatus,
+} from './investigation-rules.js';
