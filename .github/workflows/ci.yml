@@ -42,3 +42,18 @@ jobs:
         env:
           DATABASE_URL: mysql://root:ci-test-only@127.0.0.1:3306/aegis_ci
       - run: npm test
+
+  infrastructure:
+    # Real Compose stack as an isolated project: build, startup, migrations, Nginx
+    # routing and headers, published ports, networks, volume persistence. Runs in
+    # parallel with the TypeScript job. Credentials are generated per run by the
+    # script (disposable test values, not production secrets); no .env is used.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: docker compose version
+      - run: npm run test:infra
