@@ -22,6 +22,9 @@ describe('evaluateRubric', () => {
     'Investigations CRUD',
     'Relationships',
     'Academic CRUDs (4/4)',
+    'Docker',
+    'Nginx',
+    'Network isolation',
   ])('reports %s as PASS from implementation and test evidence', (requirement) => {
     expect(results.get(requirement)?.state).toBe('PASS');
   });
@@ -41,6 +44,31 @@ describe('evaluateRubric', () => {
     const degraded = new Map(evaluateRubric(partial).map((result) => [result.requirement, result]));
     expect(degraded.get('Investigations CRUD')).toMatchObject({ state: 'IN_PROGRESS', evidence: expect.stringContaining('EditInvestigationPage.tsx') });
     expect(degraded.get('Academic CRUDs (4/4)')).toMatchObject({ state: 'IN_PROGRESS', evidence: '3/4 CRUDs; not yet PASS: Investigations CRUD' });
+  });
+
+  it('keeps infrastructure IN_PROGRESS when the infra test is not run by CI', () => {
+    const partial = Object.create(RepoReader.prototype) as RepoReader;
+    const real = new RepoReader(findRepoRoot());
+    Object.assign(partial, {
+      root: real.root,
+      exists: (file: string) => real.exists(file),
+      readText: (file: string) => (file === '.github/workflows/ci.yml' ? real.readText(file).replace('npm run test:infra', 'echo skipped') : real.readText(file)),
+    });
+    const degraded = new Map(evaluateRubric(partial).map((result) => [result.requirement, result]));
+    for (const requirement of ['Docker', 'Nginx', 'Network isolation']) {
+      expect(degraded.get(requirement)).toMatchObject({ state: 'IN_PROGRESS', evidence: expect.stringContaining('ci.yml') });
+    }
+  });
+
+  it('fails isolation when a network stops being internal', () => {
+    const partial = Object.create(RepoReader.prototype) as RepoReader;
+    const real = new RepoReader(findRepoRoot());
+    Object.assign(partial, {
+      root: real.root,
+      exists: (file: string) => real.exists(file),
+      readText: (file: string) => (file === 'compose.yaml' ? real.readText(file).replace(/aegis_data:\s*internal:\s*true/, 'aegis_data: {}') : real.readText(file)),
+    });
+    expect(evaluateRubric(partial).find((result) => result.requirement === 'Network isolation')?.state).toBe('IN_PROGRESS');
   });
 
   it('degrades Incidents CRUD to IN_PROGRESS without its MySQL evidence', () => {
