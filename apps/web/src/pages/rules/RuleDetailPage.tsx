@@ -4,7 +4,7 @@ import { HostStatusBadge } from '../../features/hosts/HostStatusBadge';
 import { formatDateTime } from '../../features/hosts/host-format';
 import { EngineNotice } from '../../features/rules/EngineNotice';
 import { RuleStatusBadge } from '../../features/rules/RuleStatusBadge';
-import { SeverityBadge } from '../../features/rules/SeverityBadge';
+import { SeverityBadge } from '../../components/SeverityBadge';
 import { CATEGORY_LABELS, MATCH_CONNECTOR, MATCH_LABELS, SCOPE_LABELS, describeCondition } from '../../features/rules/rule-labels';
 import { toRequest, useDeleteRule, useRule, useUpdateRule } from '../../features/rules/rules-api';
 import { useWorkspace } from '../../features/workspaces/WorkspaceContext';

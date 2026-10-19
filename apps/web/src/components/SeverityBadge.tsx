@@ -1,8 +1,8 @@
-import type { DetectionSeverity } from '@aegis/contracts';
-import { SEVERITY_LABELS, SEVERITY_LEVEL } from './rule-labels';
+import type { Severity } from '@aegis/domain';
+import { SEVERITY_LABELS, SEVERITY_LEVEL } from '../lib/severity';
 
-/** Text label plus 1–4 bars: severity is never conveyed by color alone. */
-export function SeverityBadge({ severity }: { severity: DetectionSeverity }) {
+/** Text label plus 1–4 bars: severity is never conveyed by color alone. Shared by rules and incidents. */
+export function SeverityBadge({ severity }: { severity: Severity }) {
   const level = SEVERITY_LEVEL[severity];
   return (
     <span className={`severity severity--${severity.toLowerCase()}`}>
