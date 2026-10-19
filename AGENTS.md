@@ -15,9 +15,9 @@ Quality over quantity: no fake features, no fake architecture, no TODO marked as
 
 | | CURRENT | PLANNED |
 | --- | --- | --- |
-| Web | auth pages, `/dashboard`, `/perfil`, `/hosts`, `/regras` and `/incidentes` (list/create/detail/edit); AuthContext, WorkspaceContext | Investigations screens, timeline, graph |
-| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts, Detection Rules and Incidents CRUD per workspace (rules are configuration only; incidents are manual, with a domain lifecycle) | Investigations, events, alerts, detection and correlation engines |
-| Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules` (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
+| Web | auth pages, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes` and `/investigacoes` (list/create/detail/edit); AuthContext, WorkspaceContext | timeline, graph |
+| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts, Detection Rules, Incidents and Investigations CRUD per workspace (rules are configuration only; incidents are manual; investigations group incidents and close only with a human conclusion) | events, alerts, detection and correlation engines |
+| Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents` (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
 | Tooling | Aegis MCP, CI (typecheck/build/test) | rubric engine expansion |
 | Native | READMEs only | collector, eBPF, SPARK, NASM |
 
@@ -29,7 +29,7 @@ Details: `docs/ARCHITECTURE.md`. Check `aegis_architecture_info` (Aegis MCP) bef
 apps/web            React + TS + Vite (src/app, pages, features, components, lib, styles, types)
 apps/api            Fastify + TS (src/presentation, application, domain, infrastructure, shared; drizzle/ migrations)
 packages/contracts  transport DTOs shared by web and api — never domain entities
-packages/domain     Entity, DomainError hierarchy, Email, Cpf, PasswordPolicy, host rules, shared severity, detection rule schema v1, incident lifecycle
+packages/domain     Entity, DomainError hierarchy, Email, Cpf, PasswordPolicy, host rules, shared severity, detection rule schema v1, incident and investigation lifecycles
 tools/aegis-mcp     restricted MCP server
 native/             planned low-level components (README only)
 agents/skills/      backend-engineering, frontend-engineering, security-review

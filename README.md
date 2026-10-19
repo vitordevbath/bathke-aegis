@@ -32,7 +32,7 @@ permitir suporte futuro a coletores para outros sistemas operacionais.
 
 ## Status atual
 
-BF 04 — Incidents CRUD (registro manual, ciclo de vida, relações com hosts e regras) concluído.
+BF 05 — Investigations CRUD (casos humanos que agrupam incidentes, conclusão obrigatória para encerrar) concluído. Os quatro CRUDs acadêmicos (Hosts, Detection Rules, Incidents, Investigations) estão completos.
 
 | Componente | Status |
 | --- | --- |
@@ -41,12 +41,13 @@ BF 04 — Incidents CRUD (registro manual, ciclo de vida, relações com hosts e
 | `@aegis/contracts` (schemas Zod), `@aegis/domain` (Email, CPF, política de senha, erros) | **IMPLEMENTADO** |
 | Aegis MCP (7 ferramentas, secret guard) | **IMPLEMENTADO** (base) |
 | Docker Compose + Nginx (somente Nginx exposto) | **IMPLEMENTADO** (validado localmente) |
-| MySQL + Drizzle: usuários, workspaces, hosts, regras, incidentes e relações com migrations versionadas | **IMPLEMENTADO** |
+| MySQL + Drizzle: usuários, workspaces, hosts, regras, incidentes, investigações e relações com migrations versionadas | **IMPLEMENTADO** |
 | Autenticação (Argon2id + JWT), usuário, workspace pessoal + membership OWNER | **IMPLEMENTADO** |
 | Hosts CRUD por workspace (cadastro manual, paginação, busca), workspace ativo | **IMPLEMENTADO** |
 | Detection Rules CRUD (regras declarativas v1, escopo por host) — configuração, ainda não executadas | **IMPLEMENTADO** |
 | Incidents CRUD — registro manual com ciclo de vida, hosts envolvidos e regras relacionadas | **IMPLEMENTADO** |
-| Detection Engine (execução das regras), alertas, correlação automática, Investigations, workspaces compartilhados | **PLANEJADO** |
+| Investigations CRUD — caso humano que agrupa incidentes; encerrar exige conclusão e torna a investigação somente leitura | **IMPLEMENTADO** |
+| Detection Engine (execução das regras), eventos, alertas, correlação automática, IA, workspaces compartilhados | **PLANEJADO** |
 | Aegis Collector (Rust), camada de telemetria eBPF | **PLANEJADO** |
 | Aegis Verified Core (Ada/SPARK), experimentos x86-64 | **PLANEJADO** |
 | Análise assistida por IA (API externa) | **PLANEJADO** |

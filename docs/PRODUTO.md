@@ -41,7 +41,7 @@ TELEMETRIA → EVENTO → REGRA → ALERTA → INCIDENTE → INVESTIGAÇÃO
 | Regra | Condição declarativa (schema v1: campo da allowlist, operador fechado, valor tipado) para detectar comportamento relevante. Pertence a um workspace e vale para todos os hosts ou para hosts selecionados. Hoje é apenas configuração: o motor de detecção ainda não existe. |
 | Alerta | Resultado de uma regra acionada |
 | Incidente | Caso de segurança que merece acompanhamento humano, no workspace, envolvendo um ou mais hosts e, opcionalmente, regras relacionadas. Tem severidade e ciclo de vida (Aberto → Em investigação → Resolvido → Encerrado, com reabertura antes do encerramento). Hoje é **registrado manualmente** (origem "Manual"); no futuro também agrupará eventos/alertas via correlação (PLANNED). |
-| Investigação | Caso humano que agrupa e analisa um ou mais incidentes |
+| Investigação | Caso humano que agrupa e analisa um ou mais incidentes do mesmo workspace (um incidente pode estar em várias investigações). Ciclo de vida: Aberta → Em andamento → Encerrada, com pausa (Em andamento → Aberta) e encerramento direto a partir de Aberta. Encerrar exige uma **conclusão escrita por uma pessoa**; encerrada, fica somente leitura. Não cria telemetria, não executa regras e não gera alertas. Sem IA nesta etapa. |
 
 ## Componentes e responsabilidades
 
