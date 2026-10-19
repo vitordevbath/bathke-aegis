@@ -1,5 +1,5 @@
-import { boolean, char, datetime, index, json, mysqlEnum, mysqlTable, primaryKey, varchar } from 'drizzle-orm/mysql-core';
-import type { DetectionDefinitionV1 } from '@aegis/domain';
+import { boolean, char, datetime, index, json, mysqlEnum, mysqlTable, primaryKey, text, varchar } from 'drizzle-orm/mysql-core';
+import { INCIDENT_ORIGINS, INCIDENT_STATUSES, SEVERITIES, type DetectionDefinitionV1 } from '@aegis/domain';
 
 /**
  * Drizzle schema — source for versioned migrations in `apps/api/drizzle`
@@ -127,5 +127,34 @@ export const detectionRuleTargets = mysqlTable(
     primaryKey({ name: 'detection_rule_targets_pk', columns: [table.detectionRuleId, table.hostId] }),
     // Serves the host FK and "is this host targeted?" lookups.
     index('detection_rule_targets_host_idx').on(table.hostId),
+  ],
+);
+
+/**
+ * Security incidents registered manually (ADR-025). `status` follows the
+ * domain lifecycle (ADR-026); `resolved_at` is set only while RESOLVED or
+ * CLOSED. `origin` = DETECTION_ENGINE is reserved: nothing writes it yet.
+ */
+export const incidents = mysqlTable(
+  'incidents',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    workspaceId: char('workspace_id', { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 160 }).notNull(),
+    // Plain text up to 5000 characters (enforced by the domain).
+    description: text('description'),
+    severity: mysqlEnum('severity', SEVERITIES).notNull(),
+    status: mysqlEnum('status', INCIDENT_STATUSES).notNull(),
+    origin: mysqlEnum('origin', INCIDENT_ORIGINS).notNull(),
+    ...timestamps,
+    resolvedAt: datetime('resolved_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    // Serves the workspace FK and the paginated list (WHERE workspace_id = ? ORDER BY created_at DESC, id DESC).
+    index('incidents_workspace_created_idx').on(table.workspaceId, table.createdAt, table.id),
+    // Serves the status filter (the main triage filter) with the same ordering.
+    index('incidents_workspace_status_created_idx').on(table.workspaceId, table.status, table.createdAt, table.id),
   ],
 );
