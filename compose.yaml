@@ -12,7 +12,8 @@ services:
       - web
       - api
     ports:
-      - "8080:80"
+      # Host port; defaults to 8080. The infra test sets AEGIS_HTTP_PORT to avoid clashing with a running dev stack.
+      - "${AEGIS_HTTP_PORT:-8080}:80"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
