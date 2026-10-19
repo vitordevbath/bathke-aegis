@@ -230,3 +230,30 @@ export const investigations = mysqlTable(
     index('investigations_workspace_status_created_idx').on(table.workspaceId, table.status, table.createdAt, table.id),
   ],
 );
+
+/**
+ * Investigation ↔ Incident (N:N, ADR-028): an investigation groups at least
+ * one incident, and an incident may be analysed by several investigations.
+ * Deleting an investigation cascades; deleting a grouped incident is
+ * restricted (the application answers 409, ADR-030). Same-workspace
+ * consistency is enforced by the application inside the transaction that
+ * writes the relations.
+ */
+export const investigationIncidents = mysqlTable(
+  'investigation_incidents',
+  {
+    investigationId: char('investigation_id', { length: 36 })
+      .notNull()
+      .references(() => investigations.id, { onDelete: 'cascade' }),
+    incidentId: char('incident_id', { length: 36 })
+      .notNull()
+      .references(() => incidents.id, { onDelete: 'restrict' }),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    // Composite PK forbids duplicates and serves the investigation FK (leftmost column).
+    primaryKey({ name: 'investigation_incidents_pk', columns: [table.investigationId, table.incidentId] }),
+    // Serves the incident FK and "is this incident under investigation?" lookups.
+    index('investigation_incidents_incident_idx').on(table.incidentId),
+  ],
+);
