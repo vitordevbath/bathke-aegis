@@ -158,3 +158,47 @@ export const incidents = mysqlTable(
     index('incidents_workspace_status_created_idx').on(table.workspaceId, table.status, table.createdAt, table.id),
   ],
 );
+
+/**
+ * Incident ↔ Host (N:N, ADR-024): an incident involves at least one host.
+ * Deleting an incident cascades; deleting an involved host is restricted (the
+ * application answers 409). Same-workspace consistency is enforced by the
+ * application inside the transaction that writes the relations.
+ */
+export const incidentHosts = mysqlTable(
+  'incident_hosts',
+  {
+    incidentId: char('incident_id', { length: 36 })
+      .notNull()
+      .references(() => incidents.id, { onDelete: 'cascade' }),
+    hostId: char('host_id', { length: 36 })
+      .notNull()
+      .references(() => hosts.id, { onDelete: 'restrict' }),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    // Composite PK forbids duplicates and serves the incident FK (leftmost column).
+    primaryKey({ name: 'incident_hosts_pk', columns: [table.incidentId, table.hostId] }),
+    // Serves the host FK and "is this host involved in an incident?" lookups.
+    index('incident_hosts_host_idx').on(table.hostId),
+  ],
+);
+
+/** Incident ↔ Detection Rule (N:N, optional, chosen by hand). Same delete policy as hosts. */
+export const incidentDetectionRules = mysqlTable(
+  'incident_detection_rules',
+  {
+    incidentId: char('incident_id', { length: 36 })
+      .notNull()
+      .references(() => incidents.id, { onDelete: 'cascade' }),
+    detectionRuleId: char('detection_rule_id', { length: 36 })
+      .notNull()
+      .references(() => detectionRules.id, { onDelete: 'restrict' }),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    primaryKey({ name: 'incident_detection_rules_pk', columns: [table.incidentId, table.detectionRuleId] }),
+    // Serves the rule FK and "is this rule related to an incident?" lookups.
+    index('incident_detection_rules_rule_idx').on(table.detectionRuleId),
+  ],
+);
