@@ -12,6 +12,7 @@ import type {
 import { apiRequest } from '../../lib/api-client';
 import { hostKeys } from '../hosts/hosts-api';
 import { ruleKeys } from '../rules/rules-api';
+import { investigationKeys } from '../investigations/investigations-api';
 
 export interface IncidentListParams {
   readonly page: number;
@@ -56,7 +57,10 @@ export function useIncident(workspaceId: string | undefined, incidentId: string 
   });
 }
 
-/** Incidents reference hosts and rules (whose deletion they may block): refresh all three after writes. */
+/**
+ * Incidents reference hosts and rules (whose deletion they may block), and
+ * investigations show each incident's title and status: refresh them all after writes.
+ */
 function useInvalidateIncidents(workspaceId: string) {
   const queryClient = useQueryClient();
   return () =>
@@ -64,6 +68,7 @@ function useInvalidateIncidents(workspaceId: string) {
       queryClient.invalidateQueries({ queryKey: [...incidentKeys.all(workspaceId), 'list'] }),
       queryClient.invalidateQueries({ queryKey: hostKeys.all(workspaceId) }),
       queryClient.invalidateQueries({ queryKey: ruleKeys.all(workspaceId) }),
+      queryClient.invalidateQueries({ queryKey: investigationKeys.all(workspaceId) }),
     ]);
 }
 

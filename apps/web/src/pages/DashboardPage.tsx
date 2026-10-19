@@ -6,6 +6,7 @@ import { useWorkspace } from '../features/workspaces/WorkspaceContext';
 import { useHostList } from '../features/hosts/hosts-api';
 import { useRuleList } from '../features/rules/rules-api';
 import { useIncidentList } from '../features/incidents/incidents-api';
+import { useInvestigationList } from '../features/investigations/investigations-api';
 import { ROLE_LABELS, WORKSPACE_KIND_LABELS } from '../features/auth/labels';
 import type { ComponentState, SystemComponent } from '../types/system-status';
 
@@ -17,6 +18,7 @@ export function DashboardPage() {
   const hosts = useHostList(workspace?.id, { page: 1, pageSize: 1 });
   const rules = useRuleList(workspace?.id, { page: 1, pageSize: 1 });
   const incidents = useIncidentList(workspace?.id, { page: 1, pageSize: 1 });
+  const investigations = useInvestigationList(workspace?.id, { page: 1, pageSize: 1 });
   const apiState: ComponentState = health.isPending ? 'checking' : health.data?.status === 'ok' ? 'online' : 'offline';
   const firstName = user?.name.split(' ')[0] ?? '';
 
@@ -71,9 +73,13 @@ export function DashboardPage() {
           value={incidents.data ? incidents.data.pagination.total : '—'}
           hint="Registro manual; sem correlação automática"
         />
-        {/* Real zeros: events and investigations do not exist yet. */}
+        <MetricCard
+          label="Investigações"
+          value={investigations.data ? investigations.data.pagination.total : '—'}
+          hint="Casos humanos que agrupam incidentes"
+        />
+        {/* Real zero: events do not exist yet. */}
         <MetricCard label="Eventos" value={0} />
-        <MetricCard label="Investigações" value={0} />
       </section>
 
       <section className="surface" aria-labelledby="system-status">
