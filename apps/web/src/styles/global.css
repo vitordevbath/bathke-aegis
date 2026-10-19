@@ -334,3 +334,22 @@ a { color: inherit; text-decoration: none; }
 .rule-section { display: flex; flex-direction: column; gap: var(--space-4); }
 .rule-section .section-title { margin-bottom: 0; }
 .condition select, .condition input { font-size: var(--text-sm); }
+
+/* ── BF 04: incidents ───────────────────────────────────────────────── */
+.status--incident-open { color: var(--color-warn); }
+.status--incident-open::before { background: transparent; border: 2px solid var(--color-warn); width: 6px; height: 6px; }
+.status--incident-investigating { color: var(--color-accent); }
+.status--incident-investigating::before { background: linear-gradient(90deg, var(--color-accent) 50%, transparent 50%); border: 1px solid var(--color-accent); width: 7px; height: 7px; }
+.status--incident-resolved { color: var(--color-ok); }
+.status--incident-resolved::before { background: var(--color-ok); }
+.status--incident-closed { color: var(--color-text-muted); }
+.status--incident-closed::before { background: var(--color-neutral); border-radius: 1px; }
+.incident-row { grid-template-columns: minmax(0, 1fr) 7.5rem 9.5rem; }
+.targets__option--rule { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+.lifecycle { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.plain-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-sm); }
+@media (max-width: 640px) {
+  .incident-row { grid-template-columns: minmax(0, 1fr); }
+  .targets__option--rule { grid-template-columns: auto minmax(0, 1fr); }
+  .targets__option--rule > :nth-child(n + 3) { grid-column: 2; }
+}
