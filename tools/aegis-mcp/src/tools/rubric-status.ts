@@ -14,8 +14,6 @@ interface RubricCheck {
   readonly evaluate: (repo: RepoReader) => { state: RubricState; evidence: string };
 }
 
-const todo = (evidence = 'not implemented') => () => ({ state: 'TODO' as const, evidence });
-
 const contains = (repo: RepoReader, file: string, pattern: RegExp): boolean =>
   repo.exists(file) && pattern.test(repo.readText(file));
 
@@ -168,21 +166,44 @@ const CHECKS: readonly RubricCheck[] = [
       { file: 'apps/web/test/incidents.test.tsx', pattern: /create incident \(separate screen\)/ },
     ]),
   },
-  { requirement: 'Investigations CRUD', evaluate: todo() },
+  {
+    requirement: 'Investigations CRUD',
+    evaluate: implementedAndTested(
+      'CRUD under /workspaces/:id/investigations; N:N incidents; conclusion required to close; CLOSED read-only; grouped incident protected; web screens; tests incl. MySQL',
+      [
+        { file: `${API}/presentation/http/routes/investigations.route.ts`, pattern: /app\.post\('\/workspaces\/:workspaceId\/investigations'/ },
+        { file: `${API}/presentation/http/routes/investigations.route.ts`, pattern: /app\.get\('\/workspaces\/:workspaceId\/investigations'/ },
+        { file: `${API}/presentation/http/routes/investigations.route.ts`, pattern: /app\.get\('\/workspaces\/:workspaceId\/investigations\/:investigationId'/ },
+        { file: `${API}/presentation/http/routes/investigations.route.ts`, pattern: /app\.put\('\/workspaces\/:workspaceId\/investigations\/:investigationId'/ },
+        { file: `${API}/presentation/http/routes/investigations.route.ts`, pattern: /app\.delete\('\/workspaces\/:workspaceId\/investigations\/:investigationId'/ },
+        { file: `${API}/presentation/http/routes/investigations.route.ts`, pattern: /addHook\('preHandler', authenticate/ },
+        { file: `${API}/presentation/http/routes/investigations.route.ts`, pattern: /toPaginatedResponse/ },
+        { file: `${API}/domain/investigation.ts`, pattern: /InvestigationConclusionRequiredError/ },
+        { file: `${API}/application/use-cases/incidents/delete-incident.ts`, pattern: /isIncidentInvestigated/ },
+        { file: 'apps/api/drizzle/0007_investigation_incidents.sql', pattern: /CREATE TABLE `investigation_incidents`/ },
+        { file: 'apps/web/src/pages/investigations/CreateInvestigationPage.tsx', pattern: /InvestigationForm/ },
+        { file: 'apps/web/src/pages/investigations/EditInvestigationPage.tsx', pattern: /InvestigationForm/ },
+        { file: `${API_TEST}/http/investigations.test.ts`, pattern: /multi-tenant isolation/ },
+        { file: `${API_TEST}/integration/investigations.mysql.test.ts`, pattern: /rolls back the investigation row/ },
+        { file: 'apps/web/test/investigations.test.tsx', pattern: /create investigation \(separate screen\)/ },
+      ],
+    ),
+  },
   {
     requirement: 'Pagination',
-    evaluate: implementedAndTested('generic PaginationQuerySchema + PaginatedResponse<T>; Hosts, Rules and Incidents lists; reusable web Pagination', [
+    evaluate: implementedAndTested('generic PaginationQuerySchema + PaginatedResponse<T>; Hosts, Rules, Incidents and Investigations lists; reusable web Pagination', [
       { file: 'packages/contracts/src/pagination.ts', pattern: /interface PaginatedResponse<T>/ },
       { file: `${API}/presentation/http/mappers.ts`, pattern: /toPaginatedResponse/ },
       { file: 'apps/web/src/components/Pagination.tsx', pattern: /aria-current/ },
       { file: `${API_TEST}/http/hosts.test.ts`, pattern: /paginates 25 hosts/ },
       { file: `${API_TEST}/http/incidents.test.ts`, pattern: /paginates 25 incidents/ },
+      { file: `${API_TEST}/http/investigations.test.ts`, pattern: /paginates 25 investigations/ },
     ]),
   },
   {
     requirement: 'Relationships',
     evaluate: implementedAndTested(
-      'Rule ↔ Host, Incident ↔ Host and Incident ↔ Rule (N:N, real FKs, same-workspace check in a transaction, RESTRICT → 409); Workspace 1–N resources',
+      'Rule ↔ Host, Incident ↔ Host, Incident ↔ Rule and Investigation ↔ Incident (N:N, real FKs, same-workspace check in a transaction, RESTRICT → 409); Workspace 1–N resources',
       [
         { file: 'apps/api/drizzle/0003_detection_rule_targets.sql', pattern: /FOREIGN KEY \(`host_id`\) REFERENCES `hosts`/ },
         { file: `${API}/application/use-cases/detection-rules/detection-rule-view.ts`, pattern: /findManyInWorkspace/ },
@@ -191,6 +212,9 @@ const CHECKS: readonly RubricCheck[] = [
         { file: 'apps/api/drizzle/0005_incident_relations.sql', pattern: /REFERENCES `detection_rules`\(`id`\) ON DELETE restrict/ },
         { file: `${API}/application/use-cases/incidents/incident-view.ts`, pattern: /findManyInWorkspace/ },
         { file: `${API_TEST}/integration/incidents.mysql.test.ts`, pattern: /restricts deleting a related host or rule/ },
+        { file: 'apps/api/drizzle/0007_investigation_incidents.sql', pattern: /REFERENCES `incidents`\(`id`\) ON DELETE restrict/ },
+        { file: `${API}/application/use-cases/investigations/investigation-view.ts`, pattern: /findManyInWorkspace/ },
+        { file: `${API_TEST}/integration/investigations.mysql.test.ts`, pattern: /restricts deleting a grouped incident/ },
       ],
     ),
   },
@@ -287,8 +311,25 @@ const CHECKS: readonly RubricCheck[] = [
   },
 ];
 
+const CRUDS = ['Hosts CRUD', 'Detection Rules CRUD', 'Incidents CRUD', 'Investigations CRUD'] as const;
+/** Each CRUD check already demands its own routes, auth hook, pagination, separate create/edit screens and tests. */
+const CRUDS_PREREQUISITES = [...CRUDS, 'Authentication', 'Pagination', 'MySQL'] as const;
+
+/** Derived from the checks above, never from documentation: PASS only when all four CRUDs and their prerequisites pass. */
+function academicCruds(results: readonly RubricResult[]): RubricResult {
+  const passing = CRUDS.filter((name) => results.some((result) => result.requirement === name && result.state === 'PASS'));
+  const missing = CRUDS_PREREQUISITES.filter((name) => !results.some((result) => result.requirement === name && result.state === 'PASS'));
+  if (missing.length === 0) return { requirement: 'Academic CRUDs (4/4)', state: 'PASS', evidence: `${passing.length}/4 CRUDs with authentication, pagination, MySQL and web screens` };
+  return {
+    requirement: 'Academic CRUDs (4/4)',
+    state: passing.length === 0 ? 'TODO' : 'IN_PROGRESS',
+    evidence: `${passing.length}/4 CRUDs; not yet PASS: ${missing.join(', ')}`,
+  };
+}
+
 export function evaluateRubric(repo: RepoReader): RubricResult[] {
-  return CHECKS.map((check) => ({ requirement: check.requirement, ...check.evaluate(repo) }));
+  const results = CHECKS.map((check) => ({ requirement: check.requirement, ...check.evaluate(repo) }));
+  return [...results, academicCruds(results)];
 }
 
 export function formatRubric(results: readonly RubricResult[]): string {
