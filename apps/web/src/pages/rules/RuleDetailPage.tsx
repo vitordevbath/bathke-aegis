@@ -144,7 +144,12 @@ export function RuleDetailPage() {
       </div>
       {(updateRule.isError || deleteRule.isError) && (
         <p className="notice notice--error" role="alert">
-          {deleteRule.isError ? 'Não foi possível excluir a regra agora. Tente novamente.' : 'Não foi possível alterar o status agora. Tente novamente.'}
+          {/* 409: the rule is related to incidents — the API message says what to do. */}
+          {deleteRule.isError
+            ? deleteRule.error instanceof ApiError && deleteRule.error.status === 409
+              ? deleteRule.error.message
+              : 'Não foi possível excluir a regra agora. Tente novamente.'
+            : 'Não foi possível alterar o status agora. Tente novamente.'}
         </p>
       )}
     </main>

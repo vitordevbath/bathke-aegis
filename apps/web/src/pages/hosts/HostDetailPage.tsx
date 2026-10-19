@@ -121,7 +121,7 @@ export function HostDetailPage() {
       </div>
       {deleteHost.isError && (
         <p className="notice notice--error" role="alert">
-          {/* 409: the host is targeted by detection rules — the API message says what to do. */}
+          {/* 409: the host is targeted by rules or involved in incidents — the API message says what to do. */}
           {deleteHost.error instanceof ApiError && deleteHost.error.status === 409
             ? deleteHost.error.message
             : 'Não foi possível excluir o host agora. Tente novamente.'}

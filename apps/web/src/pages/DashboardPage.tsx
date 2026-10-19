@@ -5,6 +5,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { useWorkspace } from '../features/workspaces/WorkspaceContext';
 import { useHostList } from '../features/hosts/hosts-api';
 import { useRuleList } from '../features/rules/rules-api';
+import { useIncidentList } from '../features/incidents/incidents-api';
 import { ROLE_LABELS, WORKSPACE_KIND_LABELS } from '../features/auth/labels';
 import type { ComponentState, SystemComponent } from '../types/system-status';
 
@@ -15,6 +16,7 @@ export function DashboardPage() {
   // pageSize=1: only `pagination.total` is needed, no summary endpoint.
   const hosts = useHostList(workspace?.id, { page: 1, pageSize: 1 });
   const rules = useRuleList(workspace?.id, { page: 1, pageSize: 1 });
+  const incidents = useIncidentList(workspace?.id, { page: 1, pageSize: 1 });
   const apiState: ComponentState = health.isPending ? 'checking' : health.data?.status === 'ok' ? 'online' : 'offline';
   const firstName = user?.name.split(' ')[0] ?? '';
 
@@ -64,9 +66,13 @@ export function DashboardPage() {
           value={rules.data ? rules.data.pagination.total : '—'}
           hint="Motor de detecção ainda não conectado"
         />
-        {/* Real zeros: events, incidents and investigations do not exist yet. */}
+        <MetricCard
+          label="Incidentes registrados"
+          value={incidents.data ? incidents.data.pagination.total : '—'}
+          hint="Registro manual; sem correlação automática"
+        />
+        {/* Real zeros: events and investigations do not exist yet. */}
         <MetricCard label="Eventos" value={0} />
-        <MetricCard label="Incidentes" value={0} />
         <MetricCard label="Investigações" value={0} />
       </section>
 
