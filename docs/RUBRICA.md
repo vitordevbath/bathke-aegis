@@ -63,17 +63,56 @@ Workspace
 
 | Requisito | Status | Implementação | Evidência | Testes | Notas |
 | --- | --- | --- | --- | --- | --- |
-| Docker | IN_PROGRESS | `compose.yaml`, `infra/docker/*` | stack sobe com serviço `migrate` one-shot; fluxo de auth validado via Nginx (BF 01, Fedora) | - | sem teste automatizado da stack |
-| MySQL | PASS | serviço `mysql`, `apps/api/drizzle/*`, `apps/api/src/infrastructure/db/*` | migrations versionadas (`npm run db:migrate`) aplicadas do zero no CI e no Compose; repositórios Drizzle | `apps/api/test/integration/*` | |
-| Nginx | IN_PROGRESS | `infra/nginx/nginx.conf` | `/` e `/api/` roteados; CSP estrita | - | |
-| Isolamento de rede | IN_PROGRESS | redes no `compose.yaml` | só nginx publica porta | - | |
+| Docker | PASS | `compose.yaml`, `infra/docker/{api,web}.Dockerfile` | serviços nginx, web, api, mysql e `migrate` one-shot (`depends_on`: mysql `service_healthy` → migrate `service_completed_successfully` → api); healthcheck no MySQL; volume nomeado `mysql_data`; segredos só via env (`--env-file`/`.env`, nunca versionado); stack construída e iniciada do zero como projeto isolado | `scripts/test-infra.mjs` (`npm run test:infra`): `compose config`, build, banco vazio, MySQL healthy, migrate sai com 0 e grava 8/8 migrations (0000→0007), persistência após `down`/`up`; job `infrastructure` em `.github/workflows/ci.yml` | Porta do host configurável por `AEGIS_HTTP_PORT` (padrão 8080) |
+| MySQL | PASS | serviço `mysql` (8.4), `apps/api/drizzle/*`, `apps/api/src/infrastructure/db/*` | migrations versionadas (`npm run db:migrate`) aplicadas do zero no CI e pelo serviço `migrate` do Compose; repositórios Drizzle; volume nomeado `/var/lib/mysql` (sem tmpfs) | `apps/api/test/integration/*` (MySQL real no CI), `scripts/test-infra.mjs` ("migrations", "mysql volume", "persistence across down/up") | |
+| Nginx | PASS | `infra/nginx/nginx.conf`, `infra/nginx/web.conf` | entrada pública única; `/api/*` → api com prefixo removido, `/*` → web (fallback SPA); CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `server_tokens off` | `scripts/test-infra.mjs`: `/api/health` 200 `{status:ok, service:aegis-api}` e `/` 200 com o SPA construído, via Nginx; `/api/rota-inexistente` → 404 JSON da API e `/health` → SPA (roteamento por prefixo); headers e CSP comparados ao `nginx.conf` em `/` e `/api/`; CI | CSP validada funcionalmente em Firefox real (BF 04, BF 05) |
+| Isolamento de rede | PASS | redes `aegis_edge`, `aegis_application` (`internal`), `aegis_data` (`internal`) no `compose.yaml` | só nginx publica porta; web, api, mysql (3306) e migrate não publicam nada (`docker inspect` dos containers reais, não `EXPOSE`); nginx: edge + application; web: application; api: application + data; mysql e migrate: data | `scripts/test-infra.mjs` ("published ports", "networks", "network isolation": nginx e web não resolvem `mysql`, api resolve; api sem saída para a internet); CI | Egress da API será uma rede dedicada quando a IA existir (ARCHITECTURE.md) |
 | Endpoint de health | PASS | `apps/api/src/presentation/http/routes/health.route.ts` | `GET /health` | `apps/api/test/health.test.ts` | |
 
 ## Agentes de IA
 
 | Requisito | Status | Implementação | Evidência | Testes | Notas |
 | --- | --- | --- | --- | --- | --- |
-| AGENTS.md | PASS | `AGENTS.md` | - | - | |
-| 3 Skills | PASS | `agents/skills/*/SKILL.md` | - | - | |
-| MCP próprio | IN_PROGRESS | `tools/aegis-mcp` | 7 ferramentas via stdio; `aegis_rubric_status` avalia auth/usuário, os 4 CRUDs (e o resumo "Academic CRUDs (4/4)", derivado das checagens individuais), paginação, relacionamentos e MySQL por evidência | `tools/aegis-mcp/test` (inclui `rubric-status.test.ts`) | rubric engine parcial (infra) |
-| Proteção de segredos | PASS | `tools/aegis-mcp/src/policy/*`, `.gitignore` | `isProtectedPath`, `redactSecrets` | `protected-paths.test.ts`, `redact.test.ts` | |
+| AGENTS.md | PASS | `AGENTS.md` | missão, arquitetura CURRENT/PLANNED, fluxo, regras de teste, segurança, recursos protegidos, dependências, git e commits | `aegis_rubric_status` (seções de segurança e recursos protegidos) | |
+| 3 Skills | PASS | `agents/skills/{backend-engineering,frontend-engineering,security-review}/SKILL.md` | escopo, ações permitidas/proibidas, comandos de validação e critérios de conclusão por área | `aegis_rubric_status` | |
+| MCP próprio | PASS | `tools/aegis-mcp` | 7 ferramentas via stdio, somente leitura e com allowlist; `aegis_rubric_status` avalia auth/usuário, os 4 CRUDs (e o resumo "Academic CRUDs (4/4)"), paginação, relacionamentos, MySQL e infraestrutura (Docker, Nginx, isolamento exigem o teste de infra ligado ao CI) por evidência; conectado ao Claude Code | `tools/aegis-mcp/test` (`protected-paths`, `redact`, `rubric-status`, inclusive degradação para IN_PROGRESS sem evidência) | Após rebuild do MCP, o cliente precisa reconectar (`/mcp`) para carregar o código novo |
+| Proteção de segredos | PASS | `tools/aegis-mcp/src/policy/*`, `.gitignore` | `isProtectedPath`, `redactSecrets`; `aegis_security_check` sem achados; o teste de infra gera credenciais descartáveis em runtime e nunca lê `.env` | `protected-paths.test.ts`, `redact.test.ts` | |
+
+## Divergências em relação à rubrica original
+
+O texto original da rubrica acadêmica não está versionado no repositório; esta matriz é a transcrição
+feita no BF 00 (`51b891b`) e, desde então, só recebeu linhas novas — nenhum requisito foi removido.
+Os prompts dos BFs 05 e 05.5 citam critérios **que não aparecem nesta matriz**. Eles não ganharam
+status aqui de propósito: só serão transcritos, com status, a partir do texto original.
+
+| Critério citado e ausente da matriz | O que já existe (evidência, sem status) |
+| --- | --- |
+| Componentização (frontend) | componentes compartilhados `Pagination`, `EmptyState`, `ConfirmAction`, `SeverityBadge`, `TextField`/`TextAreaField`/`SelectField`, `HostPicker`; formulários reutilizados entre criação e edição (`HostForm`, `DetectionRuleForm`, `IncidentForm`, `InvestigationForm`) |
+| Volume persistente do MySQL | volume nomeado `mysql_data`; coberto como evidência das linhas Docker e MySQL |
+| Encapsulamento / getters e setters | campos `#private`, construtores `private` + factories, só getters; nenhum setter genérico — mudanças por métodos de domínio (`updateProfile`, `changePasswordHash`, `updateDetails`, `revise`, `transitionTo`) |
+| Herança | `Entity<TId>` abstrata → 6 entidades; `DomainError` abstrata → 6 erros, com especializações (`InvalidIncidentTransitionError`, `InvestigationConclusionRequiredError`) |
+| Polimorfismo | ports com duas implementações reais (Drizzle e dublês em memória) trocadas na composição; `errorHandler` trata erros pela classe-base |
+| Ausência de `any` | `strict` + `noImplicitAny`; nenhum `any` em `apps/*/src`, `packages/*/src`, `tools/aegis-mcp/src` |
+| SOLID S/O/L (a matriz só tem DIP) | um caso de uso por arquivo; ports segregados por recurso; dublês substituem adapters sem mudar casos de uso |
+| Organização entities/services/repositories e nomenclatura | `domain/`, `application/use-cases`, `application/ports`, `infrastructure/db`; ver `apps/api/README.md` |
+
+## Pendências reais após BF 05.5
+
+**Obrigatório para a rubrica:** nenhuma linha desta matriz está `TODO`, `IN_PROGRESS` ou `BLOCKED`.
+Única ação aberta: comparar a matriz com o texto original da rubrica e transcrever fielmente os
+critérios da tabela de divergências que de fato constarem nele (com status e evidência).
+
+**Experimental / Aegis (fora da nota):** Events e API de ingestão, Aegis Collector (Rust), eBPF/Aya,
+Detection Engine (execução de regras), Alerts, Correlation Engine e incidentes automáticos, IA,
+Aegis Verified Core (Ada/SPARK), experimentos NASM, revogação de tokens e papéis além de OWNER.
+
+```
+CORE ACADÊMICO (PASS)                 AEGIS EXPERIMENTAL (PLANNED)
+├── Auth, JWT, Argon2id               ├── Events + ingestão
+├── User (self-service)               ├── Collector (Rust) · eBPF
+├── 4 CRUDs + paginação + relações    ├── Detection Engine · Alerts
+├── MySQL + migrations                ├── Correlation · incidentes automáticos
+├── Docker · Nginx · isolamento       ├── IA
+├── AGENTS.md · 3 skills · MCP        └── SPARK · Assembly
+└── TypeScript strict / POO
+```
