@@ -89,3 +89,18 @@ export {
   type IncidentDetectionRule,
   type IncidentResponse,
 } from './incidents.js';
+export {
+  INVESTIGATION_STATUSES,
+  CreateInvestigationRequestSchema,
+  UpdateInvestigationRequestSchema,
+  InvestigationListQuerySchema,
+  type InvestigationStatus,
+  type CreateInvestigationRequest,
+  type CreateInvestigationCommand,
+  type UpdateInvestigationRequest,
+  type UpdateInvestigationCommand,
+  type InvestigationListQuery,
+  type InvestigationSummary,
+  type InvestigationIncident,
+  type InvestigationResponse,
+} from './investigations.js';
