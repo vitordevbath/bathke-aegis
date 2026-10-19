@@ -32,7 +32,18 @@ permitir suporte futuro a coletores para outros sistemas operacionais.
 
 ## Status atual
 
-BF 05 — Investigations CRUD (casos humanos que agrupam incidentes, conclusão obrigatória para encerrar) concluído. Os quatro CRUDs acadêmicos (Hosts, Detection Rules, Incidents, Investigations) estão completos.
+BF 05.5 — infraestrutura (Docker, Nginx, isolamento de rede) validada automaticamente no CI e rubrica auditada.
+
+### Status acadêmico
+
+- autenticação, usuário e workspace: concluídos;
+- 4 CRUDs (Hosts, Detection Rules, Incidents, Investigations): concluídos;
+- banco relacional (MySQL 8.4, migrations, relações): concluído;
+- infraestrutura (Docker Compose, Nginx, isolamento): validada automaticamente;
+- agentes (AGENTS.md, 3 skills, MCP): concluídos;
+- recursos experimentais (eventos, Collector, eBPF, detecção, IA): planejados.
+
+Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 
 | Componente | Status |
 | --- | --- |
@@ -40,7 +51,7 @@ BF 05 — Investigations CRUD (casos humanos que agrupam incidentes, conclusão 
 | Aegis API (Fastify + TS): health, cadastro, login (JWT), `GET/PUT /users/me` | **IMPLEMENTADO** |
 | `@aegis/contracts` (schemas Zod), `@aegis/domain` (Email, CPF, política de senha, erros) | **IMPLEMENTADO** |
 | Aegis MCP (7 ferramentas, secret guard) | **IMPLEMENTADO** (base) |
-| Docker Compose + Nginx (somente Nginx exposto) | **IMPLEMENTADO** (validado localmente) |
+| Docker Compose + Nginx (somente Nginx exposto, redes internas) | **IMPLEMENTADO** (teste automatizado `npm run test:infra` no CI) |
 | MySQL + Drizzle: usuários, workspaces, hosts, regras, incidentes, investigações e relações com migrations versionadas | **IMPLEMENTADO** |
 | Autenticação (Argon2id + JWT), usuário, workspace pessoal + membership OWNER | **IMPLEMENTADO** |
 | Hosts CRUD por workspace (cadastro manual, paginação, busca), workspace ativo | **IMPLEMENTADO** |
@@ -107,6 +118,8 @@ cp .env.example .env   # edite as senhas
 docker compose up -d --build
 # http://localhost:8080  e  http://localhost:8080/api/health
 ```
+
+Teste automatizado da infraestrutura (stack isolada, limpa ao final): `npm run test:infra`.
 
 ## Escopo de segurança
 

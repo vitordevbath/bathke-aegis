@@ -30,6 +30,13 @@ const implementedAndTested =
 
 const API = 'apps/api/src';
 const API_TEST = 'apps/api/test';
+const INFRA_TEST = 'scripts/test-infra.mjs';
+/** The infra test only counts if it exists, is wired to npm and actually runs in CI. */
+const INFRA_TEST_EVIDENCE = [
+  { file: 'package.json', pattern: /"test:infra": "node scripts\/test-infra\.mjs"/ },
+  { file: '.github/workflows/ci.yml', pattern: /run: npm run test:infra/ },
+  { file: INFRA_TEST, pattern: /finally \{\s*cleanup\(\);/ },
+] as const;
 
 /**
  * PASS requires implementation evidence found in the repository, never
@@ -255,10 +262,15 @@ const CHECKS: readonly RubricCheck[] = [
   },
   {
     requirement: 'Docker',
-    evaluate: (repo) =>
-      repo.exists('compose.yaml')
-        ? { state: 'IN_PROGRESS', evidence: 'compose.yaml with nginx/web/api/mysql' }
-        : { state: 'TODO', evidence: 'no compose.yaml' },
+    evaluate: implementedAndTested('compose.yaml (nginx/web/api/mysql + one-shot migrate, healthcheck, named volume) built and started from zero by npm run test:infra in CI', [
+      { file: 'compose.yaml', pattern: /condition: service_completed_successfully/ },
+      { file: 'compose.yaml', pattern: /healthcheck:/ },
+      { file: 'compose.yaml', pattern: /mysql_data:\/var\/lib\/mysql/ },
+      { file: 'infra/docker/api.Dockerfile', pattern: /USER node/ },
+      ...INFRA_TEST_EVIDENCE,
+      { file: INFRA_TEST, pattern: /'migrations'/ },
+      { file: INFRA_TEST, pattern: /'persistence across down\/up'/ },
+    ]),
   },
   {
     requirement: 'MySQL',
@@ -271,17 +283,25 @@ const CHECKS: readonly RubricCheck[] = [
   },
   {
     requirement: 'Nginx',
-    evaluate: (repo) =>
-      repo.exists('infra/nginx/nginx.conf')
-        ? { state: 'IN_PROGRESS', evidence: 'infra/nginx/nginx.conf routes / and /api/' }
-        : { state: 'TODO', evidence: 'no nginx config' },
+    evaluate: implementedAndTested('nginx is the public entry: /api/* → api (prefix stripped), /* → web; security headers and CSP verified over HTTP by the infra test', [
+      { file: 'infra/nginx/nginx.conf', pattern: /location \/api\/ \{\s*proxy_pass http:\/\/aegis_api\/;/ },
+      { file: 'infra/nginx/nginx.conf', pattern: /location \/ \{\s*proxy_pass http:\/\/aegis_web;/ },
+      { file: 'infra/nginx/nginx.conf', pattern: /Content-Security-Policy/ },
+      ...INFRA_TEST_EVIDENCE,
+      { file: INFRA_TEST, pattern: /'reverse proxy routing'/ },
+      { file: INFRA_TEST, pattern: /'security headers and CSP'/ },
+    ]),
   },
   {
     requirement: 'Network isolation',
-    evaluate: (repo) =>
-      contains(repo, 'compose.yaml', /aegis_data:[\s\S]*internal:\s*true/)
-        ? { state: 'IN_PROGRESS', evidence: 'compose networks declared; only nginx publishes ports' }
-        : { state: 'TODO', evidence: 'networks not declared' },
+    evaluate: implementedAndTested('only nginx publishes a port; application/data networks internal; web/nginx cannot reach mysql; api has no egress — inspected on the running stack', [
+      { file: 'compose.yaml', pattern: /aegis_application:\s*internal:\s*true/ },
+      { file: 'compose.yaml', pattern: /aegis_data:\s*internal:\s*true/ },
+      ...INFRA_TEST_EVIDENCE,
+      { file: INFRA_TEST, pattern: /'published ports'/ },
+      { file: INFRA_TEST, pattern: /'networks'/ },
+      { file: INFRA_TEST, pattern: /'network isolation'/ },
+    ]),
   },
   {
     requirement: 'AGENTS.md',

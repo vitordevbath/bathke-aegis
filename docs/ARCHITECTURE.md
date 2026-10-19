@@ -9,7 +9,7 @@ experimentais são opcionais; a aplicação web funciona sem eles.
 browser
    │
    ▼
-nginx (única porta publicada: 8080 → 80)     redes: aegis_edge, aegis_application
+nginx (única porta publicada: ${AEGIS_HTTP_PORT:-8080} → 80)     redes: aegis_edge, aegis_application
    ├── /       → web:80    Nginx servindo o build estático do Vite (SPA fallback)
    └── /api/   → api:3000  Fastify; prefixo /api removido
                     │

@@ -87,6 +87,13 @@ configurável e removível.
 Internet/LAN ─► nginx (aegis_edge) ─► web/api (aegis_application, internal) ─► mysql (aegis_data, internal)
 ```
 
+Verificado automaticamente por `npm run test:infra` (CI, job `infrastructure`) contra os
+containers reais: só o nginx tem porta publicada; nginx e web não resolvem `mysql`; a API não
+alcança a internet; os headers (`Content-Security-Policy`, `X-Content-Type-Options`,
+`X-Frame-Options`, `Referrer-Policy`) e a ausência de versão do nginx são conferidos em `/` e
+`/api/`. O teste usa credenciais descartáveis geradas em runtime, nunca lê `.env` e não imprime
+a configuração resolvida.
+
 ## Agent security
 
 Agentes seguem `AGENTS.md`: não leem `.env`, `.env.*` (exceto `.env.example`),

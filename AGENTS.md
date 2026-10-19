@@ -18,7 +18,7 @@ Quality over quantity: no fake features, no fake architecture, no TODO marked as
 | Web | auth pages, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes` and `/investigacoes` (list/create/detail/edit); AuthContext, WorkspaceContext | timeline, graph |
 | API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts, Detection Rules, Incidents and Investigations CRUD per workspace (rules are configuration only; incidents are manual; investigations group incidents and close only with a human conclusion) | events, alerts, detection and correlation engines |
 | Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents` (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
-| Tooling | Aegis MCP, CI (typecheck/build/test) | rubric engine expansion |
+| Tooling | Aegis MCP, CI (typecheck/build/test + `npm run test:infra` on the real Compose stack) | rubric engine expansion |
 | Native | READMEs only | collector, eBPF, SPARK, NASM |
 
 Details: `docs/ARCHITECTURE.md`. Check `aegis_architecture_info` (Aegis MCP) before claiming something exists.

@@ -2,7 +2,7 @@
 
 | Fase | Nome | Escopo | Status |
 | --- | --- | --- | --- |
-| 00 | Foundation | Monorepo, web/api base, health, contracts, Docker/Nginx, MCP, docs, CI | IN_PROGRESS (BF 00) |
+| 00 | Foundation | Monorepo, web/api base, health, contracts, Docker/Nginx, MCP, docs, CI | DONE — base (BF 00–00.7); infraestrutura validada automaticamente no CI (BF 05.5) |
 | 01 | Academic Core | Tratamento de erros, paginação genérica, base de repositórios/use cases | DONE — erros, repositórios, use cases, UnitOfWork (BF 01); paginação genérica (BF 02) |
 | 02 | Authentication & User Management | Cadastro, login, JWT, Argon2, validação de email/CPF/senha, edição do próprio usuário | DONE (BF 01) |
 | 03 | CRUD Domain | Workspace + Membership (ADR-009); Hosts, Detection Rules, Incidents, Investigations por workspace, com relações e paginação | DONE — Workspace pessoal + Membership OWNER (BF 01); Hosts CRUD com paginação e isolamento por workspace (BF 02); Detection Rules CRUD com DSL declarativa e targets por host (BF 03); Incidents CRUD manual com ciclo de vida e relações N:N com hosts e regras (BF 04); Investigations CRUD com relação N:N com incidentes, conclusão obrigatória para encerrar e estado final somente leitura (BF 05). Os quatro CRUDs acadêmicos estão concluídos; novos CRUDs não são planejados |

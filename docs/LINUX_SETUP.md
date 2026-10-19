@@ -35,8 +35,18 @@ Testes de integração com MySQL real (opcional localmente; sempre no CI): suba 
 descartável preso a `127.0.0.1` e exporte `TEST_DATABASE_URL` com um usuário que possa criar
 bancos antes de `npm test`. Sem a variável, esses testes são pulados.
 
-Somente o `nginx` publica porta no host (`8080`). `api`, `web` e `mysql` ficam em redes
+Somente o `nginx` publica porta no host (`8080`, configurável por `AEGIS_HTTP_PORT`). `api`, `web` e `mysql` ficam em redes
 internas. Para gerar senhas locais sem exibi-las: `openssl rand -hex 24`.
+
+Teste automatizado da infraestrutura (também roda no CI):
+
+```bash
+npm run test:infra   # stack isolada `aegis-infra-test` na porta 18080; não toca a stack de dev nem lê .env
+```
+
+Ele constrói e sobe a stack do zero, verifica migrations, Nginx (`/`, `/api/`, headers, CSP),
+portas publicadas, redes, isolamento e persistência do volume, e sempre executa `down -v`
+**somente** no projeto de teste, inclusive em falha.
 
 ## Aegis Collector / eBPF — toolchain preparada, componente PLANEJADO
 
