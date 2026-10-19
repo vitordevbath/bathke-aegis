@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AuthenticationError, ConflictError, DomainError, ForbiddenError, NotFoundError, ValidationError } from '../src/index.js';
+import { AuthenticationError, ConflictError, DomainError, ForbiddenError, InvalidStateError, NotFoundError, ValidationError } from '../src/index.js';
 
 describe('DomainError hierarchy', () => {
   it.each([
@@ -8,6 +8,7 @@ describe('DomainError hierarchy', () => {
     [new ConflictError('x', 'email'), 'CONFLICT', 'ConflictError'],
     [new ForbiddenError(), 'FORBIDDEN', 'ForbiddenError'],
     [new NotFoundError(), 'NOT_FOUND', 'NotFoundError'],
+    [new InvalidStateError('x', 'status'), 'INVALID_STATE', 'InvalidStateError'],
   ])('%o carries a stable code and class name', (error, code, name) => {
     expect(error).toBeInstanceOf(DomainError);
     expect(error).toBeInstanceOf(Error);
