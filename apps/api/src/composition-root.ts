@@ -24,6 +24,11 @@ import { ListIncidents } from './application/use-cases/incidents/list-incidents.
 import { GetIncident } from './application/use-cases/incidents/get-incident.js';
 import { UpdateIncident } from './application/use-cases/incidents/update-incident.js';
 import { DeleteIncident } from './application/use-cases/incidents/delete-incident.js';
+import { CreateInvestigation } from './application/use-cases/investigations/create-investigation.js';
+import { ListInvestigations } from './application/use-cases/investigations/list-investigations.js';
+import { GetInvestigation } from './application/use-cases/investigations/get-investigation.js';
+import { UpdateInvestigation } from './application/use-cases/investigations/update-investigation.js';
+import { DeleteInvestigation } from './application/use-cases/investigations/delete-investigation.js';
 import { createDatabase } from './infrastructure/db/client.js';
 import { DrizzleUnitOfWork, createDrizzleRepositories } from './infrastructure/db/drizzle-repositories.js';
 import { Argon2PasswordHasher } from './infrastructure/security/argon2-password-hasher.js';
@@ -60,7 +65,12 @@ export function createUseCases(adapters: Adapters, authRateLimitMax: number): Ap
     listIncidents: new ListIncidents(access, repositories.incidents),
     getIncident: new GetIncident(access, repositories),
     updateIncident: new UpdateIncident(access, unitOfWork),
-    deleteIncident: new DeleteIncident(access, repositories.incidents),
+    deleteIncident: new DeleteIncident(access, repositories.incidents, repositories.investigations),
+    createInvestigation: new CreateInvestigation(access, unitOfWork),
+    listInvestigations: new ListInvestigations(access, repositories.investigations),
+    getInvestigation: new GetInvestigation(access, repositories),
+    updateInvestigation: new UpdateInvestigation(access, unitOfWork),
+    deleteInvestigation: new DeleteInvestigation(access, repositories.investigations),
     authRateLimitMax,
   };
 }

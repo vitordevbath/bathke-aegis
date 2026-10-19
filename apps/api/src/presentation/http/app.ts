@@ -20,6 +20,11 @@ import type { ListIncidents } from '../../application/use-cases/incidents/list-i
 import type { GetIncident } from '../../application/use-cases/incidents/get-incident.js';
 import type { UpdateIncident } from '../../application/use-cases/incidents/update-incident.js';
 import type { DeleteIncident } from '../../application/use-cases/incidents/delete-incident.js';
+import type { CreateInvestigation } from '../../application/use-cases/investigations/create-investigation.js';
+import type { ListInvestigations } from '../../application/use-cases/investigations/list-investigations.js';
+import type { GetInvestigation } from '../../application/use-cases/investigations/get-investigation.js';
+import type { UpdateInvestigation } from '../../application/use-cases/investigations/update-investigation.js';
+import type { DeleteInvestigation } from '../../application/use-cases/investigations/delete-investigation.js';
 import { errorHandler } from './error-handler.js';
 import { healthRoute } from './routes/health.route.js';
 import { authRoute } from './routes/auth.route.js';
@@ -27,6 +32,7 @@ import { usersRoute } from './routes/users.route.js';
 import { hostsRoute } from './routes/hosts.route.js';
 import { detectionRulesRoute } from './routes/detection-rules.route.js';
 import { incidentsRoute } from './routes/incidents.route.js';
+import { investigationsRoute } from './routes/investigations.route.js';
 
 /** Use cases the HTTP layer delegates to. Assembled by the composition root (or by tests). */
 export interface AppDependencies {
@@ -50,6 +56,11 @@ export interface AppDependencies {
   readonly getIncident: GetIncident;
   readonly updateIncident: UpdateIncident;
   readonly deleteIncident: DeleteIncident;
+  readonly createInvestigation: CreateInvestigation;
+  readonly listInvestigations: ListInvestigations;
+  readonly getInvestigation: GetInvestigation;
+  readonly updateInvestigation: UpdateInvestigation;
+  readonly deleteInvestigation: DeleteInvestigation;
   /** Requests per client IP per minute on each auth route. */
   readonly authRateLimitMax: number;
 }
@@ -99,6 +110,14 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
     getIncident: dependencies.getIncident,
     updateIncident: dependencies.updateIncident,
     deleteIncident: dependencies.deleteIncident,
+  });
+  await app.register(investigationsRoute, {
+    resolveAuthenticatedUser: dependencies.resolveAuthenticatedUser,
+    createInvestigation: dependencies.createInvestigation,
+    listInvestigations: dependencies.listInvestigations,
+    getInvestigation: dependencies.getInvestigation,
+    updateInvestigation: dependencies.updateInvestigation,
+    deleteInvestigation: dependencies.deleteInvestigation,
   });
 
   return app;

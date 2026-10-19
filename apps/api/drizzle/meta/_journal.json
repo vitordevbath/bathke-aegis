@@ -43,6 +43,20 @@
       "when": 1792376471567,
       "tag": "0005_incident_relations",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1792434508170,
+      "tag": "0006_investigations",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1792434516388,
+      "tag": "0007_investigation_incidents",
+      "breakpoints": true
     }
   ]
 }

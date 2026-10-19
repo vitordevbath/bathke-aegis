@@ -1,5 +1,5 @@
 import { boolean, char, datetime, index, json, mysqlEnum, mysqlTable, primaryKey, text, varchar } from 'drizzle-orm/mysql-core';
-import { INCIDENT_ORIGINS, INCIDENT_STATUSES, SEVERITIES, type DetectionDefinitionV1 } from '@aegis/domain';
+import { INCIDENT_ORIGINS, INCIDENT_STATUSES, INVESTIGATION_STATUSES, SEVERITIES, type DetectionDefinitionV1 } from '@aegis/domain';
 
 /**
  * Drizzle schema — source for versioned migrations in `apps/api/drizzle`
@@ -200,5 +200,60 @@ export const incidentDetectionRules = mysqlTable(
     primaryKey({ name: 'incident_detection_rules_pk', columns: [table.incidentId, table.detectionRuleId] }),
     // Serves the rule FK and "is this rule related to an incident?" lookups.
     index('incident_detection_rules_rule_idx').on(table.detectionRuleId),
+  ],
+);
+
+/**
+ * Human investigations grouping incidents (ADR-028). `status` follows the
+ * domain lifecycle (ADR-029): `closed_at` is set only once CLOSED, which
+ * requires a `conclusion` and is final.
+ */
+export const investigations = mysqlTable(
+  'investigations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    workspaceId: char('workspace_id', { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 160 }).notNull(),
+    // Plain text up to 5000 / 10000 characters (enforced by the domain).
+    description: text('description'),
+    conclusion: text('conclusion'),
+    status: mysqlEnum('status', INVESTIGATION_STATUSES).notNull(),
+    ...timestamps,
+    closedAt: datetime('closed_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    // Serves the workspace FK and the paginated list (WHERE workspace_id = ? ORDER BY created_at DESC, id DESC).
+    index('investigations_workspace_created_idx').on(table.workspaceId, table.createdAt, table.id),
+    // Serves the status filter with the same ordering.
+    index('investigations_workspace_status_created_idx').on(table.workspaceId, table.status, table.createdAt, table.id),
+  ],
+);
+
+/**
+ * Investigation ↔ Incident (N:N, ADR-028): an investigation groups at least
+ * one incident, and an incident may be analysed by several investigations.
+ * Deleting an investigation cascades; deleting a grouped incident is
+ * restricted (the application answers 409, ADR-030). Same-workspace
+ * consistency is enforced by the application inside the transaction that
+ * writes the relations.
+ */
+export const investigationIncidents = mysqlTable(
+  'investigation_incidents',
+  {
+    investigationId: char('investigation_id', { length: 36 })
+      .notNull()
+      .references(() => investigations.id, { onDelete: 'cascade' }),
+    incidentId: char('incident_id', { length: 36 })
+      .notNull()
+      .references(() => incidents.id, { onDelete: 'restrict' }),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    // Composite PK forbids duplicates and serves the investigation FK (leftmost column).
+    primaryKey({ name: 'investigation_incidents_pk', columns: [table.investigationId, table.incidentId] }),
+    // Serves the incident FK and "is this incident under investigation?" lookups.
+    index('investigation_incidents_incident_idx').on(table.incidentId),
   ],
 );

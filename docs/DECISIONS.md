@@ -115,3 +115,23 @@
 **Decisão:** `DELETE` remove o incidente fisicamente (204); as relações saem por cascade; hosts e regras permanecem. A UI avisa que a remoção é definitiva. Não há timeline nem audit log neste estágio (nada é inventado na tela).
 **Motivo:** incidentes ainda não contêm eventos, alertas ou evidências que precisem ser preservados.
 **Consequência:** quando Event/Alert existirem, reavaliar retenção, auditoria e soft delete; um audit log persistido é pré-requisito para qualquer timeline.
+
+## ADR-028 — Investigation agrupa Incidents por relação N:N
+**Decisão:** `investigation_incidents (investigation_id, incident_id)` com PK composta e índice em `incident_id`. Uma investigação exige **pelo menos 1 incidente** no cadastro e em toda edição (lista vazia → 400); um mesmo incidente pode ser analisado por várias investigações com objetivos diferentes. Incidentes de qualquer status podem ser agrupados (não há regra de negócio que impeça revisar um caso encerrado). Os incidentes são validados no workspace da investigação dentro da transação que grava as relações; inexistente e de outro workspace recebem o mesmo 400. FK para a investigação `ON DELETE CASCADE`; para o incidente `ON DELETE RESTRICT` (ADR-030).
+**Motivo:** uma investigação sem incidentes não tem significado; impedir N:N exigiria uma regra de domínio que não existe.
+**Consequência:** a listagem traz só `incidentCount` (ids carregados em uma consulta por página, sem N+1); o detalhe traz cada incidente resumido (título, severidade, status, origem).
+
+## ADR-029 — Investigation encerrada exige conclusão e torna-se somente leitura
+**Decisão:** ciclo `OPEN → IN_PROGRESS → CLOSED`, mais `OPEN → CLOSED` e `IN_PROGRESS → OPEN` (pausar: a análise para e o caso volta à fila, comum quando falta informação). `CLOSED` é final. `conclusion` é rascunho opcional enquanto aberta; `Investigation.transitionTo('CLOSED')` exige conclusão com ≥ 10 caracteres e lança `InvestigationConclusionRequiredError` (subclasse de `ValidationError`, 400 no campo `conclusion`) — 400 e não 409 porque falta um dado que o próprio pedido pode trazer. O `PUT` aplica a nova conclusão antes da transição, então escrever e encerrar cabem em uma requisição. `closedAt` é definido ao encerrar e nunca volta a null. Encerrada, qualquer edição (título, descrição, conclusão, incidentes, status) → 409 `INVALID_STATE`. A regra vive na tabela `INVESTIGATION_TRANSITIONS` e em `closingConclusionProblem` (`@aegis/domain`), compartilhadas pelo formulário web, que só desenha `availableTransitions`.
+**Motivo:** uma investigação não pode terminar sem registrar o resultado humano; o registro encerrado não deve mudar depois.
+**Consequência:** reabrir uma investigação exigirá um novo ADR (e, idealmente, audit log).
+
+## ADR-030 — Incident referenciado por Investigation não pode ser excluído
+**Decisão:** `DeleteIncident` busca o incidente no workspace (404 se ausente ou alheio) e, se ele estiver em alguma investigação — inclusive encerrada —, responde 409 "Remova-o dessas investigações antes de excluí-lo". A FK `RESTRICT` cobre a corrida e é traduzida para o mesmo 409. A investigação nunca é apagada em cascata.
+**Motivo:** uma investigação não perde casos em silêncio; o 409 não confirma a existência de dados de outro tenant.
+**Consequência:** um incidente agrupado por investigação encerrada só sai excluindo a investigação (a encerrada é somente leitura).
+
+## ADR-031 — Exclusão física de Investigation enquanto não há audit log
+**Decisão:** `DELETE` remove a investigação fisicamente (204), inclusive encerrada; os vínculos saem por cascade; os incidentes permanecem. A UI avisa que a remoção é definitiva.
+**Motivo:** coerente com ADR-027; ainda não há evidência imutável nem audit log.
+**Consequência:** quando audit log ou evidências existirem, reavaliar retenção e soft delete — especialmente para investigações encerradas.

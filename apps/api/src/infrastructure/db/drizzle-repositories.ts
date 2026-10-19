@@ -8,6 +8,7 @@ import { Membership } from '../../domain/membership.js';
 import { Host } from '../../domain/host.js';
 import { DetectionRule } from '../../domain/detection-rule.js';
 import { Incident } from '../../domain/incident.js';
+import { Investigation } from '../../domain/investigation.js';
 import { offsetOf, type Page } from '../../application/pagination.js';
 import type {
   DetectionRuleListFilter,
@@ -16,6 +17,8 @@ import type {
   HostRepository,
   IncidentListFilter,
   IncidentRepository,
+  InvestigationListFilter,
+  InvestigationRepository,
   MembershipRepository,
   Repositories,
   UnitOfWork,
@@ -26,9 +29,22 @@ import type {
 import { CPF_TAKEN_MESSAGE, EMAIL_TAKEN_MESSAGE } from '../../application/use-cases/register-user.js';
 import { HOST_IN_INCIDENT_MESSAGE, HOST_TARGETED_MESSAGE } from '../../application/use-cases/hosts/delete-host.js';
 import { RULE_IN_INCIDENT_MESSAGE } from '../../application/use-cases/detection-rules/delete-detection-rule.js';
+import { INCIDENT_IN_INVESTIGATION_MESSAGE } from '../../application/use-cases/incidents/delete-incident.js';
 import type { Database } from './client.js';
 import * as schema from './schema.js';
-import { detectionRuleTargets, detectionRules, hosts, incidentDetectionRules, incidentHosts, incidents, memberships, users, workspaces } from './schema.js';
+import {
+  detectionRuleTargets,
+  detectionRules,
+  hosts,
+  incidentDetectionRules,
+  incidentHosts,
+  incidents,
+  investigationIncidents,
+  investigations,
+  memberships,
+  users,
+  workspaces,
+} from './schema.js';
 
 /** Either the pooled database or a transaction handle — both expose the same query API. */
 type Executor = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, typeof schema>;
@@ -359,6 +375,17 @@ class DrizzleIncidentRepository implements IncidentRepository {
     return this.toEntity(row, hostsOf, rulesOf);
   }
 
+  async findManyInWorkspace(workspaceId: string, incidentIds: readonly string[]): Promise<Incident[]> {
+    if (incidentIds.length === 0) return [];
+    const rows = await this.db
+      .select()
+      .from(incidents)
+      .where(and(eq(incidents.workspaceId, workspaceId), inArray(incidents.id, [...incidentIds])))
+      .orderBy(desc(incidents.createdAt), desc(incidents.id));
+    const [hostsOf, rulesOf] = await this.relationsOf(rows.map((row) => row.id));
+    return rows.map((row) => this.toEntity(row, hostsOf, rulesOf));
+  }
+
   async listInWorkspace(workspaceId: string, filter: IncidentListFilter): Promise<Page<Incident>> {
     const conditions: (SQL | undefined)[] = [eq(incidents.workspaceId, workspaceId)];
     if (filter.search) {
@@ -403,8 +430,14 @@ class DrizzleIncidentRepository implements IncidentRepository {
   }
 
   async deleteInWorkspace(workspaceId: string, incidentId: string): Promise<boolean> {
-    const [result] = await this.db.delete(incidents).where(and(eq(incidents.workspaceId, workspaceId), eq(incidents.id, incidentId)));
-    return result.affectedRows > 0;
+    try {
+      const [result] = await this.db.delete(incidents).where(and(eq(incidents.workspaceId, workspaceId), eq(incidents.id, incidentId)));
+      return result.affectedRows > 0;
+    } catch (error) {
+      // FK RESTRICT from investigation_incidents (an investigation grouped the incident concurrently).
+      if (referencedBy(error) !== undefined) throw new ConflictError(INCIDENT_IN_INVESTIGATION_MESSAGE);
+      throw error;
+    }
   }
 
   async isHostInvolved(hostId: string): Promise<boolean> {
@@ -451,6 +484,103 @@ class DrizzleIncidentRepository implements IncidentRepository {
   }
 }
 
+type InvestigationRow = typeof investigations.$inferSelect;
+
+class DrizzleInvestigationRepository implements InvestigationRepository {
+  constructor(private readonly db: Executor) {}
+
+  async insert(investigation: Investigation): Promise<void> {
+    const { incidentIds, ...row } = investigation.toSnapshot();
+    await this.db.insert(investigations).values(row);
+    await this.insertIncidents(investigation.id, incidentIds, row.createdAt);
+  }
+
+  async findInWorkspace(workspaceId: string, investigationId: string): Promise<Investigation | null> {
+    const [row] = await this.db
+      .select()
+      .from(investigations)
+      .where(and(eq(investigations.workspaceId, workspaceId), eq(investigations.id, investigationId)))
+      .limit(1);
+    if (!row) return null;
+    return this.toEntity(row, await this.incidentsOf([row.id]));
+  }
+
+  async listInWorkspace(workspaceId: string, filter: InvestigationListFilter): Promise<Page<Investigation>> {
+    const conditions: (SQL | undefined)[] = [eq(investigations.workspaceId, workspaceId)];
+    if (filter.search) {
+      const pattern = containsPattern(filter.search);
+      conditions.push(or(like(investigations.title, pattern), like(investigations.description, pattern), like(investigations.conclusion, pattern)));
+    }
+    if (filter.status) conditions.push(eq(investigations.status, filter.status));
+    const where = and(...conditions);
+
+    const [rows, [totals]] = await Promise.all([
+      this.db
+        .select()
+        .from(investigations)
+        .where(where)
+        .orderBy(desc(investigations.createdAt), desc(investigations.id))
+        .limit(filter.pageSize)
+        .offset(offsetOf(filter)),
+      this.db.select({ total: count() }).from(investigations).where(where),
+    ]);
+    // One query for the incident ids of the whole page (no N+1).
+    const incidentsOf = await this.incidentsOf(rows.map((row) => row.id));
+    return {
+      items: rows.map((row) => this.toEntity(row, incidentsOf)),
+      total: totals?.total ?? 0,
+      page: filter.page,
+      pageSize: filter.pageSize,
+    };
+  }
+
+  async update(investigation: Investigation): Promise<void> {
+    const { id, workspaceId, title, description, conclusion, status, updatedAt, closedAt, incidentIds } = investigation.toSnapshot();
+    // `workspace_id` and `created_at` are intentionally absent from the SET list.
+    await this.db
+      .update(investigations)
+      .set({ title, description, conclusion, status, updatedAt, closedAt })
+      .where(and(eq(investigations.workspaceId, workspaceId), eq(investigations.id, id)));
+    await this.db.delete(investigationIncidents).where(eq(investigationIncidents.investigationId, id));
+    await this.insertIncidents(id, incidentIds, updatedAt);
+  }
+
+  async deleteInWorkspace(workspaceId: string, investigationId: string): Promise<boolean> {
+    const [result] = await this.db
+      .delete(investigations)
+      .where(and(eq(investigations.workspaceId, workspaceId), eq(investigations.id, investigationId)));
+    return result.affectedRows > 0;
+  }
+
+  async isIncidentInvestigated(incidentId: string): Promise<boolean> {
+    const rows = await this.db
+      .select({ incidentId: investigationIncidents.incidentId })
+      .from(investigationIncidents)
+      .where(eq(investigationIncidents.incidentId, incidentId))
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  private async insertIncidents(investigationId: string, incidentIds: readonly string[], createdAt: Date): Promise<void> {
+    if (incidentIds.length === 0) return;
+    await this.db.insert(investigationIncidents).values(incidentIds.map((incidentId) => ({ investigationId, incidentId, createdAt })));
+  }
+
+  private async incidentsOf(investigationIds: readonly string[]): Promise<Map<string, string[]>> {
+    if (investigationIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({ owner: investigationIncidents.investigationId, related: investigationIncidents.incidentId })
+      .from(investigationIncidents)
+      .where(inArray(investigationIncidents.investigationId, [...investigationIds]))
+      .orderBy(asc(investigationIncidents.createdAt), asc(investigationIncidents.incidentId));
+    return groupBy(rows);
+  }
+
+  private toEntity(row: InvestigationRow, incidentsOf: Map<string, string[]>): Investigation {
+    return Investigation.restore({ ...row, incidentIds: incidentsOf.get(row.id) ?? [] });
+  }
+}
+
 export function createDrizzleRepositories(db: Executor): Repositories {
   return {
     users: new DrizzleUserRepository(db),
@@ -459,6 +589,7 @@ export function createDrizzleRepositories(db: Executor): Repositories {
     hosts: new DrizzleHostRepository(db),
     detectionRules: new DrizzleDetectionRuleRepository(db),
     incidents: new DrizzleIncidentRepository(db),
+    investigations: new DrizzleInvestigationRepository(db),
   };
 }
 

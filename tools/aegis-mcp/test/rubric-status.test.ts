@@ -19,13 +19,28 @@ describe('evaluateRubric', () => {
     'Pagination',
     'Detection Rules CRUD',
     'Incidents CRUD',
+    'Investigations CRUD',
     'Relationships',
+    'Academic CRUDs (4/4)',
   ])('reports %s as PASS from implementation and test evidence', (requirement) => {
     expect(results.get(requirement)?.state).toBe('PASS');
   });
 
-  it('keeps Investigations CRUD as TODO until it exists', () => {
-    expect(results.get('Investigations CRUD')?.state).toBe('TODO');
+  it('reports the four academic CRUDs from the individual checks', () => {
+    expect(results.get('Academic CRUDs (4/4)')?.evidence).toContain('4/4 CRUDs');
+  });
+
+  it('degrades Investigations CRUD and the 4/4 summary to IN_PROGRESS without the investigations web screens', () => {
+    const partial = Object.create(RepoReader.prototype) as RepoReader;
+    const real = new RepoReader(findRepoRoot());
+    Object.assign(partial, {
+      root: real.root,
+      exists: (file: string) => !file.endsWith('EditInvestigationPage.tsx') && real.exists(file),
+      readText: (file: string) => real.readText(file),
+    });
+    const degraded = new Map(evaluateRubric(partial).map((result) => [result.requirement, result]));
+    expect(degraded.get('Investigations CRUD')).toMatchObject({ state: 'IN_PROGRESS', evidence: expect.stringContaining('EditInvestigationPage.tsx') });
+    expect(degraded.get('Academic CRUDs (4/4)')).toMatchObject({ state: 'IN_PROGRESS', evidence: '3/4 CRUDs; not yet PASS: Investigations CRUD' });
   });
 
   it('degrades Incidents CRUD to IN_PROGRESS without its MySQL evidence', () => {

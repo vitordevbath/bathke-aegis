@@ -66,6 +66,15 @@ configurável e removível.
 - Descrição é texto puro (até 5000 caracteres): armazenada como digitada e renderizada escapada pelo React com `white-space: pre-wrap`, nunca como HTML. Validado em navegador real: `<script>` digitado aparece como texto.
 - Nenhuma ação de resposta existe (matar processo, bloquear IP, isolar host, firewall). Exclusão é física enquanto não há evidência imutável (ADR-027).
 
+### Investigações (CURRENT, BF 05)
+
+- O cliente não escolhe `status` inicial (sempre `OPEN`), `conclusion` no cadastro, `closedAt`, ids, workspace ou timestamps — todos rejeitados (400).
+- Incidentes agrupados são validados no workspace da investigação, na mesma transação que grava as relações; incidente de outro workspace e inexistente recebem o mesmo 400; qualquer falha desfaz tudo (ADR-028). A lista nunca pode ficar vazia.
+- Incidente agrupado não pode ser excluído (409 com orientação; FK `RESTRICT` cobre corridas). O incidente é buscado no workspace antes da checagem de vínculo: um id alheio continua 404 e o 409 nunca confirma recurso de outro tenant (ADR-030).
+- "Não encerra sem conclusão" é regra do domínio (`Investigation.transitionTo`), não só do formulário: a API responde 400 no campo `conclusion`. Encerrada, a investigação é somente leitura (409 `INVALID_STATE`) — ADR-029.
+- Descrição e conclusão são texto puro (até 5000 / 10000 caracteres), renderizadas escapadas pelo React, nunca como HTML; testado com `<script>` e `onerror`.
+- Conclusão é humana: nenhuma IA gera, resume ou sugere conclusões nesta etapa. Exclusão é física enquanto não há audit log (ADR-031).
+
 ### Limitações conhecidas
 
 - Logout é local; tokens emitidos continuam válidos até expirar (sem revogação).

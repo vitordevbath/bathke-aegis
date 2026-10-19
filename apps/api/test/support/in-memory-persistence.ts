@@ -5,6 +5,7 @@ import { Membership, type MembershipSnapshot } from '../../src/domain/membership
 import { Host, type HostSnapshot } from '../../src/domain/host.js';
 import { DetectionRule, type DetectionRuleSnapshot } from '../../src/domain/detection-rule.js';
 import { Incident, type IncidentSnapshot } from '../../src/domain/incident.js';
+import { Investigation, type InvestigationSnapshot } from '../../src/domain/investigation.js';
 import { offsetOf, type Page } from '../../src/application/pagination.js';
 import type {
   DetectionRuleListFilter,
@@ -13,6 +14,8 @@ import type {
   HostRepository,
   IncidentListFilter,
   IncidentRepository,
+  InvestigationListFilter,
+  InvestigationRepository,
   MembershipRepository,
   Repositories,
   UnitOfWork,
@@ -33,6 +36,7 @@ export class InMemoryStore {
   hosts = new Map<string, HostSnapshot>();
   detectionRules = new Map<string, DetectionRuleSnapshot>();
   incidents = new Map<string, IncidentSnapshot>();
+  investigations = new Map<string, InvestigationSnapshot>();
 
   clone(): InMemoryStore {
     const copy = new InMemoryStore();
@@ -42,6 +46,7 @@ export class InMemoryStore {
     copy.hosts = new Map(this.hosts);
     copy.detectionRules = new Map(this.detectionRules);
     copy.incidents = new Map(this.incidents);
+    copy.investigations = new Map(this.investigations);
     return copy;
   }
 
@@ -52,6 +57,7 @@ export class InMemoryStore {
     this.hosts = other.hosts;
     this.detectionRules = other.detectionRules;
     this.incidents = other.incidents;
+    this.investigations = other.investigations;
   }
 }
 
@@ -280,6 +286,13 @@ class InMemoryIncidentRepository implements IncidentRepository {
     return snapshot && snapshot.workspaceId === workspaceId ? Incident.restore(snapshot) : null;
   }
 
+  async findManyInWorkspace(workspaceId: string, incidentIds: readonly string[]): Promise<Incident[]> {
+    return [...this.store.incidents.values()]
+      .filter((incident) => incident.workspaceId === workspaceId && incidentIds.includes(incident.id))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+      .map((incident) => Incident.restore(incident));
+  }
+
   async listInWorkspace(workspaceId: string, filter: IncidentListFilter): Promise<Page<Incident>> {
     const needle = filter.search?.toLowerCase();
     const matching = [...this.store.incidents.values()]
@@ -310,6 +323,10 @@ class InMemoryIncidentRepository implements IncidentRepository {
   async deleteInWorkspace(workspaceId: string, incidentId: string): Promise<boolean> {
     const current = this.store.incidents.get(incidentId);
     if (!current || current.workspaceId !== workspaceId) return false;
+    // Mirrors ON DELETE RESTRICT on investigation_incidents.incident_id.
+    if ([...this.store.investigations.values()].some((investigation) => investigation.incidentIds.includes(incidentId))) {
+      throw new Error('foreign key constraint fails (restrict)');
+    }
     return this.store.incidents.delete(incidentId);
   }
 
@@ -322,6 +339,63 @@ class InMemoryIncidentRepository implements IncidentRepository {
   }
 }
 
+/** Same contract as the SQL adapter, including FK checks on workspace and incidents. */
+class InMemoryInvestigationRepository implements InvestigationRepository {
+  constructor(private readonly store: InMemoryStore) {}
+
+  private assertForeignKeys(snapshot: InvestigationSnapshot): void {
+    if (!this.store.workspaces.has(snapshot.workspaceId)) throw new Error('foreign key constraint fails (workspace)');
+    if (snapshot.incidentIds.some((incidentId) => !this.store.incidents.has(incidentId))) throw new Error('foreign key constraint fails (incident)');
+  }
+
+  async insert(investigation: Investigation): Promise<void> {
+    const snapshot = investigation.toSnapshot();
+    this.assertForeignKeys(snapshot);
+    this.store.investigations.set(investigation.id, snapshot);
+  }
+
+  async findInWorkspace(workspaceId: string, investigationId: string): Promise<Investigation | null> {
+    const snapshot = this.store.investigations.get(investigationId);
+    return snapshot && snapshot.workspaceId === workspaceId ? Investigation.restore(snapshot) : null;
+  }
+
+  async listInWorkspace(workspaceId: string, filter: InvestigationListFilter): Promise<Page<Investigation>> {
+    const needle = filter.search?.toLowerCase();
+    const matches = (text: string | null) => (text ?? '').toLowerCase().includes(needle ?? '');
+    const matching = [...this.store.investigations.values()]
+      .filter((investigation) => investigation.workspaceId === workspaceId)
+      .filter((investigation) => !needle || matches(investigation.title) || matches(investigation.description) || matches(investigation.conclusion))
+      .filter((investigation) => !filter.status || investigation.status === filter.status)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    const start = offsetOf(filter);
+    return {
+      items: matching.slice(start, start + filter.pageSize).map((investigation) => Investigation.restore(investigation)),
+      total: matching.length,
+      page: filter.page,
+      pageSize: filter.pageSize,
+    };
+  }
+
+  async update(investigation: Investigation): Promise<void> {
+    const current = this.store.investigations.get(investigation.id);
+    if (!current || current.workspaceId !== investigation.workspaceId) return;
+    const snapshot = investigation.toSnapshot();
+    this.assertForeignKeys(snapshot);
+    // Mirrors the SQL adapter: createdAt is never written by an update.
+    this.store.investigations.set(investigation.id, { ...snapshot, createdAt: current.createdAt });
+  }
+
+  async deleteInWorkspace(workspaceId: string, investigationId: string): Promise<boolean> {
+    const current = this.store.investigations.get(investigationId);
+    if (!current || current.workspaceId !== workspaceId) return false;
+    return this.store.investigations.delete(investigationId);
+  }
+
+  async isIncidentInvestigated(incidentId: string): Promise<boolean> {
+    return [...this.store.investigations.values()].some((investigation) => investigation.incidentIds.includes(incidentId));
+  }
+}
+
 export function repositoriesFor(store: InMemoryStore): Repositories {
   return {
     users: new InMemoryUserRepository(store),
@@ -330,6 +404,7 @@ export function repositoriesFor(store: InMemoryStore): Repositories {
     hosts: new InMemoryHostRepository(store),
     detectionRules: new InMemoryDetectionRuleRepository(store),
     incidents: new InMemoryIncidentRepository(store),
+    investigations: new InMemoryInvestigationRepository(store),
   };
 }
 
