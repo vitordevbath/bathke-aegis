@@ -4,6 +4,8 @@ import type {
   HostResponse,
   IncidentResponse,
   IncidentSummary,
+  InvestigationResponse,
+  InvestigationSummary,
   MeResponse,
   PaginatedResponse,
   UserResponse,
@@ -18,6 +20,8 @@ import type { DetectionRule } from '../../domain/detection-rule.js';
 import type { DetectionRuleView } from '../../application/use-cases/detection-rules/detection-rule-view.js';
 import type { Incident } from '../../domain/incident.js';
 import type { IncidentView } from '../../application/use-cases/incidents/incident-view.js';
+import type { Investigation } from '../../domain/investigation.js';
+import type { InvestigationView } from '../../application/use-cases/investigations/investigation-view.js';
 
 /** Explicit allowlist of public user fields — the password hash can never slip through. */
 export function toUserResponse(user: User): UserResponse {
@@ -124,5 +128,33 @@ export function toIncidentResponse({ incident, hosts, detectionRules }: Incident
       return { ruleId: id, name, severity, enabled };
     }),
     availableTransitions: [...incident.availableTransitions],
+  };
+}
+
+export function toInvestigationSummary(investigation: Investigation): InvestigationSummary {
+  const snapshot = investigation.toSnapshot();
+  return {
+    id: snapshot.id,
+    workspaceId: snapshot.workspaceId,
+    title: snapshot.title,
+    status: snapshot.status,
+    incidentCount: snapshot.incidentIds.length,
+    createdAt: snapshot.createdAt.toISOString(),
+    updatedAt: snapshot.updatedAt.toISOString(),
+    closedAt: snapshot.closedAt?.toISOString() ?? null,
+  };
+}
+
+export function toInvestigationResponse({ investigation, incidents }: InvestigationView): InvestigationResponse {
+  const { description, conclusion } = investigation.toSnapshot();
+  return {
+    ...toInvestigationSummary(investigation),
+    description,
+    conclusion,
+    incidents: incidents.map((incident) => {
+      const { id, title, severity, status, origin } = incident.toSnapshot();
+      return { incidentId: id, title, severity, status, origin };
+    }),
+    availableTransitions: [...investigation.availableTransitions],
   };
 }

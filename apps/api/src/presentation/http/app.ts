@@ -32,6 +32,7 @@ import { usersRoute } from './routes/users.route.js';
 import { hostsRoute } from './routes/hosts.route.js';
 import { detectionRulesRoute } from './routes/detection-rules.route.js';
 import { incidentsRoute } from './routes/incidents.route.js';
+import { investigationsRoute } from './routes/investigations.route.js';
 
 /** Use cases the HTTP layer delegates to. Assembled by the composition root (or by tests). */
 export interface AppDependencies {
@@ -109,6 +110,14 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
     getIncident: dependencies.getIncident,
     updateIncident: dependencies.updateIncident,
     deleteIncident: dependencies.deleteIncident,
+  });
+  await app.register(investigationsRoute, {
+    resolveAuthenticatedUser: dependencies.resolveAuthenticatedUser,
+    createInvestigation: dependencies.createInvestigation,
+    listInvestigations: dependencies.listInvestigations,
+    getInvestigation: dependencies.getInvestigation,
+    updateInvestigation: dependencies.updateInvestigation,
+    deleteInvestigation: dependencies.deleteInvestigation,
   });
 
   return app;
