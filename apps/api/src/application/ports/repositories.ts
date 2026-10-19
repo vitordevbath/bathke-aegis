@@ -4,7 +4,8 @@ import type { Workspace } from '../../domain/workspace.js';
 import type { Membership } from '../../domain/membership.js';
 import type { Host } from '../../domain/host.js';
 import type { DetectionRule } from '../../domain/detection-rule.js';
-import type { DetectionEventCategory, DetectionSeverity } from '@aegis/domain';
+import type { Incident } from '../../domain/incident.js';
+import type { DetectionEventCategory, DetectionSeverity, IncidentOrigin, IncidentStatus, Severity } from '@aegis/domain';
 import type { Page, PageRequest } from '../pagination.js';
 
 export interface UserRepository {
@@ -73,6 +74,8 @@ export interface DetectionRuleListFilter extends PageRequest {
 export interface DetectionRuleRepository {
   insert(rule: DetectionRule): Promise<void>;
   findInWorkspace(workspaceId: string, ruleId: string): Promise<DetectionRule | null>;
+  /** The subset of `ruleIds` that exist in that workspace (others are silently absent), ordered by name. */
+  findManyInWorkspace(workspaceId: string, ruleIds: readonly string[]): Promise<DetectionRule[]>;
   /** Ordered by `createdAt` DESC, then `id` DESC. Targets are loaded in one extra query per page (no N+1). */
   listInWorkspace(workspaceId: string, filter: DetectionRuleListFilter): Promise<Page<DetectionRule>>;
   /** Updates the row and replaces the targets. */
@@ -82,12 +85,38 @@ export interface DetectionRuleRepository {
   isHostTargeted(hostId: string): Promise<boolean>;
 }
 
+export interface IncidentListFilter extends PageRequest {
+  /** Case-insensitive substring match on title or description. */
+  readonly search?: string | undefined;
+  readonly severity?: Severity | undefined;
+  readonly status?: IncidentStatus | undefined;
+  readonly origin?: IncidentOrigin | undefined;
+}
+
+/**
+ * Workspace-scoped like the other resources. `insert` and `update` write the
+ * incident row and both relation tables, so they must run inside a `UnitOfWork`.
+ */
+export interface IncidentRepository {
+  insert(incident: Incident): Promise<void>;
+  findInWorkspace(workspaceId: string, incidentId: string): Promise<Incident | null>;
+  /** Ordered by `createdAt` DESC, then `id` DESC. Relations are loaded with one query per table per page (no N+1). */
+  listInWorkspace(workspaceId: string, filter: IncidentListFilter): Promise<Page<Incident>>;
+  /** Updates the row (never `origin`, `workspaceId` or `createdAt`) and replaces both relations. */
+  update(incident: Incident): Promise<void>;
+  /** Relations are removed by cascade. Returns false when no such incident exists in that workspace. */
+  deleteInWorkspace(workspaceId: string, incidentId: string): Promise<boolean>;
+  isHostInvolved(hostId: string): Promise<boolean>;
+  isRuleRelated(ruleId: string): Promise<boolean>;
+}
+
 export interface Repositories {
   readonly users: UserRepository;
   readonly workspaces: WorkspaceRepository;
   readonly memberships: MembershipRepository;
   readonly hosts: HostRepository;
   readonly detectionRules: DetectionRuleRepository;
+  readonly incidents: IncidentRepository;
 }
 
 /**

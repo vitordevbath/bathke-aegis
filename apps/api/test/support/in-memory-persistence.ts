@@ -4,12 +4,15 @@ import { Workspace, type WorkspaceSnapshot } from '../../src/domain/workspace.js
 import { Membership, type MembershipSnapshot } from '../../src/domain/membership.js';
 import { Host, type HostSnapshot } from '../../src/domain/host.js';
 import { DetectionRule, type DetectionRuleSnapshot } from '../../src/domain/detection-rule.js';
+import { Incident, type IncidentSnapshot } from '../../src/domain/incident.js';
 import { offsetOf, type Page } from '../../src/application/pagination.js';
 import type {
   DetectionRuleListFilter,
   DetectionRuleRepository,
   HostListFilter,
   HostRepository,
+  IncidentListFilter,
+  IncidentRepository,
   MembershipRepository,
   Repositories,
   UnitOfWork,
@@ -29,6 +32,7 @@ export class InMemoryStore {
   memberships = new Map<string, MembershipSnapshot>();
   hosts = new Map<string, HostSnapshot>();
   detectionRules = new Map<string, DetectionRuleSnapshot>();
+  incidents = new Map<string, IncidentSnapshot>();
 
   clone(): InMemoryStore {
     const copy = new InMemoryStore();
@@ -37,6 +41,7 @@ export class InMemoryStore {
     copy.memberships = new Map(this.memberships);
     copy.hosts = new Map(this.hosts);
     copy.detectionRules = new Map(this.detectionRules);
+    copy.incidents = new Map(this.incidents);
     return copy;
   }
 
@@ -46,6 +51,7 @@ export class InMemoryStore {
     this.memberships = other.memberships;
     this.hosts = other.hosts;
     this.detectionRules = other.detectionRules;
+    this.incidents = other.incidents;
   }
 }
 
@@ -172,8 +178,11 @@ class InMemoryHostRepository implements HostRepository {
   async deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean> {
     const current = this.store.hosts.get(hostId);
     if (!current || current.workspaceId !== workspaceId) return false;
-    // Mirrors ON DELETE RESTRICT on detection_rule_targets.host_id.
-    if ([...this.store.detectionRules.values()].some((rule) => rule.targetHostIds.includes(hostId))) {
+    // Mirrors ON DELETE RESTRICT on detection_rule_targets.host_id and incident_hosts.host_id.
+    if (
+      [...this.store.detectionRules.values()].some((rule) => rule.targetHostIds.includes(hostId)) ||
+      [...this.store.incidents.values()].some((incident) => incident.hostIds.includes(hostId))
+    ) {
       throw new Error('foreign key constraint fails (restrict)');
     }
     return this.store.hosts.delete(hostId);
@@ -200,6 +209,13 @@ class InMemoryDetectionRuleRepository implements DetectionRuleRepository {
   async findInWorkspace(workspaceId: string, ruleId: string): Promise<DetectionRule | null> {
     const snapshot = this.store.detectionRules.get(ruleId);
     return snapshot && snapshot.workspaceId === workspaceId ? DetectionRule.restore(snapshot) : null;
+  }
+
+  async findManyInWorkspace(workspaceId: string, ruleIds: readonly string[]): Promise<DetectionRule[]> {
+    return [...this.store.detectionRules.values()]
+      .filter((rule) => rule.workspaceId === workspaceId && ruleIds.includes(rule.id))
+      .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+      .map((rule) => DetectionRule.restore(rule));
   }
 
   async listInWorkspace(workspaceId: string, filter: DetectionRuleListFilter): Promise<Page<DetectionRule>> {
@@ -231,11 +247,78 @@ class InMemoryDetectionRuleRepository implements DetectionRuleRepository {
   async deleteInWorkspace(workspaceId: string, ruleId: string): Promise<boolean> {
     const current = this.store.detectionRules.get(ruleId);
     if (!current || current.workspaceId !== workspaceId) return false;
+    // Mirrors ON DELETE RESTRICT on incident_detection_rules.detection_rule_id.
+    if ([...this.store.incidents.values()].some((incident) => incident.detectionRuleIds.includes(ruleId))) {
+      throw new Error('foreign key constraint fails (restrict)');
+    }
     return this.store.detectionRules.delete(ruleId);
   }
 
   async isHostTargeted(hostId: string): Promise<boolean> {
     return [...this.store.detectionRules.values()].some((rule) => rule.targetHostIds.includes(hostId));
+  }
+}
+
+/** Same contract as the SQL adapter, including FK checks on workspace, hosts and rules. */
+class InMemoryIncidentRepository implements IncidentRepository {
+  constructor(private readonly store: InMemoryStore) {}
+
+  private assertForeignKeys(snapshot: IncidentSnapshot): void {
+    if (!this.store.workspaces.has(snapshot.workspaceId)) throw new Error('foreign key constraint fails (workspace)');
+    if (snapshot.hostIds.some((hostId) => !this.store.hosts.has(hostId))) throw new Error('foreign key constraint fails (host)');
+    if (snapshot.detectionRuleIds.some((ruleId) => !this.store.detectionRules.has(ruleId))) throw new Error('foreign key constraint fails (rule)');
+  }
+
+  async insert(incident: Incident): Promise<void> {
+    const snapshot = incident.toSnapshot();
+    this.assertForeignKeys(snapshot);
+    this.store.incidents.set(incident.id, snapshot);
+  }
+
+  async findInWorkspace(workspaceId: string, incidentId: string): Promise<Incident | null> {
+    const snapshot = this.store.incidents.get(incidentId);
+    return snapshot && snapshot.workspaceId === workspaceId ? Incident.restore(snapshot) : null;
+  }
+
+  async listInWorkspace(workspaceId: string, filter: IncidentListFilter): Promise<Page<Incident>> {
+    const needle = filter.search?.toLowerCase();
+    const matching = [...this.store.incidents.values()]
+      .filter((incident) => incident.workspaceId === workspaceId)
+      .filter((incident) => !needle || incident.title.toLowerCase().includes(needle) || (incident.description ?? '').toLowerCase().includes(needle))
+      .filter((incident) => !filter.severity || incident.severity === filter.severity)
+      .filter((incident) => !filter.status || incident.status === filter.status)
+      .filter((incident) => !filter.origin || incident.origin === filter.origin)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    const start = offsetOf(filter);
+    return {
+      items: matching.slice(start, start + filter.pageSize).map((incident) => Incident.restore(incident)),
+      total: matching.length,
+      page: filter.page,
+      pageSize: filter.pageSize,
+    };
+  }
+
+  async update(incident: Incident): Promise<void> {
+    const current = this.store.incidents.get(incident.id);
+    if (!current || current.workspaceId !== incident.workspaceId) return;
+    const snapshot = incident.toSnapshot();
+    this.assertForeignKeys(snapshot);
+    // Mirrors the SQL adapter: origin and createdAt are never written by an update.
+    this.store.incidents.set(incident.id, { ...snapshot, origin: current.origin, createdAt: current.createdAt });
+  }
+
+  async deleteInWorkspace(workspaceId: string, incidentId: string): Promise<boolean> {
+    const current = this.store.incidents.get(incidentId);
+    if (!current || current.workspaceId !== workspaceId) return false;
+    return this.store.incidents.delete(incidentId);
+  }
+
+  async isHostInvolved(hostId: string): Promise<boolean> {
+    return [...this.store.incidents.values()].some((incident) => incident.hostIds.includes(hostId));
+  }
+
+  async isRuleRelated(ruleId: string): Promise<boolean> {
+    return [...this.store.incidents.values()].some((incident) => incident.detectionRuleIds.includes(ruleId));
   }
 }
 
@@ -246,6 +329,7 @@ export function repositoriesFor(store: InMemoryStore): Repositories {
     memberships: new InMemoryMembershipRepository(store),
     hosts: new InMemoryHostRepository(store),
     detectionRules: new InMemoryDetectionRuleRepository(store),
+    incidents: new InMemoryIncidentRepository(store),
   };
 }
 
