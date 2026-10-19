@@ -149,25 +149,50 @@ const CHECKS: readonly RubricCheck[] = [
       { file: 'apps/web/test/rules.test.tsx', pattern: /condition builder/ },
     ]),
   },
-  { requirement: 'Incidents CRUD', evaluate: todo() },
+  {
+    requirement: 'Incidents CRUD',
+    evaluate: implementedAndTested('CRUD under /workspaces/:id/incidents; manual origin; domain lifecycle; N:N hosts/rules; web screens; tests incl. MySQL', [
+      { file: `${API}/presentation/http/routes/incidents.route.ts`, pattern: /app\.post\('\/workspaces\/:workspaceId\/incidents'/ },
+      { file: `${API}/presentation/http/routes/incidents.route.ts`, pattern: /app\.get\('\/workspaces\/:workspaceId\/incidents'/ },
+      { file: `${API}/presentation/http/routes/incidents.route.ts`, pattern: /app\.get\('\/workspaces\/:workspaceId\/incidents\/:incidentId'/ },
+      { file: `${API}/presentation/http/routes/incidents.route.ts`, pattern: /app\.put\('\/workspaces\/:workspaceId\/incidents\/:incidentId'/ },
+      { file: `${API}/presentation/http/routes/incidents.route.ts`, pattern: /app\.delete\('\/workspaces\/:workspaceId\/incidents\/:incidentId'/ },
+      { file: `${API}/presentation/http/routes/incidents.route.ts`, pattern: /addHook\('preHandler', authenticate/ },
+      { file: `${API}/presentation/http/routes/incidents.route.ts`, pattern: /toPaginatedResponse/ },
+      { file: `${API}/domain/incident.ts`, pattern: /transitionTo\(/ },
+      { file: 'apps/api/drizzle/0005_incident_relations.sql', pattern: /CREATE TABLE `incident_hosts`/ },
+      { file: 'apps/web/src/pages/incidents/CreateIncidentPage.tsx', pattern: /IncidentForm/ },
+      { file: 'apps/web/src/pages/incidents/EditIncidentPage.tsx', pattern: /IncidentForm/ },
+      { file: `${API_TEST}/http/incidents.test.ts`, pattern: /multi-tenant isolation/ },
+      { file: `${API_TEST}/integration/incidents.mysql.test.ts`, pattern: /rolls back the incident row/ },
+      { file: 'apps/web/test/incidents.test.tsx', pattern: /create incident \(separate screen\)/ },
+    ]),
+  },
   { requirement: 'Investigations CRUD', evaluate: todo() },
   {
     requirement: 'Pagination',
-    evaluate: implementedAndTested('generic PaginationQuerySchema + PaginatedResponse<T>; Hosts list; reusable web Pagination', [
+    evaluate: implementedAndTested('generic PaginationQuerySchema + PaginatedResponse<T>; Hosts, Rules and Incidents lists; reusable web Pagination', [
       { file: 'packages/contracts/src/pagination.ts', pattern: /interface PaginatedResponse<T>/ },
       { file: `${API}/presentation/http/mappers.ts`, pattern: /toPaginatedResponse/ },
       { file: 'apps/web/src/components/Pagination.tsx', pattern: /aria-current/ },
       { file: `${API_TEST}/http/hosts.test.ts`, pattern: /paginates 25 hosts/ },
+      { file: `${API_TEST}/http/incidents.test.ts`, pattern: /paginates 25 incidents/ },
     ]),
   },
   {
     requirement: 'Relationships',
-    evaluate: implementedAndTested('DetectionRule ↔ Host via detection_rule_targets (real FKs, same-workspace check in a transaction); Workspace 1–N Host/Rule', [
-      { file: 'apps/api/drizzle/0003_detection_rule_targets.sql', pattern: /FOREIGN KEY \(`host_id`\) REFERENCES `hosts`/ },
-      { file: `${API}/application/use-cases/detection-rules/detection-rule-view.ts`, pattern: /findManyInWorkspace/ },
-      { file: `${API_TEST}/integration/detection-rules.mysql.test.ts`, pattern: /cascades targets on rule delete/ },
-      { file: `${API_TEST}/http/detection-rules.test.ts`, pattern: /host of another workspace/ },
-    ]),
+    evaluate: implementedAndTested(
+      'Rule ↔ Host, Incident ↔ Host and Incident ↔ Rule (N:N, real FKs, same-workspace check in a transaction, RESTRICT → 409); Workspace 1–N resources',
+      [
+        { file: 'apps/api/drizzle/0003_detection_rule_targets.sql', pattern: /FOREIGN KEY \(`host_id`\) REFERENCES `hosts`/ },
+        { file: `${API}/application/use-cases/detection-rules/detection-rule-view.ts`, pattern: /findManyInWorkspace/ },
+        { file: `${API_TEST}/integration/detection-rules.mysql.test.ts`, pattern: /cascades targets on rule delete/ },
+        { file: `${API_TEST}/http/detection-rules.test.ts`, pattern: /host of another workspace/ },
+        { file: 'apps/api/drizzle/0005_incident_relations.sql', pattern: /REFERENCES `detection_rules`\(`id`\) ON DELETE restrict/ },
+        { file: `${API}/application/use-cases/incidents/incident-view.ts`, pattern: /findManyInWorkspace/ },
+        { file: `${API_TEST}/integration/incidents.mysql.test.ts`, pattern: /restricts deleting a related host or rule/ },
+      ],
+    ),
   },
   {
     requirement: 'TypeScript strict',
@@ -198,7 +223,7 @@ const CHECKS: readonly RubricCheck[] = [
   },
   {
     requirement: 'Custom exceptions',
-    evaluate: implementedAndTested('DomainError → Validation/Authentication/Conflict/NotFound, mapped to HTTP in one handler', [
+    evaluate: implementedAndTested('DomainError → Validation/Authentication/Forbidden/Conflict/NotFound/InvalidState, mapped to HTTP in one handler', [
       { file: 'packages/domain/src/domain-error.ts', pattern: /class ConflictError extends DomainError/ },
       { file: `${API}/presentation/http/error-handler.ts`, pattern: /instanceof ConflictError/ },
       { file: 'packages/domain/test/domain-error.test.ts', pattern: /stable code/ },
