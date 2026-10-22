@@ -43,6 +43,8 @@ describe('evaluateRubric', () => {
     'Agent guardrails',
     'Sensitive file read and exposure protection',
     'SOLID / Dependency Inversion',
+    'SOLID / Open-Closed',
+    'SOLID / Liskov Substitution',
   ])('reports %s as PASS from implementation and test evidence', (requirement) => {
     expect(results.get(requirement)?.state).toBe('PASS');
   });
@@ -50,8 +52,6 @@ describe('evaluateRubric', () => {
   it.each([
     'Getters and setters',
     'SOLID / Single Responsibility',
-    'SOLID / Open-Closed',
-    'SOLID / Liskov Substitution',
     'Naming conventions',
   ])('keeps %s in progress when automated evidence requires manual review', (requirement) => {
     expect(results.get(requirement)).toMatchObject({ state: 'IN_PROGRESS', evidence: expect.stringContaining('manual design review required') });
@@ -150,5 +150,26 @@ describe('evaluateRubric', () => {
       state: 'IN_PROGRESS',
       evidence: expect.stringContaining('apps/api/src/domain/host.ts'),
     });
+  });
+
+  const withText = (file: string, rewrite: (text: string) => string) => {
+    const partial = Object.create(RepoReader.prototype) as RepoReader;
+    const real = new RepoReader(findRepoRoot());
+    Object.assign(partial, {
+      root: real.root,
+      exists: (path: string) => real.exists(path),
+      readText: (path: string) => (path === file ? rewrite(real.readText(path)) : real.readText(path)),
+    });
+    return new Map(evaluateRubric(partial).map((result) => [result.requirement, result]));
+  };
+
+  it('drops Open-Closed to IN_PROGRESS as soon as the ingestion pipeline branches on an event type', () => {
+    const degraded = withText('apps/api/src/application/event-ingestion-service.ts', (text) => `${text}\nif (type === 'SYSTEM_BOOT') {}\n`);
+    expect(degraded.get('SOLID / Open-Closed')).toMatchObject({ state: 'IN_PROGRESS', evidence: expect.stringContaining('event-ingestion-service.ts') });
+  });
+
+  it('drops Liskov to IN_PROGRESS when the contract suite no longer runs against MySQL', () => {
+    const degraded = withText('apps/api/test/contracts/event-repository.contract.test.ts', (text) => text.replace("'Drizzle / MySQL'", "'skipped'"));
+    expect(degraded.get('SOLID / Liskov Substitution')?.state).toBe('IN_PROGRESS');
   });
 });
