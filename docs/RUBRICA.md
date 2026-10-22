@@ -1,6 +1,6 @@
 # Rubrica — matriz rastreável
 
-Estados: `TODO` · `IN_PROGRESS` · `PASS` · `BLOCKED`.
+Estados: `PASS` · `IN_PROGRESS` · `TODO` · `BLOCKED`.
 **PASS exige implementação e evidência**, nunca apenas documentação.
 A ferramenta `aegis_rubric_status` do Aegis MCP avalia parte destes itens automaticamente.
 
@@ -48,23 +48,47 @@ Workspace
 | Rotas autenticadas (CRUD) | PASS | `hosts.route.ts`, `detection-rules.route.ts`, `incidents.route.ts`, `investigations.route.ts` (`preHandler` `authenticate`) | todas as rotas de hosts, regras, incidentes e investigações exigem Bearer | `test/http/hosts.test.ts` ("hosts: authentication"), `test/http/detection-rules.test.ts` ("detection rules: authentication"), `test/http/incidents.test.ts` ("incidents: authentication"), `test/http/investigations.test.ts` ("investigations: authentication") | |
 | Telas separadas de criação e edição | PASS | `apps/web/src/pages/hosts/{Create,Edit}HostPage.tsx`, `pages/rules/{Create,Edit}RulePage.tsx`, `pages/incidents/{Create,Edit}IncidentPage.tsx`, `pages/investigations/{Create,Edit}InvestigationPage.tsx`; formulários `HostForm`, `DetectionRuleForm`, `IncidentForm`, `InvestigationForm` | `/hosts/novo` e `/hosts/:hostId/editar`; `/regras/nova` e `/regras/:ruleId/editar`; `/incidentes/novo` e `/incidentes/:incidentId/editar`; `/investigacoes/nova` e `/investigacoes/:investigationId/editar` | `apps/web/test/{hosts,rules,incidents,investigations}.test.tsx` | Status de incidente e investigação muda no detalhe, não no formulário |
 
-## TypeScript / POO
+## Frontend / componentização
 
-| Requisito | Status | Implementação | Evidência | Testes | Notas |
-| --- | --- | --- | --- | --- | --- |
-| TypeScript strict | PASS | `tsconfig.base.json` | `strict`, `noImplicitAny`, `noUncheckedIndexedAccess`; `npm run typecheck` | CI | |
-| Classes / abstract classes | PASS | `packages/domain/src/entity.ts`, `domain-error.ts`, `apps/api/src/domain/*.ts` | `Entity<TId>` abstrata → `User`, `Workspace`, `Host`, `DetectionRule`, `Incident`, `Investigation`; `DomainError` abstrata → 6 erros (`InvalidIncidentTransitionError` e `InvalidInvestigationTransitionError` especializam `InvalidStateError`; `InvestigationConclusionRequiredError` especializa `ValidationError`); construtores `private` + factories (`Incident.open`, `Investigation.open`) | `apps/api/test/domain/{entities,incident,investigation}.test.ts` | Campos `#private`; `Incident` e `Investigation` só mudam status por `transitionTo` |
-| Interfaces / type aliases | PASS | `apps/api/src/application/ports/*.ts`, `packages/contracts/src/*.ts` | ports `UserRepository`, `PasswordHasher`, `TokenService`, `UnitOfWork`; DTOs de transporte | `test/application/use-cases.test.ts` (dublês implementam os ports) | |
-| Generics | PASS | `packages/domain/src/entity.ts`, `application/ports/repositories.ts`, `apps/web/src/lib/api-client.ts` | `Entity<string>`, `UnitOfWork.run<T>`, `apiRequest<T>` | `test/integration/mysql-repositories.test.ts` | |
-| Exceções customizadas | PASS | `packages/domain/src/domain-error.ts`, `incident-rules.ts`, `investigation-rules.ts`, `apps/api/src/presentation/http/error-handler.ts` | `ValidationError` 400, `AuthenticationError` 401, `ForbiddenError` 403, `ConflictError` 409, `InvalidStateError` 409 (`INVALID_STATE`), `NotFoundError` 404; 500 genérico sem stack | `packages/domain/test/{domain-error,incident-rules,investigation-rules}.test.ts`, `test/http/*.test.ts` | |
-| SOLID / DIP | PASS | `apps/api/src/application`, `infrastructure`, `composition-root.ts` | use cases dependem de ports; adapters Drizzle/Argon2/jose injetados na composição | `test/application/use-cases.test.ts` (in-memory), `test/integration/*` (MySQL) | |
+| Requisito | Status | Evidência | Testes |
+| --- | --- | --- | --- |
+| Componentes reutilizáveis e telas compostas por partes | PASS | `apps/web/src/components/{Pagination,EmptyState,ConfirmAction,SeverityBadge,TextField,TextAreaField,SelectField}.tsx` são importados por páginas/features; `WorkspaceSelector` é usado por `AppShell`; componentes de status específicos ficam nas features | `apps/web/test/{hosts,rules,incidents,investigations}.test.tsx` percorrem telas que os consomem |
+| Páginas separadas de componentes | PASS | Rotas em `apps/web/src/app/router.tsx` carregam páginas de `src/pages`; UI comum fica em `src/components`; comportamento de domínio e formulários ficam em `src/features` | Os testes de fluxo web validam criação, edição, listagem e detalhe sem embutir páginas em `router.tsx` |
+| Componentes específicos de página/feature extraídos | PASS | `HostForm`, `DetectionRuleForm`, `IncidentForm` e `InvestigationForm` são componentes em `src/features/*` e reutilizados pelas páginas Create/Edit; seletores, avisos e ações de ciclo de vida também têm módulos próprios | `apps/web/test/{hosts,rules,incidents,investigations}.test.tsx`; `npm test` |
+
+## TypeScript, domínio e critérios de engenharia
+
+| Requisito | Status | Evidência objetiva | Observação |
+| --- | --- | --- | --- |
+| TypeScript strict | PASS | `tsconfig.base.json` habilita `strict`, `noImplicitAny`, `noUncheckedIndexedAccess`; `npm run typecheck` passa em todos os workspaces | |
+| TypeScript na aplicação sem JavaScript injetado | PASS | `apps/web/src`, `apps/api/src` e `packages/*/src` contêm TS/TSX; a auditoria AST do MCP verifica `eval` e `new Function`; busca atual não encontrou `.js`/`.jsx` dentro de `src` | Scripts `.mjs` em `scripts/` são tooling de infraestrutura, fora do código da aplicação |
+| Evitar `any` explícito | PASS | Varredura da AST TypeScript nos arquivos de produção em `apps`, `packages` e `tools/aegis-mcp/src` não encontrou `AnyKeyword`; flags strict mantidas | Menções em comentários/documentação não contam como anotação de tipo |
+| Interfaces e type aliases | PASS | `apps/api/src/application/ports/repositories.ts` define ports de repositório; `password-hasher.ts` e `token-service.ts` definem portas; `packages/contracts/src/*.ts` expõe interfaces e aliases de DTOs; `packages/domain/src/severity.ts` define `Severity` | Compilação strict e testes de aplicação validam o uso dos ports |
+| Generics | PASS | `packages/domain/src/entity.ts` usa `Entity<TId>`; `apps/api/src/application/ports/repositories.ts` usa `UnitOfWork.run<T>` e `Page<T>`; `packages/contracts/src/pagination.ts` define `PaginatedResponse<T>`; `apps/web/src/lib/api-client.ts` usa `apiRequest<T>` | Usados em entidades, persistência, transporte e cliente HTTP |
+| Modelagem orientada a objetos | PASS | `apps/api/src/domain/{user,workspace,membership,host,detection-rule,incident,investigation}.ts` modela entidades com invariantes e comportamento (`register`, `createPersonal`, `updateDetails`, `update`, `revise`, `transitionTo`, `canManageResources`) | Testes de domínio e aplicação exercitam regras e transições; não são apenas interfaces de dados |
+| Encapsulamento | PASS | Entidades de domínio usam campos runtime-private `#`; fábricas controlam construção; estado de incidentes/investigações muda por métodos de domínio; por exemplo, `apps/api/src/domain/incident.ts` | Testes `apps/api/test/domain/{entities,incident,investigation}.test.ts` |
+| Construtores limpos e estado válido | PASS | Entidades têm construtores privados e fábricas; `Incident.open` e `Investigation.open` validam detalhes, `restore` revalida invariantes, `User.register` normaliza nome e valida hash; `Workspace` também verifica o nome no construtor | Testes de domínio cobrem valores inválidos e restauração de ciclos de vida inconsistentes |
+| Getters e setters | PASS | Auditoria de `apps/api/src/domain` e `packages/domain/src`: não há accessors `set`; getters publicados são valores usados por application/repositories/contracts; mutações são nomeadas (`updateProfile`, `changePasswordHash`, `updateDetails`, `update`, `revise`, `transitionTo`) | Não há setter genérico. A ferramenta MCP mantém revisão manual para julgar a utilidade semântica de cada getter |
+| Herança | PASS | `User`, `Workspace`, `Host`, `DetectionRule`, `Incident` e `Investigation` estendem `Entity<string>`; erros específicos estendem `InvalidStateError`/`ValidationError` em `packages/domain/src/{incident-rules,investigation-rules}.ts` | Hierarquias existentes no domínio e em erros; não foram criadas para preencher a rubrica |
+| Classes abstratas | PASS | `packages/domain/src/entity.ts` declara `abstract class Entity<TId>` e `domain-error.ts` declara `abstract class DomainError`; ambas têm classes concretas de produção derivadas | Interface não foi tratada como classe abstrata |
+| Polimorfismo | PASS | `UserRepository` é implementado por `DrizzleUserRepository` em `apps/api/src/infrastructure/db/drizzle-repositories.ts` e por `InMemoryUserRepository` nos testes; `createUseCases` recebe as abstrações e executa os mesmos casos de uso com os dois conjuntos de adapters | Evidência de implementações substituíveis usadas em produção/testes, não apenas de DI declarada |
+| SOLID — Single Responsibility | PASS | `apps/api/src/presentation/http/routes/*.route.ts` valida/encaminha/mapa HTTP; cada ação fica em use case próprio em `application/use-cases`; repositórios isolam persistência; no web, pages, features e components têm papéis separados | Revisão arquitetural BF 05.6; exemplos e arquivos citados permitem inspeção |
+| SOLID — Open/Closed | IN_PROGRESS | Ports permitem substituir adaptadores sem alterar use cases (`apps/api/src/application/ports`, `composition-root.ts`) | Extensão de adaptador está demonstrada; adicionar um recurso completo ainda altera schema, use cases, composição e rotas. Falta demonstrar extensão de comportamento sem mudanças amplas no núcleo |
+| SOLID — Liskov Substitution | IN_PROGRESS | Existem hierarquias reais `Entity` e `DomainError` e subclasses específicas; `error-handler.ts` reconhece os erros concretos | Ainda não há uma suíte explícita de contratos comportamentais de substituibilidade para as hierarquias. Não se considera LSP provado apenas por não haver violação conhecida |
+| SOLID — Dependency Inversion | PASS | Use cases dependem de `Repositories`, `PasswordHasher`, `TokenService` e `UnitOfWork` em `apps/api/src/application/ports`; Drizzle/Argon2/jose são conectados em `composition-root.ts`; testes usam adapters em memória | `apps/api/test/application/use-cases.test.ts` e `test/integration/*` |
+| Exceções customizadas | PASS | `DomainError` → `ValidationError`, `AuthenticationError`, `ForbiddenError`, `ConflictError`, `NotFoundError`, `InvalidStateError`; erros de transição/conclusão especializam classes de domínio; `error-handler.ts` mapeia para respostas HTTP | `packages/domain/test/{domain-error,incident-rules,investigation-rules}.test.ts`; `apps/api/test/http/*.test.ts` |
+| Organização em camadas (entidades, serviços e repositórios) | PASS | `apps/api/src/domain` contém entidades/regras; `application/use-cases` contém serviços de aplicação; `application/ports` define repositórios; `infrastructure/db` implementa persistência; `presentation/http` contém rotas e mapeamento | Mapeamento equivalente à terminologia da rubrica; arquitetura não foi renomeada artificialmente |
+| Convenções de nomenclatura | PASS | Auditoria de `apps`, `packages` e `tools`: tipos/classes/componentes em PascalCase; funções/propriedades em camelCase; módulos não-componentes em kebab-case; migrations SQL numeradas com nomes snake_case | Revisão manual BF 05.6; exemplos em `apps/api/src/domain/incident.ts`, `apps/web/src/features/incidents/IncidentForm.tsx` e `apps/api/drizzle/0007_investigation_incidents.sql` |
 
 ## Infraestrutura
 
 | Requisito | Status | Implementação | Evidência | Testes | Notas |
 | --- | --- | --- | --- | --- | --- |
-| Docker | PASS | `compose.yaml`, `infra/docker/{api,web}.Dockerfile` | serviços nginx, web, api, mysql e `migrate` one-shot (`depends_on`: mysql `service_healthy` → migrate `service_completed_successfully` → api); healthcheck no MySQL; volume nomeado `mysql_data`; segredos só via env (`--env-file`/`.env`, nunca versionado); stack construída e iniciada do zero como projeto isolado | `scripts/test-infra.mjs` (`npm run test:infra`): `compose config`, build, banco vazio, MySQL healthy, migrate sai com 0 e grava 8/8 migrations (0000→0007), persistência após `down`/`up`; job `infrastructure` em `.github/workflows/ci.yml` | Porta do host configurável por `AEGIS_HTTP_PORT` (padrão 8080) |
-| MySQL | PASS | serviço `mysql` (8.4), `apps/api/drizzle/*`, `apps/api/src/infrastructure/db/*` | migrations versionadas (`npm run db:migrate`) aplicadas do zero no CI e pelo serviço `migrate` do Compose; repositórios Drizzle; volume nomeado `/var/lib/mysql` (sem tmpfs) | `apps/api/test/integration/*` (MySQL real no CI), `scripts/test-infra.mjs` ("migrations", "mysql volume", "persistence across down/up") | |
+| Docker Compose organizado | PASS | `compose.yaml` separa `nginx`, `web`, `api`, `mysql` e `migrate`; dependências ordenam MySQL saudável → migrations concluídas → API; configuração injeta valores por variáveis de ambiente sem versionar `.env` | `scripts/test-infra.mjs` valida config, build e subida real dos serviços em projeto isolado; `.github/workflows/ci.yml` executa a verificação | Porta do host configurável por `AEGIS_HTTP_PORT` (padrão 8080) |
+| Frontend e backend separados | PASS | Serviços Compose `web` e `api` têm imagens/processos independentes; `infra/nginx/nginx.conf` roteia `/api/*` para API e `/` para SPA | Teste de infraestrutura valida ambas as respostas através do Nginx |
+| Docker | PASS | `compose.yaml`, `infra/docker/{api,web}.Dockerfile` | Stack construída e iniciada do zero como projeto isolado; dependências de serviço, healthcheck MySQL, env vars e inicialização de migrations | `scripts/test-infra.mjs`; job `infrastructure` em `.github/workflows/ci.yml` | |
+| MySQL | PASS | serviço `mysql` (8.4), `apps/api/drizzle/*`, `apps/api/src/infrastructure/db/*` | migrations versionadas (`npm run db:migrate`) aplicadas do zero no CI e pelo serviço `migrate` do Compose; repositórios Drizzle | `apps/api/test/integration/*` (MySQL real no CI) e `scripts/test-infra.mjs` ("migrations") | |
+| Volume persistente MySQL | PASS | `compose.yaml`: volume nomeado `mysql_data` em `/var/lib/mysql` | `scripts/test-infra.mjs` confirma o tipo/nome do mount e insere marcador que permanece após `docker compose down`/`up`; schema e migrations permanecem íntegros | Verificações “mysql volume” e “persistence across down/up” no CI e local |
 | Nginx | PASS | `infra/nginx/nginx.conf`, `infra/nginx/web.conf` | entrada pública única; `/api/*` → api com prefixo removido, `/*` → web (fallback SPA); CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `server_tokens off` | `scripts/test-infra.mjs`: `/api/health` 200 `{status:ok, service:aegis-api}` e `/` 200 com o SPA construído, via Nginx; `/api/rota-inexistente` → 404 JSON da API e `/health` → SPA (roteamento por prefixo); headers e CSP comparados ao `nginx.conf` em `/` e `/api/`; CI | CSP validada funcionalmente em Firefox real (BF 04, BF 05) |
 | Isolamento de rede | PASS | redes `aegis_edge`, `aegis_application` (`internal`), `aegis_data` (`internal`) no `compose.yaml` | só nginx publica porta; web, api, mysql (3306) e migrate não publicam nada (`docker inspect` dos containers reais, não `EXPOSE`); nginx: edge + application; web: application; api: application + data; mysql e migrate: data | `scripts/test-infra.mjs` ("published ports", "networks", "network isolation": nginx e web não resolvem `mysql`, api resolve; api sem saída para a internet); CI | Egress da API será uma rede dedicada quando a IA existir (ARCHITECTURE.md) |
 | Endpoint de health | PASS | `apps/api/src/presentation/http/routes/health.route.ts` | `GET /health` | `apps/api/test/health.test.ts` | |
@@ -73,46 +97,59 @@ Workspace
 
 | Requisito | Status | Implementação | Evidência | Testes | Notas |
 | --- | --- | --- | --- | --- | --- |
-| AGENTS.md | PASS | `AGENTS.md` | missão, arquitetura CURRENT/PLANNED, fluxo, regras de teste, segurança, recursos protegidos, dependências, git e commits | `aegis_rubric_status` (seções de segurança e recursos protegidos) | |
-| 3 Skills | PASS | `agents/skills/{backend-engineering,frontend-engineering,security-review}/SKILL.md` | escopo, ações permitidas/proibidas, comandos de validação e critérios de conclusão por área | `aegis_rubric_status` | |
-| MCP próprio | PASS | `tools/aegis-mcp` | 7 ferramentas via stdio, somente leitura e com allowlist; `aegis_rubric_status` avalia auth/usuário, os 4 CRUDs (e o resumo "Academic CRUDs (4/4)"), paginação, relacionamentos, MySQL e infraestrutura (Docker, Nginx, isolamento exigem o teste de infra ligado ao CI) por evidência; conectado ao Claude Code | `tools/aegis-mcp/test` (`protected-paths`, `redact`, `rubric-status`, inclusive degradação para IN_PROGRESS sem evidência) | Após rebuild do MCP, o cliente precisa reconectar (`/mcp`) para carregar o código novo |
-| Proteção de segredos | PASS | `tools/aegis-mcp/src/policy/*`, `.gitignore` | `isProtectedPath`, `redactSecrets`; `aegis_security_check` sem achados; o teste de infra gera credenciais descartáveis em runtime e nunca lê `.env` | `protected-paths.test.ts`, `redact.test.ts` | |
+| AGENTS.md | PASS | `AGENTS.md` | missão, arquitetura CURRENT/PLANNED, fluxo, regras de teste, segurança, recursos protegidos, dependências, git e commits | Verificação estrutural do MCP e `aegis_security_check` |
+| 3 Skills | PASS | `agents/skills/{backend-engineering,frontend-engineering,security-review}/SKILL.md` | três skills por área descrevem escopo, ações permitidas/proibidas, comandos de validação e critérios de conclusão | Verificação estrutural do MCP |
+| Guardrails de agentes | PASS | `AGENTS.md` e as três `agents/skills/*/SKILL.md` | instruções delimitam escopo defensivo, recursos proibidos, validação, proteção de segredos e operações permitidas | Testes de política do MCP; `tools/aegis-mcp/src/policy/*` |
+| MCP próprio | PASS | `tools/aegis-mcp` | 7 ferramentas via stdio, somente leitura e com allowlist; `aegis_rubric_status` avalia auth, CRUDs, paginação, relações, UI/componentes, POO, hierarquias, ports substituíveis, tipos/`any` via AST, camadas, Compose/volume/rede e guardrails; itens arquiteturais subjetivos retornam `IN_PROGRESS` para revisão manual | `tools/aegis-mcp/test` (`protected-paths`, `redact`, `rubric-status`, incluindo testes de degradação) | Após rebuild do MCP, o cliente precisa reconectar (`/mcp`) para carregar o código novo |
+| Proteção de arquivos sensíveis e `.env` | PASS | `AGENTS.md`, `tools/aegis-mcp/src/policy/protected-paths.ts`, `repo.ts`, `security-check.ts`, `.gitignore` | ferramentas MCP negam leitura de `.env`, `secrets/**`, `credentials/**` e arquivos de chave; saídas de segurança informam somente caminho/regra; credenciais de teste são geradas em memória/runtime | `tools/aegis-mcp/test/{protected-paths,redact}.test.ts`; `aegis_security_check` sem achados; `test-infra.mjs` usa env temporário e nunca carrega `.env` |
 
-## Divergências em relação à rubrica original
+## Reconciliação BF 05.6
 
-O texto original da rubrica acadêmica não está versionado no repositório; esta matriz é a transcrição
-feita no BF 00 (`51b891b`) e, desde então, só recebeu linhas novas — nenhum requisito foi removido.
-Os prompts dos BFs 05 e 05.5 citam critérios **que não aparecem nesta matriz**. Eles não ganharam
-status aqui de propósito: só serão transcritos, com status, a partir do texto original.
+### Fonte e limite de fidelidade
 
-| Critério citado e ausente da matriz | O que já existe (evidência, sem status) |
-| --- | --- |
-| Componentização (frontend) | componentes compartilhados `Pagination`, `EmptyState`, `ConfirmAction`, `SeverityBadge`, `TextField`/`TextAreaField`/`SelectField`, `HostPicker`; formulários reutilizados entre criação e edição (`HostForm`, `DetectionRuleForm`, `IncidentForm`, `InvestigationForm`) |
-| Volume persistente do MySQL | volume nomeado `mysql_data`; coberto como evidência das linhas Docker e MySQL |
-| Encapsulamento / getters e setters | campos `#private`, construtores `private` + factories, só getters; nenhum setter genérico — mudanças por métodos de domínio (`updateProfile`, `changePasswordHash`, `updateDetails`, `revise`, `transitionTo`) |
-| Herança | `Entity<TId>` abstrata → 6 entidades; `DomainError` abstrata → 6 erros, com especializações (`InvalidIncidentTransitionError`, `InvestigationConclusionRequiredError`) |
-| Polimorfismo | ports com duas implementações reais (Drizzle e dublês em memória) trocadas na composição; `errorHandler` trata erros pela classe-base |
-| Ausência de `any` | `strict` + `noImplicitAny`; nenhum `any` em `apps/*/src`, `packages/*/src`, `tools/aegis-mcp/src` |
-| SOLID S/O/L (a matriz só tem DIP) | um caso de uso por arquivo; ports segregados por recurso; dublês substituem adapters sem mudar casos de uso |
-| Organização entities/services/repositories e nomenclatura | `domain/`, `application/use-cases`, `application/ports`, `infrastructure/db`; ver `apps/api/README.md` |
+O repositório não contém o arquivo/transcrição integral da rubrica acadêmica original; a matriz até BF 05.5 registrava essa limitação e deixava critérios citados nos BFs sem status. Esta reconciliação usa os critérios explícitos fornecidos nos BFs e na especificação BF 05.6 como a lista verificável conhecida. Não afirma que isso substitui uma cópia primária assinada/versionada da rubrica; qualquer redação original adicional ainda não fornecida permanece uma divergência documental, não foi inventada.
 
-## Pendências reais após BF 05.5
+### Critérios antes omitidos e decisão
 
-**Obrigatório para a rubrica:** nenhuma linha desta matriz está `TODO`, `IN_PROGRESS` ou `BLOCKED`.
-Única ação aberta: comparar a matriz com o texto original da rubrica e transcrever fielmente os
-critérios da tabela de divergências que de fato constarem nele (com status e evidência).
+- **Frontend:** componentização reutilizável, divisão entre pages/components e componentes de feature separados foram adicionados com evidência de importações e formulários compartilhados por rotas de criação/edição.
+- **Infraestrutura:** organização dos serviços Compose, env vars, separação web/API e volume MySQL persistente foram explicitados. Nginx, redes internas e exposição somente pelo Nginx permanecem nas linhas existentes, consolidadas com verificações automatizadas.
+- **Agentes:** guardrails, três skills, proteção de arquivos sensíveis e proibição de ler/expor `.env` agora estão representados separadamente e ligados às políticas/testes MCP.
+- **Engenharia de software:** encapsulamento, construtores/invariantes, getters/setters, modelagem POO, herança, classes abstratas, polimorfismo, interfaces/type aliases, Generics, `any`, SOLID S/O/L/DIP, exceções customizadas, camadas e nomenclatura foram explicitados.
+- A antiga linha “Classes / abstract classes” foi dividida em **herança** e **classes abstratas**. A linha anterior “SOLID / DIP” foi expandida em S, O, L e DIP; não foi adicionado Interface Segregation (I), pois a instrução BF 05.6 afirma que a rubrica original não o cita.
+- Os critérios de **Open/Closed** e **Liskov Substitution** ficam `IN_PROGRESS`: existem pontos de extensão e hierarquias reais, porém falta demonstrar extensão ampla sem alteração do núcleo e testes explícitos de contrato de substituibilidade, respectivamente.
+- A auditoria não criou hierarquia, classe, interface ou abstração nova para elevar status. As classes abstratas e subclasses citadas já são usadas em domínio e erros.
+- Para getters/setters, Single Responsibility e nomenclatura, a revisão BF 05.6 atribui status após inspeção manual; o MCP responde `IN_PROGRESS` nesses pontos porque seu scanner não consegue concluir qualidade semântica. A resposta do MCP sinaliza revisão humana e não substitui a matriz revisada.
 
-**Experimental / Aegis (fora da nota):** Events e API de ingestão, Aegis Collector (Rust), eBPF/Aya,
-Detection Engine (execução de regras), Alerts, Correlation Engine e incidentes automáticos, IA,
-Aegis Verified Core (Ada/SPARK), experimentos NASM, revogação de tokens e papéis além de OWNER.
+### Situação consolidada
+
+#### Requisitos plenamente atendidos — CORE ACADÊMICO
+
+Autenticação e gestão do usuário/workspace; quatro CRUDs e seus fluxos web; paginação; relacionamentos; validação e segurança de senha; TypeScript strict e ausência de `any` explícito; componentização; encapsulamento; construtores/invariantes; getters sem setters genéricos; modelagem POO; herança; classes abstratas; polimorfismo por ports substituíveis; interfaces/type aliases; Generics; SOLID S e DIP; exceções; camadas; nomenclatura; Compose, serviços e variáveis; web/API separadas; MySQL e volume persistente; Nginx; redes internas e exposição somente pelo Nginx; AGENTS, skills, guardrails, MCP e proteção de `.env`/segredos. Cada critério aponta para arquivo, teste ou verificação automatizada na tabela correspondente.
+
+#### Requisitos parcialmente atendidos
+
+- **SOLID O — Open/Closed (`IN_PROGRESS`):** a troca de adapter por port é possível; ainda não foi demonstrado um novo comportamento completo sem alterar composição, rotas e persistência centrais.
+- **SOLID L — Liskov (`IN_PROGRESS`):** a hierarquia de entidades/erros é real, mas falta uma suíte explícita que prove os contratos comportamentais de substituibilidade.
+
+#### Requisitos não atendidos
+
+Nenhum critério conhecido está `TODO`.
+
+#### Requisitos bloqueados
+
+Nenhum. A confirmação literal contra a rubrica primária depende de uma cópia integral/versionada que não existe no repositório; isso é documentado como limite de fonte, não classificado como `BLOCKED` de implementação.
+
+#### AEGIS EXPERIMENTAL — PLANNED, fora do PASS acadêmico atual
+
+Events e ingestão, Collector, eBPF/Aya, Detection Engine, Alerts e correlação automática, IA, Ada/SPARK e Assembly continuam planejados. Nenhum deles é contado como evidência implementada nesta matriz.
 
 ```
-CORE ACADÊMICO (PASS)                 AEGIS EXPERIMENTAL (PLANNED)
+CORE ACADÊMICO (com O/L em IN_PROGRESS)  AEGIS EXPERIMENTAL (PLANNED)
 ├── Auth, JWT, Argon2id               ├── Events + ingestão
 ├── User (self-service)               ├── Collector (Rust) · eBPF
 ├── 4 CRUDs + paginação + relações    ├── Detection Engine · Alerts
 ├── MySQL + migrations                ├── Correlation · incidentes automáticos
 ├── Docker · Nginx · isolamento       ├── IA
 ├── AGENTS.md · 3 skills · MCP        └── SPARK · Assembly
-└── TypeScript strict / POO
+└── TypeScript strict / POO / camadas
 ```

@@ -32,7 +32,7 @@ permitir suporte futuro a coletores para outros sistemas operacionais.
 
 ## Status atual
 
-BF 05.5 — infraestrutura (Docker, Nginx, isolamento de rede) validada automaticamente no CI e rubrica auditada.
+BF 05.6 — critérios acadêmicos reconciliados com as evidências disponíveis; Open/Closed e Liskov permanecem em andamento. CRUDs e infraestrutura seguem validados automaticamente no CI.
 
 ### Status acadêmico
 
@@ -41,6 +41,7 @@ BF 05.5 — infraestrutura (Docker, Nginx, isolamento de rede) validada automati
 - banco relacional (MySQL 8.4, migrations, relações): concluído;
 - infraestrutura (Docker Compose, Nginx, isolamento): validada automaticamente;
 - agentes (AGENTS.md, 3 skills, MCP): concluídos;
+- matriz Tech Forge: componentização, POO, tipos e camadas evidenciados; OCP/LSP ainda em revisão/implementação;
 - recursos experimentais (eventos, Collector, eBPF, detecção, IA): planejados.
 
 Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).

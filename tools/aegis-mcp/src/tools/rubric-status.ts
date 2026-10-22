@@ -1,4 +1,5 @@
 import type { RepoReader } from '../repo.js';
+import ts from 'typescript';
 
 export type RubricState = 'TODO' | 'IN_PROGRESS' | 'PASS' | 'BLOCKED';
 
@@ -16,6 +17,25 @@ interface RubricCheck {
 
 const contains = (repo: RepoReader, file: string, pattern: RegExp): boolean =>
   repo.exists(file) && pattern.test(repo.readText(file));
+
+const sourceFiles = (repo: RepoReader, roots: readonly string[]): string[] =>
+  roots.flatMap((root) => repo.listFiles(root)).filter((file) => /\.(?:ts|tsx)$/.test(file));
+
+function visitSource(repo: RepoReader, files: readonly string[], visit: (node: ts.Node, file: string) => void): void {
+  for (const file of files) {
+    const source = ts.createSourceFile(file, repo.readText(file), ts.ScriptTarget.Latest, true, file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const walk = (node: ts.Node): void => {
+      visit(node, file);
+      ts.forEachChild(node, walk);
+    };
+    walk(source);
+  }
+}
+
+const manualReview = (evidence: string) => (): { state: RubricState; evidence: string } => ({
+  state: 'IN_PROGRESS',
+  evidence: `manual design review required; ${evidence}`,
+});
 
 /** PASS only when every implementation pattern and its test are present; IN_PROGRESS if only some are. */
 const implementedAndTested =
@@ -226,6 +246,177 @@ const CHECKS: readonly RubricCheck[] = [
     ),
   },
   {
+    requirement: 'Frontend componentization',
+    evaluate: implementedAndTested('Pages consume shared components and feature forms; create/edit routes reuse the same forms; CRUD flow tests exercise the screens', [
+      { file: 'apps/web/src/pages/hosts/HostsPage.tsx', pattern: /from ['"]\.\.\/\.\.\/components\/(?:EmptyState|Pagination)/ },
+      { file: 'apps/web/src/pages/incidents/IncidentsPage.tsx', pattern: /from ['"]\.\.\/\.\.\/components\/(?:EmptyState|Pagination)/ },
+      { file: 'apps/web/src/pages/hosts/CreateHostPage.tsx', pattern: /HostForm/ },
+      { file: 'apps/web/src/pages/hosts/EditHostPage.tsx', pattern: /HostForm/ },
+      { file: 'apps/web/src/pages/rules/CreateRulePage.tsx', pattern: /DetectionRuleForm/ },
+      { file: 'apps/web/src/pages/rules/EditRulePage.tsx', pattern: /DetectionRuleForm/ },
+      { file: 'apps/web/src/pages/incidents/CreateIncidentPage.tsx', pattern: /IncidentForm/ },
+      { file: 'apps/web/src/pages/incidents/EditIncidentPage.tsx', pattern: /IncidentForm/ },
+      { file: 'apps/web/src/pages/investigations/CreateInvestigationPage.tsx', pattern: /InvestigationForm/ },
+      { file: 'apps/web/src/pages/investigations/EditInvestigationPage.tsx', pattern: /InvestigationForm/ },
+      { file: 'apps/web/test/hosts.test.tsx', pattern: /create host \(separate screen\)/ },
+      { file: 'apps/web/test/investigations.test.tsx', pattern: /create investigation \(separate screen\)/ },
+    ]),
+  },
+  {
+    requirement: 'Pages and components organization',
+    evaluate: implementedAndTested('Route pages live in src/pages, reusable UI in src/components, and feature-specific behavior/forms in src/features; pages import these modules', [
+      { file: 'apps/web/src/app/router.tsx', pattern: /from ['"].*pages\// },
+      { file: 'apps/web/src/pages/hosts/HostsPage.tsx', pattern: /from ['"].*components\// },
+      { file: 'apps/web/src/pages/hosts/CreateHostPage.tsx', pattern: /from ['"].*features\/hosts\/HostForm/ },
+      { file: 'apps/web/src/features/hosts/HostForm.tsx', pattern: /from ['"].*components\/TextField/ },
+    ]),
+  },
+  {
+    requirement: 'Encapsulation',
+    evaluate: implementedAndTested('Domain entities use runtime #private state and controlled domain methods; entity tests cover state and invariants', [
+      { file: `${API}/domain/user.ts`, pattern: /readonly #email/ },
+      { file: `${API}/domain/incident.ts`, pattern: /#status: IncidentStatus/ },
+      { file: `${API}/domain/incident.ts`, pattern: /transitionTo\(/ },
+      { file: `${API_TEST}/domain/entities.test.ts`, pattern: /private|snapshot|passwordHash/i },
+      { file: `${API_TEST}/domain/incident.test.ts`, pattern: /transition|closed/i },
+    ]),
+  },
+  {
+    requirement: 'Valid constructors and invariants',
+    evaluate: implementedAndTested('Private entity constructors are reached through factories/restore methods that validate; domain tests cover invalid values and lifecycle restoration', [
+      { file: `${API}/domain/user.ts`, pattern: /private constructor/ },
+      { file: `${API}/domain/user.ts`, pattern: /static register\(/ },
+      { file: `${API}/domain/incident.ts`, pattern: /static open\(/ },
+      { file: `${API}/domain/incident.ts`, pattern: /static restore\([\s\S]*assertLifecycle[\s\S]*validate/ },
+      { file: `${API_TEST}/domain/incident.test.ts`, pattern: /invalid|inconsistent|reject/i },
+      { file: `${API_TEST}/domain/investigation.test.ts`, pattern: /invalid|inconsistent|reject/i },
+    ]),
+  },
+  {
+    requirement: 'Getters and setters',
+    evaluate: manualReview('domain entities expose values consumed by use cases and repositories; state changes go through named domain methods; automated absence checks cannot determine whether each getter is useful'),
+  },
+  {
+    requirement: 'Object-oriented domain model',
+    evaluate: implementedAndTested('User, Workspace, Membership, Host, DetectionRule, Incident and Investigation hold invariants and behavior; use cases call factories, update methods and lifecycle transitions', [
+      { file: `${API}/domain/user.ts`, pattern: /class User extends Entity/ },
+      { file: `${API}/domain/workspace.ts`, pattern: /createPersonal\(/ },
+      { file: `${API}/domain/membership.ts`, pattern: /canManageResources/ },
+      { file: `${API}/domain/host.ts`, pattern: /updateDetails\(/ },
+      { file: `${API}/domain/detection-rule.ts`, pattern: /update\(/ },
+      { file: `${API}/domain/incident.ts`, pattern: /transitionTo\(/ },
+      { file: `${API}/domain/investigation.ts`, pattern: /transitionTo\(/ },
+      { file: `${API_TEST}/domain/investigation.test.ts`, pattern: /conclusion|required|transition/i },
+    ]),
+  },
+  {
+    requirement: 'Inheritance',
+    evaluate: implementedAndTested('Production domain entities extend Entity<TId>; specialized incident/investigation errors extend domain errors; tests exercise these types', [
+      { file: 'packages/domain/src/entity.ts', pattern: /abstract class Entity/ },
+      { file: `${API}/domain/user.ts`, pattern: /class User extends Entity<string>/ },
+      { file: 'packages/domain/src/incident-rules.ts', pattern: /class InvalidIncidentTransitionError extends InvalidStateError/ },
+      { file: 'packages/domain/src/investigation-rules.ts', pattern: /class InvestigationConclusionRequiredError extends ValidationError/ },
+      { file: `${API_TEST}/domain/incident.test.ts`, pattern: /InvalidIncidentTransitionError/ },
+      { file: `${API_TEST}/domain/investigation.test.ts`, pattern: /InvestigationConclusionRequiredError/ },
+    ]),
+  },
+  {
+    requirement: 'Abstract classes',
+    evaluate: implementedAndTested('Entity<TId> and DomainError are abstract classes with concrete production subclasses; abstract declarations are separate from interfaces', [
+      { file: 'packages/domain/src/entity.ts', pattern: /export abstract class Entity/ },
+      { file: 'packages/domain/src/domain-error.ts', pattern: /export abstract class DomainError/ },
+      { file: `${API}/domain/incident.ts`, pattern: /class Incident extends Entity<string>/ },
+      { file: 'packages/domain/src/domain-error.ts', pattern: /class ValidationError extends DomainError/ },
+    ]),
+  },
+  {
+    requirement: 'Polymorphism',
+    evaluate: implementedAndTested('The same application ports are implemented by production Drizzle repositories and in-memory test repositories; createUseCases accepts those ports and runs the same use cases with either adapter', [
+      { file: `${API}/application/ports/repositories.ts`, pattern: /interface UserRepository/ },
+      { file: `${API}/infrastructure/db/drizzle-repositories.ts`, pattern: /class DrizzleUserRepository implements UserRepository/ },
+      { file: `${API_TEST}/support/in-memory-persistence.ts`, pattern: /class InMemoryUserRepository implements UserRepository/ },
+      { file: `${API}/composition-root.ts`, pattern: /createUseCases\(adapters: Adapters/ },
+      { file: `${API_TEST}/support/test-app.ts`, pattern: /createUseCases\(/ },
+    ]),
+  },
+  {
+    requirement: 'Interfaces and type aliases',
+    evaluate: implementedAndTested('Repository/security ports and public transport interfaces/type aliases define boundaries between domain, application and web/API; consumers compile under strict TypeScript', [
+      { file: `${API}/application/ports/repositories.ts`, pattern: /export interface (?:UserRepository|HostRepository|IncidentRepository)/ },
+      { file: `${API}/application/ports/password-hasher.ts`, pattern: /export interface PasswordHasher/ },
+      { file: 'packages/contracts/src/pagination.ts', pattern: /interface PaginatedResponse<T>/ },
+      { file: 'packages/contracts/src/incidents.ts', pattern: /type (?:CreateIncidentRequest|IncidentListQuery)/ },
+      { file: 'packages/domain/src/severity.ts', pattern: /type Severity/ },
+    ]),
+  },
+  {
+    requirement: 'Avoid explicit any',
+    evaluate: (repo) => {
+      const files = sourceFiles(repo, ['apps/api/src', 'apps/web/src', 'packages/domain/src', 'packages/contracts/src', 'tools/aegis-mcp/src']);
+      const matches = new Set<string>();
+      visitSource(repo, files, (node, file) => {
+        if (node.kind === ts.SyntaxKind.AnyKeyword) matches.add(file);
+      });
+      return matches.size === 0
+        ? { state: 'PASS', evidence: `TypeScript AST scan found no explicit any types in ${files.length} production source files` }
+        : { state: 'IN_PROGRESS', evidence: `explicit any type found in ${[...matches].join(', ')}` };
+    },
+  },
+  {
+    requirement: 'SOLID / Single Responsibility',
+    evaluate: manualReview('one operation per use-case module, route files parse/dispatch/map, repositories isolate persistence, and web features own form/query behavior; automated patterns do not establish responsibility quality'),
+  },
+  {
+    requirement: 'SOLID / Open-Closed',
+    evaluate: manualReview('application ports allow alternate adapters, while adding a full resource still changes routes/composition/schema; the breadth of extension without core edits needs design review'),
+  },
+  {
+    requirement: 'SOLID / Liskov Substitution',
+    evaluate: manualReview('there are real Entity and DomainError hierarchies, but no dedicated substitutability contract suite; assess behavioral compatibility before PASS'),
+  },
+  {
+    requirement: 'SOLID / Dependency Inversion',
+    evaluate: implementedAndTested('Use cases consume application ports; Drizzle/Argon2/jose implementations are wired only in the composition root; in-memory implementations run the same cases in tests', [
+      { file: `${API}/application/ports/repositories.ts`, pattern: /export interface Repositories/ },
+      { file: `${API}/application/ports/password-hasher.ts`, pattern: /export interface PasswordHasher/ },
+      { file: `${API}/application/ports/token-service.ts`, pattern: /export interface TokenService/ },
+      { file: `${API}/composition-root.ts`, pattern: /createUseCases/ },
+      { file: `${API_TEST}/support/in-memory-persistence.ts`, pattern: /implements UserRepository/ },
+      { file: `${API_TEST}/application/use-cases.test.ts`, pattern: /createInMemoryPersistence/ },
+    ]),
+  },
+  {
+    requirement: 'Layered organization',
+    evaluate: implementedAndTested('domain entities/rules map to domain; use cases and repository ports map to services/repositories; Drizzle adapters map to infrastructure repositories; Fastify routes map to presentation', [
+      { file: `${API}/domain/incident.ts`, pattern: /export class Incident/ },
+      { file: `${API}/application/use-cases/incidents/create-incident.ts`, pattern: /export class CreateIncident/ },
+      { file: `${API}/application/ports/repositories.ts`, pattern: /export interface IncidentRepository/ },
+      { file: `${API}/infrastructure/db/drizzle-repositories.ts`, pattern: /class DrizzleIncidentRepository implements IncidentRepository/ },
+      { file: `${API}/presentation/http/routes/incidents.route.ts`, pattern: /app\.post\(/ },
+      { file: `${API_TEST}/application/incidents.test.ts`, pattern: /describe\(/ },
+    ]),
+  },
+  {
+    requirement: 'Naming conventions',
+    evaluate: manualReview('source uses PascalCase for types/components, camelCase for functions/properties, kebab-case for non-component modules and numbered snake_case SQL migrations; consistency is a manual judgment'),
+  },
+  {
+    requirement: 'TypeScript application without injected JavaScript',
+    evaluate: (repo) => {
+      const files = repo.listFiles('apps').filter((file) => /\.(?:js|jsx)$/.test(file) && /\/src\//.test(file));
+      const tsFiles = sourceFiles(repo, ['apps/api/src', 'apps/web/src']);
+      const dynamicCode = new Set<string>();
+      visitSource(repo, tsFiles, (node, file) => {
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'eval') dynamicCode.add(file);
+        if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'Function') dynamicCode.add(file);
+      });
+      const problems = [...files, ...dynamicCode];
+      return problems.length === 0
+        ? { state: 'PASS', evidence: `application source is TypeScript/TSX (${tsFiles.length} files); no JS/JSX or eval/new Function; .mjs files are infrastructure tooling` }
+        : { state: 'IN_PROGRESS', evidence: `application JavaScript/dynamic code requires review: ${[...new Set(problems)].join(', ')}` };
+    },
+  },
+  {
     requirement: 'TypeScript strict',
     evaluate: (repo) => {
       const ok =
@@ -245,14 +436,6 @@ const CHECKS: readonly RubricCheck[] = [
     ]),
   },
   {
-    requirement: 'SOLID',
-    evaluate: implementedAndTested('use cases depend on ports; Drizzle/Argon2/jose adapters wired in composition root', [
-      { file: `${API}/application/ports/repositories.ts`, pattern: /interface UserRepository/ },
-      { file: `${API}/composition-root.ts`, pattern: /createUseCases/ },
-      { file: `${API_TEST}/application/use-cases.test.ts`, pattern: /createInMemoryPersistence/ },
-    ]),
-  },
-  {
     requirement: 'Custom exceptions',
     evaluate: implementedAndTested('DomainError → Validation/Authentication/Forbidden/Conflict/NotFound/InvalidState, mapped to HTTP in one handler', [
       { file: 'packages/domain/src/domain-error.ts', pattern: /class ConflictError extends DomainError/ },
@@ -269,6 +452,40 @@ const CHECKS: readonly RubricCheck[] = [
       { file: 'infra/docker/api.Dockerfile', pattern: /USER node/ },
       ...INFRA_TEST_EVIDENCE,
       { file: INFRA_TEST, pattern: /'migrations'/ },
+      { file: INFRA_TEST, pattern: /'persistence across down\/up'/ },
+    ]),
+  },
+  {
+    requirement: 'Docker Compose services and environment',
+    evaluate: implementedAndTested('Compose separates nginx, web, api, mysql and one-shot migrate, wires dependencies and passes values through environment variables; the isolated stack test starts the services from an empty volume', [
+      { file: 'compose.yaml', pattern: /services:\s*\n\s+nginx:/ },
+      { file: 'compose.yaml', pattern: /\n\s+web:/ },
+      { file: 'compose.yaml', pattern: /\n\s+api:/ },
+      { file: 'compose.yaml', pattern: /\n\s+mysql:/ },
+      { file: 'compose.yaml', pattern: /\n\s+migrate:/ },
+      { file: 'compose.yaml', pattern: /environment:/ },
+      ...INFRA_TEST_EVIDENCE,
+      { file: INFRA_TEST, pattern: /'stack starts'/ },
+    ]),
+  },
+  {
+    requirement: 'Frontend and backend separation',
+    evaluate: implementedAndTested('Web and API are separate Compose services behind Nginx routing; infra test validates SPA and API responses through the proxy', [
+      { file: 'compose.yaml', pattern: /\n  web:/ },
+      { file: 'compose.yaml', pattern: /\n  api:/ },
+      { file: 'infra/nginx/nginx.conf', pattern: /location \/api\/ \{[\s\S]*proxy_pass http:\/\/aegis_api/ },
+      { file: 'infra/nginx/nginx.conf', pattern: /location \/ \{[\s\S]*proxy_pass http:\/\/aegis_web/ },
+      ...INFRA_TEST_EVIDENCE,
+      { file: INFRA_TEST, pattern: /'\/api\/health via nginx'/ },
+      { file: INFRA_TEST, pattern: /'\/ via nginx serves Aegis Web'/ },
+    ]),
+  },
+  {
+    requirement: 'Persistent MySQL volume',
+    evaluate: implementedAndTested('Named mysql_data volume is mounted at /var/lib/mysql and survives Compose down/up; the infra test inspects the mount and verifies a row plus migrations after restart', [
+      { file: 'compose.yaml', pattern: /mysql_data:\/var\/lib\/mysql/ },
+      ...INFRA_TEST_EVIDENCE,
+      { file: INFRA_TEST, pattern: /'mysql volume'/ },
       { file: INFRA_TEST, pattern: /'persistence across down\/up'/ },
     ]),
   },
@@ -311,6 +528,17 @@ const CHECKS: readonly RubricCheck[] = [
         : { state: 'TODO', evidence: 'AGENTS.md missing or incomplete' },
   },
   {
+    requirement: 'Agent guardrails',
+    evaluate: implementedAndTested('AGENTS.md and all three specialist skills state allowed/prohibited work and validation boundaries; MCP tools use an allowlist and tests cover policy boundaries', [
+      { file: 'AGENTS.md', pattern: /## Security Rules[\s\S]*## Protected Resources/ },
+      { file: 'agents/skills/backend-engineering/SKILL.md', pattern: /## Allowed Actions[\s\S]*## Forbidden Actions/ },
+      { file: 'agents/skills/frontend-engineering/SKILL.md', pattern: /## Allowed Actions[\s\S]*## Forbidden Actions/ },
+      { file: 'agents/skills/security-review/SKILL.md', pattern: /## Allowed Actions[\s\S]*## Forbidden Actions/ },
+      { file: 'tools/aegis-mcp/src/policy/protected-paths.ts', pattern: /ALLOWED_ROOT_DIRECTORIES/ },
+      { file: 'tools/aegis-mcp/test/protected-paths.test.ts', pattern: /protected|blocked|denied/i },
+    ]),
+  },
+  {
     requirement: '3 Skills',
     evaluate: (repo) => {
       const skills = ['backend-engineering', 'frontend-engineering', 'security-review'];
@@ -328,6 +556,17 @@ const CHECKS: readonly RubricCheck[] = [
       contains(repo, '.gitignore', /^\.env$/m)
         ? { state: 'PASS', evidence: 'MCP isProtectedPath + tests; .gitignore excludes secrets' }
         : { state: 'TODO', evidence: 'secret guard or tests missing' },
+  },
+  {
+    requirement: 'Sensitive file read and exposure protection',
+    evaluate: implementedAndTested('MCP path resolution denies .env, credentials and key files; repository reads and security scans use the guard; tests cover path rejection and redaction', [
+      { file: 'AGENTS.md', pattern: /Agents \*\*must not read, open, print or copy\*\*:/ },
+      { file: 'tools/aegis-mcp/src/policy/protected-paths.ts', pattern: /\.env|\.pem|credentials/ },
+      { file: 'tools/aegis-mcp/src/repo.ts', pattern: /resolveRepoPath\(this\.root, relativePath\)/ },
+      { file: 'tools/aegis-mcp/test/protected-paths.test.ts', pattern: /\.env/ },
+      { file: 'tools/aegis-mcp/test/redact.test.ts', pattern: /secret|token|redact/i },
+      { file: 'tools/aegis-mcp/src/tools/security-check.ts', pattern: /matched value|finding\.file/ },
+    ]),
   },
 ];
 

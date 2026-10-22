@@ -25,8 +25,36 @@ describe('evaluateRubric', () => {
     'Docker',
     'Nginx',
     'Network isolation',
+    'Frontend componentization',
+    'Pages and components organization',
+    'Encapsulation',
+    'Valid constructors and invariants',
+    'Object-oriented domain model',
+    'Inheritance',
+    'Abstract classes',
+    'Polymorphism',
+    'Interfaces and type aliases',
+    'Avoid explicit any',
+    'Layered organization',
+    'TypeScript application without injected JavaScript',
+    'Docker Compose services and environment',
+    'Frontend and backend separation',
+    'Persistent MySQL volume',
+    'Agent guardrails',
+    'Sensitive file read and exposure protection',
+    'SOLID / Dependency Inversion',
   ])('reports %s as PASS from implementation and test evidence', (requirement) => {
     expect(results.get(requirement)?.state).toBe('PASS');
+  });
+
+  it.each([
+    'Getters and setters',
+    'SOLID / Single Responsibility',
+    'SOLID / Open-Closed',
+    'SOLID / Liskov Substitution',
+    'Naming conventions',
+  ])('keeps %s in progress when automated evidence requires manual review', (requirement) => {
+    expect(results.get(requirement)).toMatchObject({ state: 'IN_PROGRESS', evidence: expect.stringContaining('manual design review required') });
   });
 
   it('reports the four academic CRUDs from the individual checks', () => {
@@ -95,5 +123,32 @@ describe('evaluateRubric', () => {
     const jwt = evaluateRubric(partial).find((result) => result.requirement === 'JWT');
     expect(jwt?.state).toBe('IN_PROGRESS');
     expect(jwt?.evidence).toContain('security.test.ts');
+  });
+
+  it('does not report inheritance as PASS when the production entity relation is absent', () => {
+    const partial = Object.create(RepoReader.prototype) as RepoReader;
+    const real = new RepoReader(findRepoRoot());
+    Object.assign(partial, {
+      root: real.root,
+      exists: (file: string) => real.exists(file),
+      listFiles: (directory: string, depth?: number) => real.listFiles(directory, depth),
+      readText: (file: string) => file === 'apps/api/src/domain/user.ts' ? real.readText(file).replace('extends Entity<string>', '') : real.readText(file),
+    });
+    expect(evaluateRubric(partial).find((result) => result.requirement === 'Inheritance')?.state).toBe('IN_PROGRESS');
+  });
+
+  it('finds explicit any through the TypeScript AST instead of matching prose', () => {
+    const partial = Object.create(RepoReader.prototype) as RepoReader;
+    const real = new RepoReader(findRepoRoot());
+    Object.assign(partial, {
+      root: real.root,
+      exists: (file: string) => real.exists(file),
+      listFiles: (directory: string, depth?: number) => real.listFiles(directory, depth),
+      readText: (file: string) => file === 'apps/api/src/domain/host.ts' ? `${real.readText(file)}\nconst explicitAny: any = null;\n` : real.readText(file),
+    });
+    expect(evaluateRubric(partial).find((result) => result.requirement === 'Avoid explicit any')).toMatchObject({
+      state: 'IN_PROGRESS',
+      evidence: expect.stringContaining('apps/api/src/domain/host.ts'),
+    });
   });
 });

@@ -17,3 +17,7 @@
 | 12 | Observability | Métricas, logs estruturados, tracing | TODO |
 | 13 | Hardening | TLS, rate limiting, headers, revisão de segurança | TODO |
 | 14 | Presentation / Demo | Workspace AEGIS DEMO, pareamento temporário de laboratório, roteiro mapeado à rubrica | TODO |
+
+## Pendência acadêmica identificada na BF 05.6
+
+Os critérios SOLID Open/Closed e Liskov Substitution permanecem `IN_PROGRESS` em `docs/RUBRICA.md`: a composição permite substituir adapters, mas falta demonstrar extensão de comportamento sem mudanças centrais e falta uma suíte de contratos de substituibilidade. Reavaliar junto de um modelo de eventos somente se abstrações úteis surgirem do domínio. Nenhuma hierarquia foi pré-criada para atender à rubrica.
