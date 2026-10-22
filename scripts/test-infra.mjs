@@ -160,7 +160,7 @@ try {
     const applied = Number(sql('SELECT COUNT(*) FROM __drizzle_migrations'));
     if (applied !== MIGRATIONS) fail(`${applied} migrations recorded, journal has ${MIGRATIONS}`);
     const tables = sql('SHOW TABLES').split('\n');
-    for (const table of ['users', 'workspaces', 'hosts', 'detection_rules', 'incidents', 'investigations', 'investigation_incidents']) {
+    for (const table of ['users', 'workspaces', 'hosts', 'detection_rules', 'incidents', 'investigations', 'investigation_incidents', 'events']) {
       if (!tables.includes(table)) fail(`table ${table} missing`);
     }
     return `migrate exited 0; ${applied}/${MIGRATIONS} migrations (0000 → ${String(MIGRATIONS - 1).padStart(4, '0')}) on an empty database`;
