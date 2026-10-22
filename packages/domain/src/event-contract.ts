@@ -187,7 +187,11 @@ export interface EventTypeDefinition {
 }
 
 const processFields = { pid: 'required', parentPid: 'optional', name: 'required', executable: 'required', parentName: 'optional', user: 'optional' } as const;
-const endpoint = (address: string | number | null, port: string | number | null) => `${address ?? '*'}:${port ?? '*'}`;
+/** `address:port`, with IPv6 addresses in brackets so the port stays unambiguous. */
+const endpoint = (address: string | number | null, port: string | number | null) => {
+  const host = address === null ? '*' : String(address).includes(':') ? `[${address}]` : String(address);
+  return `${host}:${port ?? '*'}`;
+};
 const processSummary = (get: (key: string) => string | number | null) => `${get('name')} (pid ${get('pid')})`;
 
 export const EVENT_DEFINITIONS: Readonly<Record<EventType, EventTypeDefinition>> = {

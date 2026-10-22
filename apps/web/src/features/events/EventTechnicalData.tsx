@@ -5,7 +5,12 @@ const NOT_INFORMED = 'Não informado';
 
 type Fact = readonly [label: string, value: string | number | null];
 
-const endpoint = (address: string | null, port: number | null) => (address === null && port === null ? null : `${address ?? '*'}:${port ?? '*'}`);
+/** `address:port`, IPv6 in brackets; null when neither end is known. */
+const endpoint = (address: string | null, port: number | null) => {
+  if (address === null && port === null) return null;
+  const host = address === null ? '*' : address.includes(':') ? `[${address}]` : address;
+  return `${host}:${port ?? '*'}`;
+};
 
 /** Labelled fields per category, straight from the stored event. Missing values are said to be missing, never invented. */
 function factsOf(event: EventBodyV1): Fact[] {

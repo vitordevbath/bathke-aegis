@@ -181,7 +181,7 @@ describe('Event Contract v1 — summaries', () => {
   it.each<[EventType, string]>([
     ['PROCESS_STARTED', 'bash (pid 4242)'],
     ['NETWORK_CONNECTION', 'TCP 10.0.0.5:51234 → 203.0.113.10:443'],
-    ['NETWORK_LISTEN', 'TCP :::8080 LISTEN'],
+    ['NETWORK_LISTEN', 'TCP [::]:8080 LISTEN'],
     ['SYSTEM_BOOT', 'BOOT'],
     ['SYSTEM_SERVICE_STATE_CHANGED', 'nginx → RUNNING'],
   ])('summarizes %s', (type, summary) => {
