@@ -15,13 +15,13 @@ Quality over quantity: no fake features, no fake architecture, no TODO marked as
 
 | | CURRENT | PLANNED |
 | --- | --- | --- |
-| Web | auth pages, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes` and `/investigacoes` (list/create/detail/edit); AuthContext, WorkspaceContext | timeline, graph |
-| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts, Detection Rules, Incidents and Investigations CRUD per workspace (rules are configuration only; incidents are manual; investigations group incidents and close only with a human conclusion) | events, alerts, detection and correlation engines |
-| Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents` (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
+| Web | auth pages, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes` and `/investigacoes` (list/create/detail/edit), `/eventos` (read-only list/detail); AuthContext, WorkspaceContext | timeline, graph |
+| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts, Detection Rules, Incidents and Investigations CRUD per workspace (rules are configuration only; incidents are manual; investigations group incidents and close only with a human conclusion); Event Contract v1 ingestion (user-auth lab route, idempotent batches), event list/detail | Collector credentials, alerts, detection and correlation engines |
+| Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents`, `events` (append-only) (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
 | Tooling | Aegis MCP, CI (typecheck/build/test + `npm run test:infra` on the real Compose stack) | rubric engine expansion |
 | Native | READMEs only | collector, eBPF, SPARK, NASM |
 
-Details: `docs/ARCHITECTURE.md`. Check `aegis_architecture_info` (Aegis MCP) before claiming something exists.
+Details: `docs/ARCHITECTURE.md`; event contract: `docs/EVENTOS.md` (events are immutable — never add update/delete paths, command lines, environment or payload capture). Check `aegis_architecture_info` (Aegis MCP) before claiming something exists.
 
 ## Repository Map
 
@@ -29,7 +29,7 @@ Details: `docs/ARCHITECTURE.md`. Check `aegis_architecture_info` (Aegis MCP) bef
 apps/web            React + TS + Vite (src/app, pages, features, components, lib, styles, types)
 apps/api            Fastify + TS (src/presentation, application, domain, infrastructure, shared; drizzle/ migrations)
 packages/contracts  transport DTOs shared by web and api — never domain entities
-packages/domain     Entity, DomainError hierarchy, Email, Cpf, PasswordPolicy, host rules, shared severity, detection rule schema v1, incident and investigation lifecycles
+packages/domain     Entity, DomainError hierarchy, Email, Cpf, PasswordPolicy, host rules, shared severity, detection rule schema v1, incident and investigation lifecycles, Event Contract v1 (event registry + field catalog shared with rules)
 tools/aegis-mcp     restricted MCP server
 native/             planned low-level components (README only)
 agents/skills/      backend-engineering, frontend-engineering, security-review

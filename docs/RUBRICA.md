@@ -73,8 +73,8 @@ Workspace
 | Classes abstratas | PASS | `packages/domain/src/entity.ts` declara `abstract class Entity<TId>` e `domain-error.ts` declara `abstract class DomainError`; ambas têm classes concretas de produção derivadas | Interface não foi tratada como classe abstrata |
 | Polimorfismo | PASS | `UserRepository` é implementado por `DrizzleUserRepository` em `apps/api/src/infrastructure/db/drizzle-repositories.ts` e por `InMemoryUserRepository` nos testes; `createUseCases` recebe as abstrações e executa os mesmos casos de uso com os dois conjuntos de adapters | Evidência de implementações substituíveis usadas em produção/testes, não apenas de DI declarada |
 | SOLID — Single Responsibility | PASS | `apps/api/src/presentation/http/routes/*.route.ts` valida/encaminha/mapa HTTP; cada ação fica em use case próprio em `application/use-cases`; repositórios isolam persistência; no web, pages, features e components têm papéis separados | Revisão arquitetural BF 05.6; exemplos e arquivos citados permitem inspeção |
-| SOLID — Open/Closed | IN_PROGRESS | Ports permitem substituir adaptadores sem alterar use cases (`apps/api/src/application/ports`, `composition-root.ts`) | Extensão de adaptador está demonstrada; adicionar um recurso completo ainda altera schema, use cases, composição e rotas. Falta demonstrar extensão de comportamento sem mudanças amplas no núcleo |
-| SOLID — Liskov Substitution | IN_PROGRESS | Existem hierarquias reais `Entity` e `DomainError` e subclasses específicas; `error-handler.ts` reconhece os erros concretos | Ainda não há uma suíte explícita de contratos comportamentais de substituibilidade para as hierarquias. Não se considera LSP provado apenas por não haver violação conhecida |
+| SOLID — Open/Closed | PASS | `packages/domain/src/event-contract.ts`: cada tipo de evento é uma entrada de `EVENT_DEFINITIONS` (categoria, presença de campos, resumo); `validateEvent`, `summarizeEvent`, `fingerprintOf` (`apps/api/src/domain/telemetry-event.ts`), `EventIngestionService`, `DrizzleEventRepository` e `events.route.ts` são genéricos sobre o registro, sem ramo por tipo. Também: ports permitem trocar adapters sem alterar use cases | `packages/domain/test/event-contract.test.ts` (todos os tipos v1 pelo mesmo validador); o MCP rebaixa o critério se um arquivo do pipeline citar um tipo específico (BF 06). Limite: um tipo novo ainda exige o membro da união TypeScript e o valor do enum na migration; recursos CRUD completos continuam tocando várias camadas |
+| SOLID — Liskov Substitution | PASS | `apps/api/test/support/event-repository-contract.ts` define o contrato comportamental de `EventRepository`; `apps/api/test/contracts/event-repository.contract.test.ts` o executa sem alterações contra `InMemoryEventRepository` e `DrizzleEventRepository` (MySQL real no CI) | 7 expectativas × 2 implementações (persistência e leitura por workspace, unicidade host+sourceEventId com lote atômico, FK do host, timeline e filtros, existência por host). Escopo: um port; os demais ports são exercitados por suítes separadas em memória e MySQL, não por um contrato compartilhado. As hierarquias `Entity`/`DomainError` não têm suíte própria |
 | SOLID — Dependency Inversion | PASS | Use cases dependem de `Repositories`, `PasswordHasher`, `TokenService` e `UnitOfWork` em `apps/api/src/application/ports`; Drizzle/Argon2/jose são conectados em `composition-root.ts`; testes usam adapters em memória | `apps/api/test/application/use-cases.test.ts` e `test/integration/*` |
 | Exceções customizadas | PASS | `DomainError` → `ValidationError`, `AuthenticationError`, `ForbiddenError`, `ConflictError`, `NotFoundError`, `InvalidStateError`; erros de transição/conclusão especializam classes de domínio; `error-handler.ts` mapeia para respostas HTTP | `packages/domain/test/{domain-error,incident-rules,investigation-rules}.test.ts`; `apps/api/test/http/*.test.ts` |
 | Organização em camadas (entidades, serviços e repositórios) | PASS | `apps/api/src/domain` contém entidades/regras; `application/use-cases` contém serviços de aplicação; `application/ports` define repositórios; `infrastructure/db` implementa persistência; `presentation/http` contém rotas e mapeamento | Mapeamento equivalente à terminologia da rubrica; arquitetura não foi renomeada artificialmente |
@@ -125,12 +125,11 @@ O repositório não contém o arquivo/transcrição integral da rubrica acadêmi
 
 #### Requisitos plenamente atendidos — CORE ACADÊMICO
 
-Autenticação e gestão do usuário/workspace; quatro CRUDs e seus fluxos web; paginação; relacionamentos; validação e segurança de senha; TypeScript strict e ausência de `any` explícito; componentização; encapsulamento; construtores/invariantes; getters sem setters genéricos; modelagem POO; herança; classes abstratas; polimorfismo por ports substituíveis; interfaces/type aliases; Generics; SOLID S e DIP; exceções; camadas; nomenclatura; Compose, serviços e variáveis; web/API separadas; MySQL e volume persistente; Nginx; redes internas e exposição somente pelo Nginx; AGENTS, skills, guardrails, MCP e proteção de `.env`/segredos. Cada critério aponta para arquivo, teste ou verificação automatizada na tabela correspondente.
+Autenticação e gestão do usuário/workspace; quatro CRUDs e seus fluxos web; paginação; relacionamentos; validação e segurança de senha; TypeScript strict e ausência de `any` explícito; componentização; encapsulamento; construtores/invariantes; getters sem setters genéricos; modelagem POO; herança; classes abstratas; polimorfismo por ports substituíveis; interfaces/type aliases; Generics; SOLID S, O, L e DIP; exceções; camadas; nomenclatura; Compose, serviços e variáveis; web/API separadas; MySQL e volume persistente; Nginx; redes internas e exposição somente pelo Nginx; AGENTS, skills, guardrails, MCP e proteção de `.env`/segredos. Cada critério aponta para arquivo, teste ou verificação automatizada na tabela correspondente.
 
 #### Requisitos parcialmente atendidos
 
-- **SOLID O — Open/Closed (`IN_PROGRESS`):** a troca de adapter por port é possível; ainda não foi demonstrado um novo comportamento completo sem alterar composição, rotas e persistência centrais.
-- **SOLID L — Liskov (`IN_PROGRESS`):** a hierarquia de entidades/erros é real, mas falta uma suíte explícita que prove os contratos comportamentais de substituibilidade.
+Nenhum. Até o BF 05.6, SOLID O e L estavam aqui; o BF 06 trouxe evidências que surgiram do modelo de eventos, sem abstração criada para a rubrica: o registro de definições de eventos (O) e a suíte de contrato do `EventRepository` executada em memória e no MySQL (L). Os limites de cada evidência estão na tabela.
 
 #### Requisitos não atendidos
 
@@ -142,12 +141,12 @@ Nenhum. A confirmação literal contra a rubrica primária depende de uma cópia
 
 #### AEGIS EXPERIMENTAL — PLANNED, fora do PASS acadêmico atual
 
-Events e ingestão, Collector, eBPF/Aya, Detection Engine, Alerts e correlação automática, IA, Ada/SPARK e Assembly continuam planejados. Nenhum deles é contado como evidência implementada nesta matriz.
+O Event Contract v1, o Event Store e a ingestão de laboratório existem desde o BF 06 (ver [EVENTOS.md](EVENTOS.md)); deles, só o registro de definições e a suíte de contrato do repositório entram como evidência acadêmica (SOLID O e L). Collector, pareamento, eBPF/Aya, Detection Engine, Alerts e correlação automática, IA, Ada/SPARK e Assembly continuam planejados e não contam como evidência.
 
 ```
-CORE ACADÊMICO (com O/L em IN_PROGRESS)  AEGIS EXPERIMENTAL (PLANNED)
-├── Auth, JWT, Argon2id               ├── Events + ingestão
-├── User (self-service)               ├── Collector (Rust) · eBPF
+CORE ACADÊMICO (PASS)                 AEGIS TELEMETRY
+├── Auth, JWT, Argon2id               ├── Event Contract v1 + ingestão (CURRENT, BF 06)
+├── User (self-service)               ├── Pareamento · Collector (Rust) · eBPF (PLANNED)
 ├── 4 CRUDs + paginação + relações    ├── Detection Engine · Alerts
 ├── MySQL + migrations                ├── Correlation · incidentes automáticos
 ├── Docker · Nginx · isolamento       ├── IA

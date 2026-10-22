@@ -19,11 +19,11 @@ nginx (única porta publicada: ${AEGIS_HTTP_PORT:-8080} → 80)     redes: aegis
 
 | Componente | Local | O que existe |
 | --- | --- | --- |
-| Aegis Web | `apps/web` | `/`, `/login`, `/cadastro` (públicas); `/dashboard`, `/perfil`, `/hosts`, `/hosts/novo`, `/hosts/:hostId`, `/hosts/:hostId/editar`, `/regras`, `/regras/nova`, `/regras/:ruleId`, `/regras/:ruleId/editar`, `/incidentes`, `/incidentes/novo`, `/incidentes/:incidentId`, `/incidentes/:incidentId/editar`, `/investigacoes`, `/investigacoes/nova`, `/investigacoes/:investigationId`, `/investigacoes/:investigationId/editar` (protegidas; telas de CRUD carregadas sob demanda); `AuthContext`, `WorkspaceContext` (workspace ativo), cliente HTTP central, token em localStorage (ADR-017) |
-| Aegis API | `apps/api` | `GET /health`; `POST /auth/register`, `POST /auth/login`; `GET`/`PUT /users/me`; CRUD `/workspaces/:workspaceId/hosts[/:hostId]`, `/workspaces/:workspaceId/detection-rules[/:ruleId]`, `/workspaces/:workspaceId/incidents[/:incidentId]` e `/workspaces/:workspaceId/investigations[/:investigationId]` com paginação; Argon2id, JWT, rate limit em `/auth/*` |
-| Contracts | `packages/contracts` | DTOs + schemas Zod de auth, usuário, hosts, detection rules, incidents e investigations; `PaginationQuerySchema` + `PaginatedResponse<T>`; envelope de erro |
+| Aegis Web | `apps/web` | `/`, `/login`, `/cadastro` (públicas); `/dashboard`, `/perfil`, `/hosts`, `/hosts/novo`, `/hosts/:hostId`, `/hosts/:hostId/editar`, `/regras`, `/regras/nova`, `/regras/:ruleId`, `/regras/:ruleId/editar`, `/incidentes`, `/incidentes/novo`, `/incidentes/:incidentId`, `/incidentes/:incidentId/editar`, `/investigacoes`, `/investigacoes/nova`, `/investigacoes/:investigationId`, `/investigacoes/:investigationId/editar`, `/eventos`, `/eventos/:eventId` (somente leitura) (protegidas; telas de CRUD carregadas sob demanda); `AuthContext`, `WorkspaceContext` (workspace ativo), cliente HTTP central, token em localStorage (ADR-017) |
+| Aegis API | `apps/api` | `GET /health`; `POST /auth/register`, `POST /auth/login`; `GET`/`PUT /users/me`; CRUD `/workspaces/:workspaceId/hosts[/:hostId]`, `/workspaces/:workspaceId/detection-rules[/:ruleId]`, `/workspaces/:workspaceId/incidents[/:incidentId]` e `/workspaces/:workspaceId/investigations[/:investigationId]` com paginação; ingestão `POST /workspaces/:workspaceId/hosts/:hostId/events/ingest` e consulta `GET /workspaces/:workspaceId/events[/:eventId]`; Argon2id, JWT, rate limit em `/auth/*` e na ingestão |
+| Contracts | `packages/contracts` | DTOs + schemas Zod de auth, usuário, hosts, detection rules, incidents, investigations e events; `PaginationQuerySchema` + `PaginatedResponse<T>`; envelope de erro |
 | Domain | `packages/domain` | `Entity<TId>`, hierarquia `DomainError`, value objects `Email`, `Cpf`, `PasswordPolicy`, regras do Host, escala de severidade compartilhada, schema v1 de regras de detecção e ciclos de vida de incidentes e investigações (ADR-018, ADR-022, ADR-026, ADR-029) |
-| MySQL | `compose.yaml` | MySQL 8.4; tabelas `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents` via migrations versionadas aplicadas pelo serviço `migrate` (ADR-019) |
+| MySQL | `compose.yaml` | MySQL 8.4; tabelas `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents`, `events` via migrations versionadas aplicadas pelo serviço `migrate` (ADR-019) |
 | Nginx | `infra/nginx` | Reverse proxy, headers de segurança e CSP estrita |
 | Aegis MCP | `tools/aegis-mcp` | Servidor MCP stdio, 7 ferramentas, allowlist e secret guard |
 
@@ -103,6 +103,25 @@ Investigations são **casos humanos** que agrupam um ou mais incidentes do mesmo
 regras, não geram alertas e não controlam hosts. A conclusão é escrita por uma pessoa; não
 há IA. Um incidente agrupado não pode ser excluído (409). Ver ADR-028 a ADR-031.
 
+Events (CURRENT, BF 06) são **fatos técnicos imutáveis** observados em um host, no formato
+OS-independente do Event Contract v1 ([EVENTOS.md](EVENTOS.md)). Não há Collector: a ingestão de
+laboratório usa autenticação de usuário e chama o `EventIngestionService`, que não conhece HTTP nem
+JWT e será reutilizado pelas credenciais de Collector (BF 07). Nada avalia eventos: regras não rodam,
+alertas e incidentes automáticos não existem. Ver ADR-032 a ADR-036.
+
+```
+workspaces 1 ── N events (id UUID, workspace_id FK CASCADE, host_id FK RESTRICT, source_event_id,
+       schema_version, category, event_type, occurred_at, ingested_at, payload JSON, fingerprint)
+       UNIQUE (host_id, source_event_id) — idempotência
+       INDEX (workspace_id, occurred_at, id), (workspace_id, host_id, occurred_at, id),
+             (workspace_id, category, occurred_at, id)
+
+POST …/hosts/:hostId/events/ingest ─► IngestEventsAsUser (OWNER) ─► EventIngestionService
+   valida o lote inteiro (Event Contract v1) ─► 400, nada gravado
+   transação: lock do host ─► fingerprints por sourceEventId ─► igual: dedup · diferente: 409, rollback
+              ─► INSERT multi-linha dos novos
+```
+
 ### Ciclo de vida do incidente (CURRENT)
 
 ```
@@ -127,7 +146,7 @@ transição inválida / edição de encerrada ─► 409 INVALID_STATE
 
 Somente `personal` e `OWNER` têm comportamento nesta fase; os demais valores são reservados
 (ADR-009, ADR-012). Hosts, Detection Rules, Incidents e Investigations pertencem ao workspace, nunca
-diretamente ao usuário.
+diretamente ao usuário. Events também pertencem ao workspace, sempre por meio de um host dele.
 
 ### Acesso a recursos do workspace (CURRENT)
 
@@ -190,7 +209,7 @@ egress dedicada será adicionada apenas para a API.
 
 ### Fronteira de dados
 
-User → Membership → Workspace → Host / DetectionRule / Incident / Investigation já existe (CURRENT), com autorização por membership
+User → Membership → Workspace → Host / DetectionRule / Incident / Investigation / Event já existe (CURRENT), com autorização por membership
 no workspace do recurso (ADR-009, ADR-020). Planejado: os demais recursos de segurança
 seguem o mesmo caminho. Ver [PRODUTO.md](PRODUTO.md#modelo-de-workspace).
 
