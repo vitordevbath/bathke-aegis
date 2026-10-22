@@ -8,13 +8,14 @@ import { createInMemoryPersistence } from './in-memory-persistence.js';
 import { TEST_PASSWORD, makeRegistration, testJwtSecret } from './fixtures.js';
 
 /** Real HTTP stack, real Argon2id and JWT; in-memory persistence. */
-export async function buildTestApp(options: { authRateLimitMax?: number } = {}) {
+export async function buildTestApp(options: { authRateLimitMax?: number; ingestRateLimitMax?: number } = {}) {
   const persistence = createInMemoryPersistence();
   const jwtSecret = testJwtSecret();
   const tokens = new JoseTokenService({ secret: jwtSecret, ttlSeconds: 900 });
   const dependencies = createUseCases(
     { repositories: persistence.repositories, unitOfWork: persistence.unitOfWork, hasher: new Argon2PasswordHasher(), tokens },
     options.authRateLimitMax ?? 1000,
+    options.ingestRateLimitMax ?? 1000,
   );
   const app = await buildApp(dependencies);
   return { app, persistence, jwtSecret };

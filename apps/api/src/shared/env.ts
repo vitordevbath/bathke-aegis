@@ -25,6 +25,8 @@ const EnvSchema = DatabaseEnvSchema.extend({
   JWT_TTL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
   /** Requests per minute per client IP on `/auth/login` and `/auth/register`. */
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  /** Event ingestion batches per client IP per minute on the user-auth lab route. */
+  INGEST_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

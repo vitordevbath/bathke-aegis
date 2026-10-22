@@ -1,6 +1,8 @@
 import type {
   DetectionRuleResponse,
   DetectionRuleSummary,
+  EventResponse,
+  EventSummary,
   HostResponse,
   IncidentResponse,
   IncidentSummary,
@@ -22,6 +24,7 @@ import type { Incident } from '../../domain/incident.js';
 import type { IncidentView } from '../../application/use-cases/incidents/incident-view.js';
 import type { Investigation } from '../../domain/investigation.js';
 import type { InvestigationView } from '../../application/use-cases/investigations/investigation-view.js';
+import type { StoredEvent } from '../../application/ports/repositories.js';
 
 /** Explicit allowlist of public user fields — the password hash can never slip through. */
 export function toUserResponse(user: User): UserResponse {
@@ -157,4 +160,25 @@ export function toInvestigationResponse({ investigation, incidents }: Investigat
     }),
     availableTransitions: [...investigation.availableTransitions],
   };
+}
+
+export function toEventSummary({ event, hostDisplayName }: StoredEvent): EventSummary {
+  return {
+    id: event.id,
+    workspaceId: event.workspaceId,
+    hostId: event.hostId,
+    hostDisplayName,
+    category: event.event.category,
+    type: event.event.type,
+    occurredAt: event.occurredAt.toISOString(),
+    ingestedAt: event.ingestedAt.toISOString(),
+    summary: event.summary,
+  };
+}
+
+/** The stored, validated event; the fingerprint stays internal. */
+export function toEventResponse(stored: StoredEvent): EventResponse {
+  // Spreading the normalized event keeps the union discriminated by `type`.
+  const { category: _category, type: _type, ...summary } = toEventSummary(stored);
+  return { ...stored.event.event, ...summary };
 }

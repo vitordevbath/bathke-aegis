@@ -57,6 +57,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-3600}
       AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
+      INGEST_RATE_LIMIT_MAX: ${INGEST_RATE_LIMIT_MAX:-60}
     depends_on:
       mysql:
         condition: service_healthy

@@ -29,6 +29,10 @@ import { ListInvestigations } from './application/use-cases/investigations/list-
 import { GetInvestigation } from './application/use-cases/investigations/get-investigation.js';
 import { UpdateInvestigation } from './application/use-cases/investigations/update-investigation.js';
 import { DeleteInvestigation } from './application/use-cases/investigations/delete-investigation.js';
+import { EventIngestionService } from './application/event-ingestion-service.js';
+import { IngestEventsAsUser } from './application/use-cases/events/ingest-events.js';
+import { ListEvents } from './application/use-cases/events/list-events.js';
+import { GetEvent } from './application/use-cases/events/get-event.js';
 import { createDatabase } from './infrastructure/db/client.js';
 import { DrizzleUnitOfWork, createDrizzleRepositories } from './infrastructure/db/drizzle-repositories.js';
 import { Argon2PasswordHasher } from './infrastructure/security/argon2-password-hasher.js';
@@ -42,7 +46,7 @@ export interface Adapters {
 }
 
 /** Wires use cases to whichever adapters are given (production or test doubles). */
-export function createUseCases(adapters: Adapters, authRateLimitMax: number): AppDependencies {
+export function createUseCases(adapters: Adapters, authRateLimitMax: number, ingestRateLimitMax = 60): AppDependencies {
   const { repositories, unitOfWork, hasher, tokens } = adapters;
   const access = new WorkspaceAccess(repositories.memberships);
   return {
@@ -71,7 +75,11 @@ export function createUseCases(adapters: Adapters, authRateLimitMax: number): Ap
     getInvestigation: new GetInvestigation(access, repositories),
     updateInvestigation: new UpdateInvestigation(access, unitOfWork),
     deleteInvestigation: new DeleteInvestigation(access, repositories.investigations),
+    ingestEvents: new IngestEventsAsUser(access, new EventIngestionService(unitOfWork)),
+    listEvents: new ListEvents(access, repositories.events),
+    getEvent: new GetEvent(access, repositories.events),
     authRateLimitMax,
+    ingestRateLimitMax,
   };
 }
 
@@ -84,5 +92,5 @@ export function createProductionDependencies(env: Env): { dependencies: AppDepen
     hasher: new Argon2PasswordHasher(),
     tokens: new JoseTokenService({ secret: env.JWT_SECRET, ttlSeconds: env.JWT_TTL_SECONDS }),
   };
-  return { dependencies: createUseCases(adapters, env.AUTH_RATE_LIMIT_MAX), close };
+  return { dependencies: createUseCases(adapters, env.AUTH_RATE_LIMIT_MAX, env.INGEST_RATE_LIMIT_MAX), close };
 }
