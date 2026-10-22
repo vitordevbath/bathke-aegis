@@ -55,7 +55,7 @@ export function createUseCases(adapters: Adapters, authRateLimitMax: number): Ap
     listHosts: new ListHosts(access, repositories.hosts),
     getHost: new GetHost(access, repositories.hosts),
     updateHost: new UpdateHost(access, repositories.hosts),
-    deleteHost: new DeleteHost(access, repositories.hosts, repositories.detectionRules, repositories.incidents),
+    deleteHost: new DeleteHost(access, repositories.hosts, repositories.detectionRules, repositories.incidents, repositories.events),
     createDetectionRule: new CreateDetectionRule(access, unitOfWork),
     listDetectionRules: new ListDetectionRules(access, repositories.detectionRules),
     getDetectionRule: new GetDetectionRule(access, repositories.detectionRules, repositories.hosts),
