@@ -53,6 +53,9 @@ export const routes: RouteObject[] = [
               { path: '/hosts/novo', lazy: page(() => import('../pages/hosts/CreateHostPage'), 'CreateHostPage') },
               { path: '/hosts/:hostId', lazy: page(() => import('../pages/hosts/HostDetailPage'), 'HostDetailPage') },
               { path: '/hosts/:hostId/editar', lazy: page(() => import('../pages/hosts/EditHostPage'), 'EditHostPage') },
+              // Read-only telemetry: list and detail, no create or edit screens (events are immutable).
+              { path: '/eventos', lazy: page(() => import('../pages/events/EventsPage'), 'EventsPage') },
+              { path: '/eventos/:eventId', lazy: page(() => import('../pages/events/EventDetailPage'), 'EventDetailPage') },
               { path: '/regras', lazy: page(() => import('../pages/rules/RulesPage'), 'RulesPage') },
               { path: '/regras/nova', lazy: page(() => import('../pages/rules/CreateRulePage'), 'CreateRulePage') },
               { path: '/regras/:ruleId', lazy: page(() => import('../pages/rules/RuleDetailPage'), 'RuleDetailPage') },
