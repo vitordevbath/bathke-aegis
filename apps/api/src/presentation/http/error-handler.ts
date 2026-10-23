@@ -1,6 +1,6 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
-import { AuthenticationError, ConflictError, ForbiddenError, InvalidStateError, NotFoundError, ValidationError } from '@aegis/domain';
+import { AuthenticationError, ConflictError, EventIdConflictError, ForbiddenError, InvalidStateError, NotFoundError, ValidationError } from '@aegis/domain';
 import { UNKNOWN_FIELD_MESSAGE, type ApiErrorCode, type ApiErrorResponse, type ApiFieldIssue } from '@aegis/contracts';
 
 const INTERNAL_ERROR_MESSAGE = 'Erro interno. Tente novamente mais tarde.';
@@ -28,6 +28,10 @@ export function errorHandler(error: FastifyError | Error, request: FastifyReques
   if (error instanceof ValidationError) return send(reply, 400, 'VALIDATION_ERROR', error.message, error.issues);
   if (error instanceof AuthenticationError) {
     return send(reply.header('WWW-Authenticate', 'Bearer'), 401, 'AUTHENTICATION_ERROR', error.message);
+  }
+  if (error instanceof EventIdConflictError) {
+    // A source reused a sourceEventId for different content; the batch was rolled back.
+    return send(reply, 409, 'EVENT_ID_CONFLICT', error.message, [{ field: error.field, message: error.message }]);
   }
   if (error instanceof ConflictError) {
     return send(reply, 409, 'CONFLICT', error.message, error.field ? [{ field: error.field, message: error.message }] : undefined);

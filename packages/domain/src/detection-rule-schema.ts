@@ -1,20 +1,23 @@
 import type { FieldIssue } from './domain-error.js';
 import { SEVERITIES, type Severity } from './severity.js';
+import { EVENT_CATEGORIES, EVENT_CATEGORY_NAMESPACE, eventFieldsOf, type EventCategory, type EventFieldSpec } from './event-contract.js';
 
 /**
  * Detection rule schema v1 — a declarative, structured, non-executable
  * description of "what to look for". It is data only: there is no expression
- * language, no regex, no code, no SQL. Fields come from an allowlist that
- * mirrors the PLANNED telemetry contract (no telemetry exists yet), and every
- * operator is restricted to the field's value type.
+ * language, no regex, no code, no SQL. Fields come from the Event Contract v1
+ * field catalog (only those marked detectable), so a rule can never reference
+ * a field events do not carry; every operator is restricted to the field's
+ * value type. Rules are still not executed.
  */
 
 /** The shared severity scale (also used by incidents). */
 export const DETECTION_SEVERITIES = SEVERITIES;
 export type DetectionSeverity = Severity;
 
-export const DETECTION_EVENT_CATEGORIES = ['PROCESS', 'NETWORK', 'SYSTEM'] as const;
-export type DetectionEventCategory = (typeof DETECTION_EVENT_CATEGORIES)[number];
+/** Rule categories are the event categories — one list. */
+export const DETECTION_EVENT_CATEGORIES = EVENT_CATEGORIES;
+export type DetectionEventCategory = EventCategory;
 
 export const DETECTION_SCOPES = ['ALL_HOSTS', 'SELECTED_HOSTS'] as const;
 export type DetectionScope = (typeof DETECTION_SCOPES)[number];
@@ -44,27 +47,16 @@ export interface DetectionFieldSpec {
   readonly max?: number;
 }
 
-const PORT = { type: 'integer', min: 0, max: 65_535 } as const;
+/** Integer event fields keep their bounds; text, enum and IP fields compare as strings. */
+function toDetectionField(spec: EventFieldSpec): DetectionFieldSpec {
+  return spec.value.kind === 'integer' ? { id: spec.id, type: 'integer', min: spec.value.min, max: spec.value.max } : { id: spec.id, type: 'string' };
+}
 
-/** Allowlist per category — the planned event fields a condition may reference. */
+/** Allowlist per category, derived from the event field catalog (detectable fields only). */
 export const DETECTION_FIELDS: Readonly<Record<DetectionEventCategory, readonly DetectionFieldSpec[]>> = {
-  PROCESS: [
-    { id: 'process.name', type: 'string' },
-    { id: 'process.executable', type: 'string' },
-    { id: 'process.parentName', type: 'string' },
-    { id: 'process.user', type: 'string' },
-  ],
-  NETWORK: [
-    { id: 'network.protocol', type: 'string' },
-    { id: 'network.localPort', ...PORT },
-    { id: 'network.remotePort', ...PORT },
-    { id: 'network.remoteAddress', type: 'string' },
-    { id: 'network.processName', type: 'string' },
-  ],
-  SYSTEM: [
-    { id: 'system.eventType', type: 'string' },
-    { id: 'system.serviceName', type: 'string' },
-  ],
+  PROCESS: eventFieldsOf(EVENT_CATEGORY_NAMESPACE.PROCESS).filter((spec) => spec.detectable).map(toDetectionField),
+  NETWORK: eventFieldsOf(EVENT_CATEGORY_NAMESPACE.NETWORK).filter((spec) => spec.detectable).map(toDetectionField),
+  SYSTEM: eventFieldsOf(EVENT_CATEGORY_NAMESPACE.SYSTEM).filter((spec) => spec.detectable).map(toDetectionField),
 };
 
 export const DETECTION_OPERATORS_BY_TYPE: Readonly<Record<DetectionFieldType, readonly DetectionOperator[]>> = {

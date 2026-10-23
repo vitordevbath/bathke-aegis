@@ -51,6 +51,15 @@ const implementedAndTested =
 const API = 'apps/api/src';
 const API_TEST = 'apps/api/test';
 const INFRA_TEST = 'scripts/test-infra.mjs';
+const EVENT_CONTRACT = 'packages/domain/src/event-contract.ts';
+/** Generic event pipeline: none of these may name a specific event type. */
+const EVENT_PIPELINE = [
+  'apps/api/src/application/event-ingestion-service.ts',
+  'apps/api/src/domain/telemetry-event.ts',
+  'apps/api/src/presentation/http/routes/events.route.ts',
+  'apps/api/src/application/use-cases/events/ingest-events.ts',
+];
+const EVENT_TYPE_LITERAL = /'(?:PROCESS_STARTED|PROCESS_EXITED|NETWORK_CONNECTION|NETWORK_LISTEN|SYSTEM_BOOT|SYSTEM_SERVICE_STATE_CHANGED)'/;
 /** The infra test only counts if it exists, is wired to npm and actually runs in CI. */
 const INFRA_TEST_EVIDENCE = [
   { file: 'package.json', pattern: /"test:infra": "node scripts\/test-infra\.mjs"/ },
@@ -368,11 +377,30 @@ const CHECKS: readonly RubricCheck[] = [
   },
   {
     requirement: 'SOLID / Open-Closed',
-    evaluate: manualReview('application ports allow alternate adapters, while adding a full resource still changes routes/composition/schema; the breadth of extension without core edits needs design review'),
+    evaluate: (repo) => {
+      // Event types are extended by declaring a definition; the pipeline must stay generic over the registry.
+      const registry =
+        contains(repo, EVENT_CONTRACT, /export const EVENT_DEFINITIONS: Readonly<Record<EventType, EventTypeDefinition>>/) &&
+        contains(repo, EVENT_CONTRACT, /const definition = EVENT_DEFINITIONS\[type\]/) &&
+        contains(repo, 'packages/domain/test/event-contract.test.ts', /it\.each\(EVENT_TYPES\)/);
+      const typeSpecific = EVENT_PIPELINE.filter((file) => !repo.exists(file) || EVENT_TYPE_LITERAL.test(repo.readText(file)));
+      if (registry && typeSpecific.length === 0) {
+        return { state: 'PASS', evidence: 'new event types extend EVENT_DEFINITIONS; validator, fingerprint, ingestion service, repository and routes contain no event-type branch (adding a type still needs its enum value in a migration)' };
+      }
+      if (!registry) return { state: 'IN_PROGRESS', evidence: 'event definition registry or its per-type tests missing' };
+      return { state: 'IN_PROGRESS', evidence: `event-type-specific code in the generic pipeline: ${typeSpecific.join(', ')}` };
+    },
   },
   {
     requirement: 'SOLID / Liskov Substitution',
-    evaluate: manualReview('there are real Entity and DomainError hierarchies, but no dedicated substitutability contract suite; assess behavioral compatibility before PASS'),
+    evaluate: implementedAndTested('one EventRepository behavioral contract suite runs unchanged against the in-memory and the Drizzle/MySQL implementations (MySQL in CI)', [
+      { file: `${API_TEST}/support/event-repository-contract.ts`, pattern: /export function describeEventRepositoryContract/ },
+      { file: `${API_TEST}/contracts/event-repository.contract.test.ts`, pattern: /describeEventRepositoryContract\('in-memory'/ },
+      { file: `${API_TEST}/contracts/event-repository.contract.test.ts`, pattern: /describeEventRepositoryContract\(\s*'Drizzle \/ MySQL'/ },
+      { file: `${API}/infrastructure/db/drizzle-repositories.ts`, pattern: /class DrizzleEventRepository implements EventRepository/ },
+      { file: `${API_TEST}/support/in-memory-persistence.ts`, pattern: /class InMemoryEventRepository implements EventRepository/ },
+      { file: '.github/workflows/ci.yml', pattern: /TEST_DATABASE_URL: mysql:/ },
+    ]),
   },
   {
     requirement: 'SOLID / Dependency Inversion',

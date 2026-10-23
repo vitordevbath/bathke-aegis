@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, like, ne, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, like, lte, ne, or, type SQL } from 'drizzle-orm';
 import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { MySql2PreparedQueryHKT, MySql2QueryResultHKT } from 'drizzle-orm/mysql2';
 import { ConflictError, type Cpf, type Email } from '@aegis/domain';
@@ -9,10 +9,13 @@ import { Host } from '../../domain/host.js';
 import { DetectionRule } from '../../domain/detection-rule.js';
 import { Incident } from '../../domain/incident.js';
 import { Investigation } from '../../domain/investigation.js';
+import { TelemetryEvent } from '../../domain/telemetry-event.js';
 import { offsetOf, type Page } from '../../application/pagination.js';
 import type {
   DetectionRuleListFilter,
   DetectionRuleRepository,
+  EventListFilter,
+  EventRepository,
   HostListFilter,
   HostRepository,
   IncidentListFilter,
@@ -21,13 +24,14 @@ import type {
   InvestigationRepository,
   MembershipRepository,
   Repositories,
+  StoredEvent,
   UnitOfWork,
   UserRepository,
   WorkspaceMembership,
   WorkspaceRepository,
 } from '../../application/ports/repositories.js';
 import { CPF_TAKEN_MESSAGE, EMAIL_TAKEN_MESSAGE } from '../../application/use-cases/register-user.js';
-import { HOST_IN_INCIDENT_MESSAGE, HOST_TARGETED_MESSAGE } from '../../application/use-cases/hosts/delete-host.js';
+import { HOST_HAS_EVENTS_MESSAGE, HOST_IN_INCIDENT_MESSAGE, HOST_TARGETED_MESSAGE } from '../../application/use-cases/hosts/delete-host.js';
 import { RULE_IN_INCIDENT_MESSAGE } from '../../application/use-cases/detection-rules/delete-detection-rule.js';
 import { INCIDENT_IN_INVESTIGATION_MESSAGE } from '../../application/use-cases/incidents/delete-incident.js';
 import type { Database } from './client.js';
@@ -35,6 +39,7 @@ import * as schema from './schema.js';
 import {
   detectionRuleTargets,
   detectionRules,
+  events,
   hosts,
   incidentDetectionRules,
   incidentHosts,
@@ -175,6 +180,16 @@ class DrizzleHostRepository implements HostRepository {
     return row ? Host.restore(row) : null;
   }
 
+  async lockInWorkspace(workspaceId: string, hostId: string): Promise<Host | null> {
+    const [row] = await this.db
+      .select()
+      .from(hosts)
+      .where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, hostId)))
+      .limit(1)
+      .for('update');
+    return row ? Host.restore(row) : null;
+  }
+
   async findManyInWorkspace(workspaceId: string, hostIds: readonly string[]): Promise<Host[]> {
     if (hostIds.length === 0) return [];
     const rows = await this.db
@@ -220,9 +235,12 @@ class DrizzleHostRepository implements HostRepository {
       const [result] = await this.db.delete(hosts).where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, hostId)));
       return result.affectedRows > 0;
     } catch (error) {
-      // FK RESTRICT from detection_rule_targets or incident_hosts (a reference was added concurrently).
+      // FK RESTRICT from detection_rule_targets, incident_hosts or events (a reference was added concurrently).
       const message = referencedBy(error);
-      if (message !== undefined) throw new ConflictError(message.includes('incident_hosts') ? HOST_IN_INCIDENT_MESSAGE : HOST_TARGETED_MESSAGE);
+      if (message !== undefined) {
+        if (message.includes('`events`')) throw new ConflictError(HOST_HAS_EVENTS_MESSAGE);
+        throw new ConflictError(message.includes('incident_hosts') ? HOST_IN_INCIDENT_MESSAGE : HOST_TARGETED_MESSAGE);
+      }
       throw error;
     }
   }
@@ -581,6 +599,76 @@ class DrizzleInvestigationRepository implements InvestigationRepository {
   }
 }
 
+type EventRow = typeof events.$inferSelect;
+
+class DrizzleEventRepository implements EventRepository {
+  constructor(private readonly db: Executor) {}
+
+  async insertMany(items: readonly TelemetryEvent[]): Promise<void> {
+    if (items.length === 0) return;
+    // One multi-row INSERT for the whole batch.
+    await this.db.insert(events).values(
+      items.map((item) => {
+        const { type, data, ...snapshot } = item.toSnapshot();
+        return { ...snapshot, eventType: type, payload: data };
+      }),
+    );
+  }
+
+  async fingerprintsBySourceId(hostId: string, sourceEventIds: readonly string[]): Promise<Map<string, string>> {
+    if (sourceEventIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({ sourceEventId: events.sourceEventId, fingerprint: events.fingerprint })
+      .from(events)
+      .where(and(eq(events.hostId, hostId), inArray(events.sourceEventId, [...sourceEventIds])));
+    return new Map(rows.map((row) => [row.sourceEventId, row.fingerprint]));
+  }
+
+  async findInWorkspace(workspaceId: string, eventId: string): Promise<StoredEvent | null> {
+    const [row] = await this.db
+      .select({ event: events, hostDisplayName: hosts.displayName })
+      .from(events)
+      .innerJoin(hosts, eq(events.hostId, hosts.id))
+      .where(and(eq(events.workspaceId, workspaceId), eq(events.id, eventId)))
+      .limit(1);
+    return row ? this.toStored(row) : null;
+  }
+
+  async listInWorkspace(workspaceId: string, filter: EventListFilter): Promise<Page<StoredEvent>> {
+    const conditions: (SQL | undefined)[] = [eq(events.workspaceId, workspaceId)];
+    if (filter.hostId) conditions.push(eq(events.hostId, filter.hostId));
+    if (filter.category) conditions.push(eq(events.category, filter.category));
+    if (filter.eventType) conditions.push(eq(events.eventType, filter.eventType));
+    if (filter.from) conditions.push(gte(events.occurredAt, filter.from));
+    if (filter.to) conditions.push(lte(events.occurredAt, filter.to));
+    const where = and(...conditions);
+
+    // Host names come from the same query (join), never one lookup per event.
+    const [rows, [totals]] = await Promise.all([
+      this.db
+        .select({ event: events, hostDisplayName: hosts.displayName })
+        .from(events)
+        .innerJoin(hosts, eq(events.hostId, hosts.id))
+        .where(where)
+        .orderBy(desc(events.occurredAt), desc(events.id))
+        .limit(filter.pageSize)
+        .offset(offsetOf(filter)),
+      this.db.select({ total: count() }).from(events).where(where),
+    ]);
+    return { items: rows.map((row) => this.toStored(row)), total: totals?.total ?? 0, page: filter.page, pageSize: filter.pageSize };
+  }
+
+  async existsForHost(hostId: string): Promise<boolean> {
+    const rows = await this.db.select({ id: events.id }).from(events).where(eq(events.hostId, hostId)).limit(1);
+    return rows.length > 0;
+  }
+
+  private toStored(row: { event: EventRow; hostDisplayName: string }): StoredEvent {
+    const { eventType, payload, ...rest } = row.event;
+    return { event: TelemetryEvent.restore({ ...rest, type: eventType, data: payload }), hostDisplayName: row.hostDisplayName };
+  }
+}
+
 export function createDrizzleRepositories(db: Executor): Repositories {
   return {
     users: new DrizzleUserRepository(db),
@@ -590,6 +678,7 @@ export function createDrizzleRepositories(db: Executor): Repositories {
     detectionRules: new DrizzleDetectionRuleRepository(db),
     incidents: new DrizzleIncidentRepository(db),
     investigations: new DrizzleInvestigationRepository(db),
+    events: new DrizzleEventRepository(db),
   };
 }
 

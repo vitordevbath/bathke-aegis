@@ -1,5 +1,14 @@
-import { boolean, char, datetime, index, json, mysqlEnum, mysqlTable, primaryKey, text, varchar } from 'drizzle-orm/mysql-core';
-import { INCIDENT_ORIGINS, INCIDENT_STATUSES, INVESTIGATION_STATUSES, SEVERITIES, type DetectionDefinitionV1 } from '@aegis/domain';
+import { boolean, char, datetime, index, json, mysqlEnum, mysqlTable, primaryKey, smallint, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import {
+  EVENT_CATEGORIES,
+  EVENT_TYPES,
+  INCIDENT_ORIGINS,
+  INCIDENT_STATUSES,
+  INVESTIGATION_STATUSES,
+  SEVERITIES,
+  type DetectionDefinitionV1,
+  type EventBodyV1,
+} from '@aegis/domain';
 
 /**
  * Drizzle schema — source for versioned migrations in `apps/api/drizzle`
@@ -255,5 +264,43 @@ export const investigationIncidents = mysqlTable(
     primaryKey({ name: 'investigation_incidents_pk', columns: [table.investigationId, table.incidentId] }),
     // Serves the incident FK and "is this incident under investigation?" lookups.
     index('investigation_incidents_incident_idx').on(table.incidentId),
+  ],
+);
+
+/**
+ * Event Store (ADR-032–036): immutable, normalized telemetry facts. `payload`
+ * holds exactly the validated `data` of the Event Contract (never the raw
+ * request). `(host_id, source_event_id)` makes ingestion idempotent;
+ * `fingerprint` (SHA-256 of the canonical event) tells an identical replay
+ * from a conflicting reuse. Deleting a workspace cascades; a host with events
+ * is protected (RESTRICT → 409), so telemetry is never dropped silently.
+ */
+export const events = mysqlTable(
+  'events',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    workspaceId: char('workspace_id', { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    hostId: char('host_id', { length: 36 })
+      .notNull()
+      .references(() => hosts.id, { onDelete: 'restrict' }),
+    sourceEventId: char('source_event_id', { length: 36 }).notNull(),
+    schemaVersion: smallint('schema_version', { unsigned: true }).notNull(),
+    category: mysqlEnum('category', EVENT_CATEGORIES).notNull(),
+    eventType: mysqlEnum('event_type', EVENT_TYPES).notNull(),
+    occurredAt: datetime('occurred_at', { mode: 'date', fsp: 3 }).notNull(),
+    ingestedAt: datetime('ingested_at', { mode: 'date', fsp: 3 }).notNull(),
+    payload: json('payload').$type<EventBodyV1['data']>().notNull(),
+    fingerprint: char('fingerprint', { length: 64 }).notNull(),
+  },
+  (table) => [
+    // Idempotency key; also serves the host FK and "does this host have events?" lookups.
+    uniqueIndex('events_host_source_unique').on(table.hostId, table.sourceEventId),
+    // Timeline of the workspace (WHERE workspace_id = ? ORDER BY occurred_at DESC, id DESC).
+    index('events_workspace_occurred_idx').on(table.workspaceId, table.occurredAt, table.id),
+    // Same timeline filtered by host or by category (event types imply their category).
+    index('events_workspace_host_occurred_idx').on(table.workspaceId, table.hostId, table.occurredAt, table.id),
+    index('events_workspace_category_occurred_idx').on(table.workspaceId, table.category, table.occurredAt, table.id),
   ],
 );

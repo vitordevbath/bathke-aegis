@@ -6,10 +6,13 @@ import { Host, type HostSnapshot } from '../../src/domain/host.js';
 import { DetectionRule, type DetectionRuleSnapshot } from '../../src/domain/detection-rule.js';
 import { Incident, type IncidentSnapshot } from '../../src/domain/incident.js';
 import { Investigation, type InvestigationSnapshot } from '../../src/domain/investigation.js';
+import { TelemetryEvent, type TelemetryEventSnapshot } from '../../src/domain/telemetry-event.js';
 import { offsetOf, type Page } from '../../src/application/pagination.js';
 import type {
   DetectionRuleListFilter,
   DetectionRuleRepository,
+  EventListFilter,
+  EventRepository,
   HostListFilter,
   HostRepository,
   IncidentListFilter,
@@ -18,6 +21,7 @@ import type {
   InvestigationRepository,
   MembershipRepository,
   Repositories,
+  StoredEvent,
   UnitOfWork,
   UserRepository,
   WorkspaceMembership,
@@ -37,6 +41,7 @@ export class InMemoryStore {
   detectionRules = new Map<string, DetectionRuleSnapshot>();
   incidents = new Map<string, IncidentSnapshot>();
   investigations = new Map<string, InvestigationSnapshot>();
+  events = new Map<string, TelemetryEventSnapshot>();
 
   clone(): InMemoryStore {
     const copy = new InMemoryStore();
@@ -47,6 +52,7 @@ export class InMemoryStore {
     copy.detectionRules = new Map(this.detectionRules);
     copy.incidents = new Map(this.incidents);
     copy.investigations = new Map(this.investigations);
+    copy.events = new Map(this.events);
     return copy;
   }
 
@@ -58,6 +64,7 @@ export class InMemoryStore {
     this.detectionRules = other.detectionRules;
     this.incidents = other.incidents;
     this.investigations = other.investigations;
+    this.events = other.events;
   }
 }
 
@@ -152,6 +159,11 @@ class InMemoryHostRepository implements HostRepository {
     return snapshot && snapshot.workspaceId === workspaceId ? Host.restore(snapshot) : null;
   }
 
+  async lockInWorkspace(workspaceId: string, hostId: string): Promise<Host | null> {
+    // Single-threaded store: nothing to lock.
+    return this.findInWorkspace(workspaceId, hostId);
+  }
+
   async findManyInWorkspace(workspaceId: string, hostIds: readonly string[]): Promise<Host[]> {
     return [...this.store.hosts.values()]
       .filter((host) => host.workspaceId === workspaceId && hostIds.includes(host.id))
@@ -184,10 +196,11 @@ class InMemoryHostRepository implements HostRepository {
   async deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean> {
     const current = this.store.hosts.get(hostId);
     if (!current || current.workspaceId !== workspaceId) return false;
-    // Mirrors ON DELETE RESTRICT on detection_rule_targets.host_id and incident_hosts.host_id.
+    // Mirrors ON DELETE RESTRICT on detection_rule_targets.host_id, incident_hosts.host_id and events.host_id.
     if (
       [...this.store.detectionRules.values()].some((rule) => rule.targetHostIds.includes(hostId)) ||
-      [...this.store.incidents.values()].some((incident) => incident.hostIds.includes(hostId))
+      [...this.store.incidents.values()].some((incident) => incident.hostIds.includes(hostId)) ||
+      [...this.store.events.values()].some((event) => event.hostId === hostId)
     ) {
       throw new Error('foreign key constraint fails (restrict)');
     }
@@ -396,6 +409,62 @@ class InMemoryInvestigationRepository implements InvestigationRepository {
   }
 }
 
+/** Same contract as the SQL adapter: append-only, unique (hostId, sourceEventId), FKs, timeline order. */
+class InMemoryEventRepository implements EventRepository {
+  constructor(private readonly store: InMemoryStore) {}
+
+  async insertMany(items: readonly TelemetryEvent[]): Promise<void> {
+    const snapshots = items.map((item) => item.toSnapshot());
+    for (const snapshot of snapshots) {
+      if (!this.store.workspaces.has(snapshot.workspaceId) || !this.store.hosts.has(snapshot.hostId)) throw new Error('foreign key constraint fails');
+      const taken = [...this.store.events.values(), ...snapshots.filter((other) => other !== snapshot)].some(
+        (other) => other.hostId === snapshot.hostId && other.sourceEventId === snapshot.sourceEventId,
+      );
+      if (taken) throw new Error('duplicate entry for events_host_source_unique');
+    }
+    for (const snapshot of snapshots) this.store.events.set(snapshot.id, snapshot);
+  }
+
+  async fingerprintsBySourceId(hostId: string, sourceEventIds: readonly string[]): Promise<Map<string, string>> {
+    return new Map(
+      [...this.store.events.values()]
+        .filter((event) => event.hostId === hostId && sourceEventIds.includes(event.sourceEventId))
+        .map((event) => [event.sourceEventId, event.fingerprint]),
+    );
+  }
+
+  async findInWorkspace(workspaceId: string, eventId: string): Promise<StoredEvent | null> {
+    const snapshot = this.store.events.get(eventId);
+    return snapshot && snapshot.workspaceId === workspaceId ? this.toStored(snapshot) : null;
+  }
+
+  async listInWorkspace(workspaceId: string, filter: EventListFilter): Promise<Page<StoredEvent>> {
+    const matching = [...this.store.events.values()]
+      .filter((event) => event.workspaceId === workspaceId)
+      .filter((event) => !filter.hostId || event.hostId === filter.hostId)
+      .filter((event) => !filter.category || event.category === filter.category)
+      .filter((event) => !filter.eventType || event.type === filter.eventType)
+      .filter((event) => !filter.from || event.occurredAt.getTime() >= (filter.from?.getTime() ?? 0))
+      .filter((event) => !filter.to || event.occurredAt.getTime() <= (filter.to?.getTime() ?? 0))
+      .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    const start = offsetOf(filter);
+    return {
+      items: matching.slice(start, start + filter.pageSize).map((event) => this.toStored(event)),
+      total: matching.length,
+      page: filter.page,
+      pageSize: filter.pageSize,
+    };
+  }
+
+  async existsForHost(hostId: string): Promise<boolean> {
+    return [...this.store.events.values()].some((event) => event.hostId === hostId);
+  }
+
+  private toStored(snapshot: TelemetryEventSnapshot): StoredEvent {
+    return { event: TelemetryEvent.restore(snapshot), hostDisplayName: this.store.hosts.get(snapshot.hostId)?.displayName ?? '' };
+  }
+}
+
 export function repositoriesFor(store: InMemoryStore): Repositories {
   return {
     users: new InMemoryUserRepository(store),
@@ -405,6 +474,7 @@ export function repositoriesFor(store: InMemoryStore): Repositories {
     detectionRules: new InMemoryDetectionRuleRepository(store),
     incidents: new InMemoryIncidentRepository(store),
     investigations: new InMemoryInvestigationRepository(store),
+    events: new InMemoryEventRepository(store),
   };
 }
 

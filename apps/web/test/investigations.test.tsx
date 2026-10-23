@@ -377,7 +377,7 @@ describe('investigations elsewhere in the app', () => {
     renderApp('/dashboard');
 
     const nav = await screen.findByRole('navigation', { name: 'Principal' });
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Painel', 'Hosts', 'Regras', 'Incidentes', 'Investigações', 'Perfil']);
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Painel', 'Hosts', 'Eventos', 'Regras', 'Incidentes', 'Investigações', 'Perfil']);
     expect(within(nav).getByRole('link', { name: 'Investigações' }).getAttribute('href')).toBe('/investigacoes');
     const card = screen.getByText('Investigações', { selector: '.metric__label' }).closest('.metric');
     await waitFor(() => expect(card?.textContent).toContain('4'));

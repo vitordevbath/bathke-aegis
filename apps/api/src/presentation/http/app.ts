@@ -25,6 +25,9 @@ import type { ListInvestigations } from '../../application/use-cases/investigati
 import type { GetInvestigation } from '../../application/use-cases/investigations/get-investigation.js';
 import type { UpdateInvestigation } from '../../application/use-cases/investigations/update-investigation.js';
 import type { DeleteInvestigation } from '../../application/use-cases/investigations/delete-investigation.js';
+import type { IngestEventsAsUser } from '../../application/use-cases/events/ingest-events.js';
+import type { ListEvents } from '../../application/use-cases/events/list-events.js';
+import type { GetEvent } from '../../application/use-cases/events/get-event.js';
 import { errorHandler } from './error-handler.js';
 import { healthRoute } from './routes/health.route.js';
 import { authRoute } from './routes/auth.route.js';
@@ -33,6 +36,7 @@ import { hostsRoute } from './routes/hosts.route.js';
 import { detectionRulesRoute } from './routes/detection-rules.route.js';
 import { incidentsRoute } from './routes/incidents.route.js';
 import { investigationsRoute } from './routes/investigations.route.js';
+import { eventsRoute } from './routes/events.route.js';
 
 /** Use cases the HTTP layer delegates to. Assembled by the composition root (or by tests). */
 export interface AppDependencies {
@@ -61,8 +65,13 @@ export interface AppDependencies {
   readonly getInvestigation: GetInvestigation;
   readonly updateInvestigation: UpdateInvestigation;
   readonly deleteInvestigation: DeleteInvestigation;
+  readonly ingestEvents: IngestEventsAsUser;
+  readonly listEvents: ListEvents;
+  readonly getEvent: GetEvent;
   /** Requests per client IP per minute on each auth route. */
   readonly authRateLimitMax: number;
+  /** Event ingestion batches per client IP per minute (user-auth lab route). */
+  readonly ingestRateLimitMax: number;
 }
 
 /** Builds the HTTP application without binding a port, so tests can use `inject`. */
@@ -118,6 +127,13 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
     getInvestigation: dependencies.getInvestigation,
     updateInvestigation: dependencies.updateInvestigation,
     deleteInvestigation: dependencies.deleteInvestigation,
+  });
+  await app.register(eventsRoute, {
+    resolveAuthenticatedUser: dependencies.resolveAuthenticatedUser,
+    ingestEvents: dependencies.ingestEvents,
+    listEvents: dependencies.listEvents,
+    getEvent: dependencies.getEvent,
+    ingestRateLimitMax: dependencies.ingestRateLimitMax,
   });
 
   return app;

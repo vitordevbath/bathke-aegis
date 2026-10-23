@@ -135,7 +135,7 @@ describe('detection rule use cases', () => {
     const rule = (
       await new CreateDetectionRule(access, persistence.unitOfWork).execute(a.user, a.workspaceId, details({ scope: 'SELECTED_HOSTS', targetHostIds: [host.id] }))
     ).rule;
-    const deleteHost = new DeleteHost(access, persistence.repositories.hosts, persistence.repositories.detectionRules, persistence.repositories.incidents);
+    const deleteHost = new DeleteHost(access, persistence.repositories.hosts, persistence.repositories.detectionRules, persistence.repositories.incidents, persistence.repositories.events);
 
     await expect(deleteHost.execute(a.user, a.workspaceId, host.id)).rejects.toBeInstanceOf(ConflictError);
     await new DeleteDetectionRule(access, persistence.repositories.detectionRules, persistence.repositories.incidents).execute(a.user, a.workspaceId, rule.id);

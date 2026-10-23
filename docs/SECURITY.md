@@ -75,6 +75,15 @@ configurável e removível.
 - Descrição e conclusão são texto puro (até 5000 / 10000 caracteres), renderizadas escapadas pelo React, nunca como HTML; testado com `<script>` e `onerror`.
 - Conclusão é humana: nenhuma IA gera, resume ou sugere conclusões nesta etapa. Exclusão é física enquanto não há audit log (ADR-031).
 
+### Eventos (CURRENT, BF 06)
+
+- **Sem dados sensíveis por construção:** o Event Contract v1 só tem metadados. Linha de comando, argumentos, ambiente, senhas, tokens, segredos, teclas, área de transferência, conteúdo de arquivos ou mensagens e payload de rede não existem no contrato; propriedades desconhecidas em qualquer nível são rejeitadas (400), nunca descartadas em silêncio. Persiste-se só a representação validada.
+- **Imutável:** sem `PUT`/`DELETE` de evento; host com eventos não pode ser excluído (409, FK `RESTRICT`), checado só depois de confirmar que o host é do workspace (host alheio continua 404) — ADR-036.
+- **Tenant:** `workspaceId` e `hostId` vêm da rota autenticada, nunca do payload; host de outro workspace e inexistente recebem o mesmo 404; leitura de evento alheio é 404.
+- **Ingestão USER-AUTH temporária** (ADR-035): exige OWNER no workspace; não é autenticação de Collector e não marca o host como `ONLINE`. Limites: 1–100 eventos por lote, corpo ≤ 1 MiB (413), `INGEST_RATE_LIMIT_MAX` lotes/min por IP (separado do limite de login), `occurredAt` no máximo 5 min no futuro.
+- **Idempotência sem sobrescrita:** reuso de `sourceEventId` com conteúdo diferente → 409 `EVENT_ID_CONFLICT` e rollback; o evento original nunca é alterado (ADR-034).
+- **Logs:** a ingestão registra só contagens e duração — nunca payload, endereços, dados de processo ou `sourceEventId`.
+
 ### Limitações conhecidas
 
 - Logout é local; tokens emitidos continuam válidos até expirar (sem revogação).

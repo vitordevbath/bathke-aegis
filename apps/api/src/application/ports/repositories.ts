@@ -6,7 +6,17 @@ import type { Host } from '../../domain/host.js';
 import type { DetectionRule } from '../../domain/detection-rule.js';
 import type { Incident } from '../../domain/incident.js';
 import type { Investigation } from '../../domain/investigation.js';
-import type { DetectionEventCategory, DetectionSeverity, IncidentOrigin, IncidentStatus, InvestigationStatus, Severity } from '@aegis/domain';
+import type { TelemetryEvent } from '../../domain/telemetry-event.js';
+import type {
+  DetectionEventCategory,
+  DetectionSeverity,
+  EventCategory,
+  EventType,
+  IncidentOrigin,
+  IncidentStatus,
+  InvestigationStatus,
+  Severity,
+} from '@aegis/domain';
 import type { Page, PageRequest } from '../pagination.js';
 
 export interface UserRepository {
@@ -50,6 +60,12 @@ export interface HostListFilter extends PageRequest {
 export interface HostRepository {
   insert(host: Host): Promise<void>;
   findInWorkspace(workspaceId: string, hostId: string): Promise<Host | null>;
+  /**
+   * Like `findInWorkspace`, but holds a row lock until the surrounding
+   * transaction ends, so concurrent writers for the same host serialize
+   * (event ingestion). Must run inside a `UnitOfWork`.
+   */
+  lockInWorkspace(workspaceId: string, hostId: string): Promise<Host | null>;
   /** The subset of `hostIds` that exist in that workspace (others are silently absent), ordered by name. */
   findManyInWorkspace(workspaceId: string, hostIds: readonly string[]): Promise<Host[]>;
   /** Ordered by `createdAt` DESC, then `id` DESC (stable across pages). */
@@ -135,6 +151,36 @@ export interface InvestigationRepository {
   isIncidentInvestigated(incidentId: string): Promise<boolean>;
 }
 
+export interface EventListFilter extends PageRequest {
+  readonly hostId?: string | undefined;
+  readonly category?: EventCategory | undefined;
+  readonly eventType?: EventType | undefined;
+  /** Inclusive bounds on `occurredAt`. */
+  readonly from?: Date | undefined;
+  readonly to?: Date | undefined;
+}
+
+/** A stored event plus the display name of its host (read in the same query, no N+1). */
+export interface StoredEvent {
+  readonly event: TelemetryEvent;
+  readonly hostDisplayName: string;
+}
+
+/**
+ * Append-only and workspace-scoped: there is deliberately no update or
+ * delete. `insertMany` must run inside the `UnitOfWork` that checked
+ * idempotency, so a batch is stored entirely or not at all.
+ */
+export interface EventRepository {
+  insertMany(events: readonly TelemetryEvent[]): Promise<void>;
+  /** Fingerprints of already stored events of that host, keyed by `sourceEventId`. */
+  fingerprintsBySourceId(hostId: string, sourceEventIds: readonly string[]): Promise<Map<string, string>>;
+  findInWorkspace(workspaceId: string, eventId: string): Promise<StoredEvent | null>;
+  /** Timeline: `occurredAt` DESC, then `id` DESC. */
+  listInWorkspace(workspaceId: string, filter: EventListFilter): Promise<Page<StoredEvent>>;
+  existsForHost(hostId: string): Promise<boolean>;
+}
+
 export interface Repositories {
   readonly users: UserRepository;
   readonly workspaces: WorkspaceRepository;
@@ -143,6 +189,7 @@ export interface Repositories {
   readonly detectionRules: DetectionRuleRepository;
   readonly incidents: IncidentRepository;
   readonly investigations: InvestigationRepository;
+  readonly events: EventRepository;
 }
 
 /**

@@ -135,3 +135,29 @@
 **Decisão:** `DELETE` remove a investigação fisicamente (204), inclusive encerrada; os vínculos saem por cascade; os incidentes permanecem. A UI avisa que a remoção é definitiva.
 **Motivo:** coerente com ADR-027; ainda não há evidência imutável nem audit log.
 **Consequência:** quando audit log ou evidências existirem, reavaliar retenção e soft delete — especialmente para investigações encerradas.
+
+## ADR-032 — Events são fatos imutáveis e normalizados
+**Decisão:** um evento é um fato técnico observado em um host autorizado, gravado uma única vez como a representação validada do Event Contract v1 (`payload` JSON + colunas de envelope). Não há `PUT`, `DELETE`, formulário de criação ou métodos de mutação em `TelemetryEvent`; o servidor define `id` (UUID próprio, distinto de `sourceEventId`), `workspaceId`, `hostId` e `ingestedAt`. O nome da entidade é `TelemetryEvent` para não colidir com eventos do DOM. Eventos não são alertas, incidentes nem logs textuais, e nada os avalia nesta etapa.
+**Motivo:** telemetria só tem valor como registro fiel; editar um fato observado destruiria a confiança em detecções e investigações futuras.
+**Consequência:** correções chegam como novos eventos; retenção e expurgo serão uma política explícita futura, nunca exclusão individual.
+
+## ADR-033 — Event Contract versionado e independente de sistema operacional
+**Decisão:** `schemaVersion: 1`, três categorias (`PROCESS`, `NETWORK`, `SYSTEM`) e seis tipos, modelados como união discriminada em TypeScript e descritos por um registro (`EVENT_DEFINITIONS`) com a presença de cada campo por tipo. Um único validador estrito, genérico sobre o registro, rejeita propriedades desconhecidas, normaliza timestamps para UTC e preenche opcionais com `null`. Os campos detectáveis do catálogo (`EVENT_FIELDS`) são a fonte de `DETECTION_FIELDS` das regras — uma lista só. Sem `FILE`/`AUTH`, linha de comando, ambiente ou payload de rede.
+**Motivo:** Collectors de Linux, Windows e macOS devem falar o mesmo idioma; regras não podem referenciar campos que eventos não carregam; adicionar um tipo não deve exigir mexer no pipeline de ingestão.
+**Consequência:** um tipo novo exige sua definição, o membro da união e o valor do enum (migration); uma `schemaVersion: 2` deverá conviver com eventos v1 armazenados.
+
+## ADR-034 — Ingestão idempotente por host + sourceEventId + fingerprint
+**Decisão:** `UNIQUE(host_id, source_event_id)` e um fingerprint SHA-256 (`node:crypto`) do evento canônico. Replay idêntico é deduplicado (sem nova linha); o mesmo `sourceEventId` com conteúdo diferente responde 409 `EVENT_ID_CONFLICT`. O lote (1–100) é validado inteiro antes de qualquer I/O (um inválido → 400, nada gravado); dentro de uma transação, a linha do host é travada (`SELECT … FOR UPDATE`) para serializar lotes concorrentes do mesmo host, os fingerprints existentes são comparados, um conflito desfaz o lote inteiro e os novos são inseridos num INSERT multi-linha. Duplicatas idênticas no mesmo lote são deduplicadas; conflitantes são 409. Resposta 200 `{received, inserted, deduplicated}`.
+**Motivo:** o Collector reenviará lotes após timeouts; reenviar não pode duplicar, e reaproveitar um id para outro conteúdo é erro da fonte que não pode sobrescrever um fato.
+**Consequência:** a resposta de um lote é previsível (tudo ou nada); a vazão por host é serializada, aceitável nesta etapa.
+
+## ADR-035 — Ingestão com autenticação de usuário é temporária
+**Decisão:** `POST /workspaces/:workspaceId/hosts/:hostId/events/ingest` usa o JWT de usuário existente e exige OWNER. É um adaptador de laboratório/desenvolvimento (`IngestEventsAsUser`) sobre `EventIngestionService`, que recebe só `{workspaceId, hostId}` e o lote e não depende de HTTP, Fastify, JWT ou usuário. Rate limit próprio (`INGEST_RATE_LIMIT_MAX`), corpo ≤ 1 MiB. Ingerir não marca o host como `ONLINE` nem atualiza `lastSeenAt`.
+**Motivo:** validar contrato, armazenamento e consulta antes de existir sensor, sem inventar o protocolo do Collector junto com o sensor.
+**Consequência:** o BF 07 adiciona credenciais de máquina (pareamento) chamando o mesmo serviço; esta rota continua apenas para laboratório ou é removida.
+
+## ADR-036 — Host com telemetria não pode ser excluído
+**Decisão:** `events.host_id` é `ON DELETE RESTRICT`; `DeleteHost` responde 409 quando o host tem eventos, depois de confirmar que o host pertence ao workspace (host alheio continua 404). A exclusão do workspace continua em cascata (eventos e hosts saem juntos).
+**Motivo:** apagar um host não pode destruir telemetria histórica em silêncio.
+**Consequência:** hosts com eventos ficam até existir arquivamento ou política de retenção.
+
