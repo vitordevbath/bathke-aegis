@@ -1,6 +1,6 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
-import { AuthenticationError, ConflictError, EventIdConflictError, ForbiddenError, InvalidStateError, NotFoundError, ValidationError } from '@aegis/domain';
+import { AuthenticationError, ConflictError, EventIdConflictError, ForbiddenError, InvalidStateError, NotFoundError, TooManyRequestsError, ValidationError } from '@aegis/domain';
 import { UNKNOWN_FIELD_MESSAGE, type ApiErrorCode, type ApiErrorResponse, type ApiFieldIssue } from '@aegis/contracts';
 
 const INTERNAL_ERROR_MESSAGE = 'Erro interno. Tente novamente mais tarde.';
@@ -42,6 +42,7 @@ export function errorHandler(error: FastifyError | Error, request: FastifyReques
   }
   if (error instanceof ForbiddenError) return send(reply, 403, 'FORBIDDEN', error.message);
   if (error instanceof NotFoundError) return send(reply, 404, 'NOT_FOUND', error.message);
+  if (error instanceof TooManyRequestsError) return send(reply, 429, 'RATE_LIMITED', error.message);
 
   const status = 'statusCode' in error ? error.statusCode : undefined;
   if (status === 429) return send(reply, 429, 'RATE_LIMITED', 'Muitas tentativas. Aguarde um minuto e tente novamente.');

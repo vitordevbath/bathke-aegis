@@ -3,6 +3,7 @@ import type { AppDependencies } from './presentation/http/app.js';
 import type { PasswordHasher } from './application/ports/password-hasher.js';
 import type { Repositories, UnitOfWork } from './application/ports/repositories.js';
 import type { TokenService } from './application/ports/token-service.js';
+import type { MachineSecrets } from './application/ports/machine-secrets.js';
 import { RegisterUser } from './application/use-cases/register-user.js';
 import { AuthenticateUser } from './application/use-cases/authenticate-user.js';
 import { ResolveAuthenticatedUser } from './application/use-cases/resolve-authenticated-user.js';
@@ -30,24 +31,50 @@ import { GetInvestigation } from './application/use-cases/investigations/get-inv
 import { UpdateInvestigation } from './application/use-cases/investigations/update-investigation.js';
 import { DeleteInvestigation } from './application/use-cases/investigations/delete-investigation.js';
 import { EventIngestionService } from './application/event-ingestion-service.js';
-import { IngestEventsAsUser } from './application/use-cases/events/ingest-events.js';
+import { IngestEventsAsMachine } from './application/use-cases/events/ingest-events.js';
 import { ListEvents } from './application/use-cases/events/list-events.js';
 import { GetEvent } from './application/use-cases/events/get-event.js';
+import { RequestPairingCode } from './application/use-cases/machine-identity/request-pairing-code.js';
+import { RedeemPairingCode } from './application/use-cases/machine-identity/redeem-pairing-code.js';
+import { AuthenticateMachine } from './application/use-cases/machine-identity/authenticate-machine.js';
+import { RotateMachineCredential } from './application/use-cases/machine-identity/rotate-machine-credential.js';
+import { RevokeMachineCredential } from './application/use-cases/machine-identity/revoke-machine-credential.js';
+import { GetHostPairing } from './application/use-cases/machine-identity/get-host-pairing.js';
 import { createDatabase } from './infrastructure/db/client.js';
 import { DrizzleUnitOfWork, createDrizzleRepositories } from './infrastructure/db/drizzle-repositories.js';
 import { Argon2PasswordHasher } from './infrastructure/security/argon2-password-hasher.js';
 import { JoseTokenService } from './infrastructure/security/jose-token-service.js';
+import { NodeMachineSecrets } from './infrastructure/security/node-machine-secrets.js';
 
 export interface Adapters {
   readonly repositories: Repositories;
   readonly unitOfWork: UnitOfWork;
   readonly hasher: PasswordHasher;
   readonly tokens: TokenService;
+  readonly secrets: MachineSecrets;
 }
 
+/** Abuse limits of the machine pairing flow (ADR-038). All are per time window; none is permanent. */
+export interface PairingLimits {
+  /** Requests per client IP per minute on `POST /agent/pair`. */
+  readonly pairRateLimitMax: number;
+  /** Refused codes per client IP per window before that IP is paused. */
+  readonly invalidAttemptsMax: number;
+  readonly invalidAttemptsWindowMs: number;
+  /** Codes an OWNER may request for one host per hour. */
+  readonly codesPerHostPerHour: number;
+}
+
+export const DEFAULT_PAIRING_LIMITS: PairingLimits = {
+  pairRateLimitMax: 10,
+  invalidAttemptsMax: 20,
+  invalidAttemptsWindowMs: 15 * 60_000,
+  codesPerHostPerHour: 10,
+};
+
 /** Wires use cases to whichever adapters are given (production or test doubles). */
-export function createUseCases(adapters: Adapters, authRateLimitMax: number, ingestRateLimitMax = 60): AppDependencies {
-  const { repositories, unitOfWork, hasher, tokens } = adapters;
+export function createUseCases(adapters: Adapters, authRateLimitMax: number, ingestRateLimitMax = 60, pairing: PairingLimits = DEFAULT_PAIRING_LIMITS): AppDependencies {
+  const { repositories, unitOfWork, hasher, tokens, secrets } = adapters;
   const access = new WorkspaceAccess(repositories.memberships);
   return {
     registerUser: new RegisterUser(repositories, unitOfWork, hasher),
@@ -75,11 +102,20 @@ export function createUseCases(adapters: Adapters, authRateLimitMax: number, ing
     getInvestigation: new GetInvestigation(access, repositories),
     updateInvestigation: new UpdateInvestigation(access, unitOfWork),
     deleteInvestigation: new DeleteInvestigation(access, repositories.investigations),
-    ingestEvents: new IngestEventsAsUser(access, new EventIngestionService(unitOfWork)),
+    ingestEvents: new IngestEventsAsMachine(new EventIngestionService(unitOfWork)),
     listEvents: new ListEvents(access, repositories.events),
     getEvent: new GetEvent(access, repositories.events),
+    requestPairingCode: new RequestPairingCode(access, unitOfWork, secrets, pairing.codesPerHostPerHour),
+    redeemPairingCode: new RedeemPairingCode(unitOfWork, secrets),
+    authenticateMachine: new AuthenticateMachine(repositories.machineCredentials, secrets),
+    rotateMachineCredential: new RotateMachineCredential(access, unitOfWork, secrets),
+    revokeMachineCredential: new RevokeMachineCredential(access, unitOfWork),
+    getHostPairing: new GetHostPairing(access, repositories.hosts, repositories.pairingChallenges, repositories.machineCredentials),
     authRateLimitMax,
     ingestRateLimitMax,
+    pairRateLimitMax: pairing.pairRateLimitMax,
+    pairInvalidAttemptsMax: pairing.invalidAttemptsMax,
+    pairInvalidAttemptsWindowMs: pairing.invalidAttemptsWindowMs,
   };
 }
 
@@ -91,6 +127,13 @@ export function createProductionDependencies(env: Env): { dependencies: AppDepen
     unitOfWork: new DrizzleUnitOfWork(db),
     hasher: new Argon2PasswordHasher(),
     tokens: new JoseTokenService({ secret: env.JWT_SECRET, ttlSeconds: env.JWT_TTL_SECONDS }),
+    secrets: new NodeMachineSecrets(),
   };
-  return { dependencies: createUseCases(adapters, env.AUTH_RATE_LIMIT_MAX, env.INGEST_RATE_LIMIT_MAX), close };
+  const pairing: PairingLimits = {
+    pairRateLimitMax: env.PAIR_RATE_LIMIT_MAX,
+    invalidAttemptsMax: env.PAIR_INVALID_ATTEMPTS_MAX,
+    invalidAttemptsWindowMs: env.PAIR_INVALID_ATTEMPTS_WINDOW_SECONDS * 1000,
+    codesPerHostPerHour: env.PAIR_CODES_PER_HOST_PER_HOUR,
+  };
+  return { dependencies: createUseCases(adapters, env.AUTH_RATE_LIMIT_MAX, env.INGEST_RATE_LIMIT_MAX, pairing), close };
 }

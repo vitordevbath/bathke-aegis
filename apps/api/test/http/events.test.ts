@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { ApiErrorResponse, EventResponse, EventSummary, HostResponse, IngestEventsResponse, PaginatedResponse } from '@aegis/contracts';
-import { bearer, buildTestApp, signedInUser } from '../support/test-app.js';
+import { bearer, buildTestApp, pairHost, signedInUser } from '../support/test-app.js';
 import type { InMemoryStore } from '../support/in-memory-persistence.js';
 
 let app: FastifyInstance;
@@ -54,14 +54,31 @@ async function tenant() {
   const workspaceId = session.workspaces[0]?.id ?? '';
   const base = `/workspaces/${workspaceId}`;
   const call = (method: 'GET' | 'POST' | 'PUT' | 'DELETE', url: string, payload?: object) => app.inject({ method, url, headers: bearer(token), payload });
-  const host = async (displayName = `host-${Math.random().toString(36).slice(2, 8)}`) => (await call('POST', `${base}/hosts`, { displayName })).json<HostResponse>();
+  const own: string[] = [];
+  const host = async (displayName = `host-${Math.random().toString(36).slice(2, 8)}`) => {
+    const created = (await call('POST', `${base}/hosts`, { displayName })).json<HostResponse>();
+    own.push(created.id);
+    return created;
+  };
+  const tokens = new Map<string, string>();
+  /** The machine credential of one of this tenant's hosts, paired on first use. */
+  const machineToken = async (hostId: string) => {
+    const known = tokens.get(hostId);
+    if (known) return known;
+    const { token: paired } = await pairHost(app, token, workspaceId, hostId);
+    tokens.set(hostId, paired);
+    return paired;
+  };
   return {
     workspaceId,
     base,
     events: `${base}/events`,
     call,
     host,
-    ingest: (hostId: string, events: unknown, url = `${base}/hosts/${hostId}/events/ingest`) => call('POST', url, { events }),
+    machineToken,
+    /** Sent by the machine of `hostId` or, for a host that is not this tenant's, by this tenant's first machine. */
+    ingest: async (hostId: string, events: unknown, url = `${base}/hosts/${hostId}/events/ingest`) =>
+      app.inject({ method: 'POST', url, headers: bearer(await machineToken(own.includes(hostId) ? hostId : (own[0] ?? ''))), payload: { events } }),
     list: (query = '', url = `${base}/events`) => call('GET', `${url}${query}`),
   };
 }
@@ -178,7 +195,7 @@ describe('events: ingestion', () => {
     const huge = await app.inject({
       method: 'POST',
       url: `${a.base}/hosts/${host.id}/events/ingest`,
-      headers: { ...bearer((await signedInUser(app)).token), 'content-type': 'application/json' },
+      headers: { ...bearer(await a.machineToken(host.id)), 'content-type': 'application/json' },
       payload: JSON.stringify({ events: [processStarted()], padding: 'x'.repeat(1024 * 1024) }),
     });
     expect(huge.statusCode).toBe(413);
@@ -192,7 +209,7 @@ describe('events: ingestion', () => {
     expect((await a.ingest(host.id, [processStarted({ occurredAt: '2025-01-01T00:00:00Z' })])).statusCode).toBe(200);
   });
 
-  it('never runs rules, raises alerts, creates incidents or marks the host online', async () => {
+  it('never runs rules, raises alerts, creates incidents or marks the paired host online', async () => {
     const a = await tenant();
     const host = await a.host();
     await a.call('POST', `${a.base}/detection-rules`, {
@@ -205,7 +222,7 @@ describe('events: ingestion', () => {
     const incidentsBefore = store.incidents.size;
     await a.ingest(host.id, [processStarted()]);
     expect(store.incidents.size).toBe(incidentsBefore);
-    expect((await a.call('GET', `${a.base}/hosts/${host.id}`)).json<HostResponse>()).toMatchObject({ connectionState: 'UNPAIRED', lastSeenAt: null });
+    expect((await a.call('GET', `${a.base}/hosts/${host.id}`)).json<HostResponse>()).toMatchObject({ connectionState: 'PAIRED', lastSeenAt: null });
     expect((await a.call('GET', `${a.base}/alerts`)).statusCode).toBe(404);
   });
 });
@@ -318,7 +335,7 @@ describe('events: host protection', () => {
 });
 
 describe('events: multi-tenant isolation (A vs B)', () => {
-  it('A cannot ingest into B hosts, list B events or read them — and learns nothing', async () => {
+  it('a machine of A cannot ingest into B hosts; A cannot list or read B events — and learns nothing', async () => {
     const a = await tenant();
     const b = await tenant();
     const [hostA, hostB] = [await a.host('host-a'), await b.host('host-b')];
@@ -328,7 +345,7 @@ describe('events: multi-tenant isolation (A vs B)', () => {
     const eventsBefore = store.events.size;
 
     for (const response of [
-      // B's workspace in the URL, A's token.
+      // B's workspace in the URL, A's credentials.
       await a.ingest(hostB.id, [processStarted()], `${b.base}/hosts/${hostB.id}/events/ingest`),
       await a.list('', b.events),
       await a.call('GET', `${b.events}/${eventB?.id}`),
