@@ -6,7 +6,7 @@
 // configuration or credentials: the generated test values live in a temporary
 // env file (mode 600) that is deleted on exit. They are NOT production secrets.
 import { spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -79,10 +79,22 @@ function sql(query) {
   return compose(['exec', '-T', 'mysql', 'sh', '-c', script, 'sh', query]).stdout;
 }
 
-const http = async (path) => {
-  const response = await fetch(BASE + path, { redirect: 'manual' });
+const http = async (path, init) => {
+  const response = await fetch(BASE + path, { redirect: 'manual', ...init });
   return { status: response.status, headers: response.headers, text: await response.text() };
 };
+
+/** A valid, obviously artificial CPF: the 900000000 base plus random digits, completed with mod-11 check digits. */
+const syntheticCpf = () => {
+  const base = Array.from(String(900_000_000 + (randomBytes(3).readUIntBE(0, 3) % 90_000_000)), Number);
+  const digit = (digits) => {
+    const remainder = (digits.reduce((total, value, index) => total + value * (digits.length + 1 - index), 0) * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+  const first = digit(base);
+  return [...base, first, digit([...base, first])].join('');
+};
+
 
 async function check(name, fn) {
   try {
@@ -160,7 +172,7 @@ try {
     const applied = Number(sql('SELECT COUNT(*) FROM __drizzle_migrations'));
     if (applied !== MIGRATIONS) fail(`${applied} migrations recorded, journal has ${MIGRATIONS}`);
     const tables = sql('SHOW TABLES').split('\n');
-    for (const table of ['users', 'workspaces', 'hosts', 'detection_rules', 'incidents', 'investigations', 'investigation_incidents', 'events']) {
+    for (const table of ['users', 'workspaces', 'hosts', 'detection_rules', 'incidents', 'investigations', 'investigation_incidents', 'events', 'pairing_challenges', 'machine_credentials']) {
       if (!tables.includes(table)) fail(`table ${table} missing`);
     }
     return `migrate exited 0; ${applied}/${MIGRATIONS} migrations (0000 → ${String(MIGRATIONS - 1).padStart(4, '0')}) on an empty database`;
@@ -205,6 +217,37 @@ try {
       if (response.status !== 200 || !response.text.includes('<div id="root">')) fail(`${path} → ${response.status}, expected the SPA`);
     }
     return '/api/* → api (prefix stripped), /* → web (SPA fallback)';
+  });
+
+  await check('machine pairing and ingestion through nginx', async () => {
+    const json = (method, path, body, token) =>
+      http(path, { method, headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    const expectStatus = (name, response, status) => {
+      // Status only: these bodies carry credentials.
+      if (response.status !== status) fail(`${name} → HTTP ${response.status}, expected ${status}`);
+      return JSON.parse(response.text);
+    };
+
+    const email = `infra-${randomBytes(4).toString('hex')}@example.test`;
+    const password = `Aa1!${randomBytes(12).toString('hex')}`;
+    expectStatus('register', await json('POST', '/api/auth/register', { name: 'Infra Test', email, cpf: syntheticCpf(), password, passwordConfirmation: password }), 201);
+    const session = expectStatus('login', await json('POST', '/api/auth/login', { email, password }), 200);
+    const base = `/api/workspaces/${session.workspaces[0].id}`;
+    const host = expectStatus('create host', await json('POST', `${base}/hosts`, { displayName: 'infra-host' }, session.token), 201);
+    const { code } = expectStatus('request code', await json('POST', `${base}/hosts/${host.id}/pairing-codes`, undefined, session.token), 201);
+
+    const machine = expectStatus('pair', await json('POST', '/api/agent/pair', { code }), 201);
+    expectStatus('reused code', await json('POST', '/api/agent/pair', { code }), 401);
+
+    const events = [{ schemaVersion: 1, sourceEventId: randomUUID(), occurredAt: new Date(Date.now() - 60_000).toISOString(), category: 'SYSTEM', type: 'SYSTEM_BOOT', data: { system: { eventType: 'BOOT' } } }];
+    const ingestUrl = `${base}/hosts/${host.id}/events/ingest`;
+    expectStatus('ingest with user session', await json('POST', ingestUrl, { events }, session.token), 401);
+    const ingested = expectStatus('ingest with machine credential', await json('POST', ingestUrl, { events }, machine.token), 200);
+    if (ingested.inserted !== 1) fail(`ingest inserted ${ingested.inserted}`);
+
+    expectStatus('revoke', await json('DELETE', `${base}/hosts/${host.id}/credentials/${machine.credentialId}`, undefined, session.token), 204);
+    expectStatus('ingest after revocation', await json('POST', ingestUrl, { events }, machine.token), 401);
+    return 'code → credential → ingest → revoke over the real stack; reused code, user session and revoked credential refused';
   });
 
   await check('security headers and CSP', async () => {
