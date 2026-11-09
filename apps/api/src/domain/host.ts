@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { Entity, normalizeHostDescription, normalizeHostDisplayName } from '@aegis/domain';
 
 /**
- * `UNPAIRED` is the only state reachable today. `ONLINE`/`OFFLINE` are reserved
- * for the future Aegis Collector heartbeat and are never set by users.
+ * `PAIRED` means the host has an active machine credential and says nothing
+ * about connectivity. `ONLINE`/`OFFLINE` are reserved for a future Collector
+ * heartbeat and are never set here or by users.
  */
-export type HostConnectionState = 'UNPAIRED' | 'ONLINE' | 'OFFLINE';
+export type HostConnectionState = 'UNPAIRED' | 'ONLINE' | 'OFFLINE' | 'PAIRED';
 
 export interface HostSnapshot {
   readonly id: string;
@@ -23,7 +24,7 @@ export interface HostSnapshot {
   readonly updatedAt: Date;
 }
 
-/** Facts reported by a Collector, never by the user. All null until pairing exists. */
+/** Facts about the host's Collector, never set by the user. `agentId` is the active credential's public id. */
 interface CollectorFacts {
   readonly agentId: string | null;
   readonly hostname: string | null;
@@ -47,14 +48,14 @@ const UNPAIRED: CollectorFacts = {
 /**
  * A machine registered in a workspace, which may later be paired with an Aegis
  * Collector. Users manage only the administrative fields (`displayName`,
- * `description`); the collector facts have no setters — they will change only
- * through a future pairing/heartbeat flow.
+ * `description`); the collector facts have no setters — they change only
+ * through the pairing flow (`markPaired`/`markUnpaired`) or a future heartbeat.
  */
 export class Host extends Entity<string> {
   readonly #workspaceId: string;
   #displayName: string;
   #description: string | null;
-  readonly #collector: CollectorFacts;
+  #collector: CollectorFacts;
   readonly #createdAt: Date;
   #updatedAt: Date;
 
@@ -118,6 +119,10 @@ export class Host extends Entity<string> {
     return this.#collector.connectionState;
   }
 
+  get agentId(): string | null {
+    return this.#collector.agentId;
+  }
+
   get isPaired(): boolean {
     return this.#collector.agentId !== null;
   }
@@ -134,6 +139,19 @@ export class Host extends Entity<string> {
   updateDetails(input: { displayName: string; description?: string | null }, now: Date = new Date()): void {
     this.#displayName = normalizeHostDisplayName(input.displayName);
     this.#description = normalizeHostDescription(input.description);
+    this.#updatedAt = now;
+  }
+
+  /** Binds the host to its active credential. A heartbeat-owned state, when one exists, is left alone. */
+  markPaired(credentialId: string, now: Date = new Date()): void {
+    const connectionState = this.#collector.connectionState === 'UNPAIRED' ? 'PAIRED' : this.#collector.connectionState;
+    this.#collector = { ...this.#collector, agentId: credentialId, connectionState };
+    this.#updatedAt = now;
+  }
+
+  /** The host no longer has an active credential. Facts the Collector already reported stay as history. */
+  markUnpaired(now: Date = new Date()): void {
+    this.#collector = { ...this.#collector, agentId: null, connectionState: 'UNPAIRED' };
     this.#updatedAt = now;
   }
 
