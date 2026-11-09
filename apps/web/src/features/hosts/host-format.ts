@@ -4,6 +4,7 @@ export const CONNECTION_STATE_LABELS: Record<HostConnectionState, string> = {
   UNPAIRED: 'Não pareado',
   ONLINE: 'Online',
   OFFLINE: 'Offline',
+  PAIRED: 'Pareado',
 };
 
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'short' });

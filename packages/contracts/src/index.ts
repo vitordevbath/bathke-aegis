@@ -52,6 +52,20 @@ export {
   type HostResponse,
 } from './hosts.js';
 export {
+  MACHINE_SCOPES,
+  MACHINE_SCOPE_LABELS,
+  MACHINE_CREDENTIAL_STATUSES,
+  PairAgentRequestSchema,
+  type MachineScope,
+  type MachineCredentialStatus,
+  type PairAgentRequest,
+  type PairAgentResponse,
+  type PairingCodeResponse,
+  type MachineCredentialResponse,
+  type HostPairingResponse,
+  type RotateCredentialResponse,
+} from './machine-identity.js';
+export {
   DetectionRuleRequestSchema,
   CreateDetectionRuleRequestSchema,
   UpdateDetectionRuleRequestSchema,
