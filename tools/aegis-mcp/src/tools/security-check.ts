@@ -13,6 +13,7 @@ const CONTENT_RULES: readonly { rule: string; pattern: RegExp }[] = [
   { rule: 'aws-access-key-id', pattern: /\bAKIA[0-9A-Z]{16}\b/ },
   { rule: 'github-token', pattern: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/ },
   { rule: 'anthropic-or-openai-key', pattern: /\bsk-(?:ant-)?[A-Za-z0-9_-]{32,}\b/ },
+  { rule: 'aegis-machine-secret', pattern: /\baegis_(?:agent_[0-9a-f]{32}\.|pair_)[A-Za-z0-9_-]{43}/ },
 ];
 
 const REQUIRED_GITIGNORE_ENTRIES = ['.env', '.env.*', '!.env.example', 'secrets/', 'credentials/', '*.pem', '*.key'];

@@ -17,6 +17,13 @@ describe('redactSecrets', () => {
     expect(redactSecrets(`Authorization: Bearer abcdefghijkl ${key}`)).toBe('Authorization: Bearer [REDACTED] [REDACTED PRIVATE KEY]');
   });
 
+  it('redacts Aegis machine tokens and pairing codes, keeping the public prefix out too', () => {
+    // Assembled at runtime so the fixture itself does not trip aegis_security_check.
+    const token = `${['aegis', 'agent', 'a'.repeat(32)].join('_')}.${'s'.repeat(43)}`;
+    const code = ['aegis', 'pair', 'c'.repeat(43)].join('_');
+    expect(redactSecrets(`token ${token} code ${code}`)).toBe('token [REDACTED] code [REDACTED]');
+  });
+
   it('leaves ordinary output untouched', () => {
     expect(redactSecrets('Test Files  2 passed (2)')).toBe('Test Files  2 passed (2)');
   });

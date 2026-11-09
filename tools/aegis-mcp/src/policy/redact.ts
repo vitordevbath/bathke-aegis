@@ -4,6 +4,7 @@ const CONNECTION_STRING_CREDENTIALS = /\b([a-z][a-z0-9+.-]*:\/\/)([^:/@\s]+):([^
 const PRIVATE_KEY_BLOCK = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g;
 const BEARER = /\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/g;
 const GITHUB_TOKEN = /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g;
+const AEGIS_MACHINE_SECRET = /\baegis_(?:agent_[0-9a-f]{32}\.|pair_)[A-Za-z0-9_-]{43}/g;
 
 export function redactSecrets(text: string): string {
   return text
@@ -11,5 +12,6 @@ export function redactSecrets(text: string): string {
     .replace(CONNECTION_STRING_CREDENTIALS, '$1$2:[REDACTED]@')
     .replace(SECRET_ASSIGNMENT, '$1$2[REDACTED]')
     .replace(BEARER, '$1 [REDACTED]')
-    .replace(GITHUB_TOKEN, '[REDACTED]');
+    .replace(GITHUB_TOKEN, '[REDACTED]')
+    .replace(AEGIS_MACHINE_SECRET, '[REDACTED]');
 }
