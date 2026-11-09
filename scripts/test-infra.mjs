@@ -225,7 +225,7 @@ try {
     const expectStatus = (name, response, status) => {
       // Status only: these bodies carry credentials.
       if (response.status !== status) fail(`${name} → HTTP ${response.status}, expected ${status}`);
-      return JSON.parse(response.text);
+      return response.text ? JSON.parse(response.text) : null;
     };
 
     const email = `infra-${randomBytes(4).toString('hex')}@example.test`;
