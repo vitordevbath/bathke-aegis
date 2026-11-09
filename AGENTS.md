@@ -15,9 +15,9 @@ Quality over quantity: no fake features, no fake architecture, no TODO marked as
 
 | | CURRENT | PLANNED |
 | --- | --- | --- |
-| Web | auth pages, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes` and `/investigacoes` (list/create/detail/edit), `/eventos` (read-only list/detail); AuthContext, WorkspaceContext | timeline, graph |
-| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts, Detection Rules, Incidents and Investigations CRUD per workspace (rules are configuration only; incidents are manual; investigations group incidents and close only with a human conclusion); Event Contract v1 ingestion (user-auth lab route, idempotent batches), event list/detail | Collector credentials, alerts, detection and correlation engines |
-| Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents`, `events` (append-only) (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
+| Web | auth pages, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes` and `/investigacoes` (list/create/detail/edit), `/eventos` (read-only list/detail), Collector pairing panel on the host detail; AuthContext, WorkspaceContext | timeline, graph |
+| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts, Detection Rules, Incidents and Investigations CRUD per workspace (rules are configuration only; incidents are manual; investigations group incidents and close only with a human conclusion); Event Contract v1 ingestion (machine credentials, idempotent batches), event list/detail; Collector pairing, machine credentials, rotation and revocation | alerts, detection and correlation engines |
+| Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents`, `events` (append-only), `pairing_challenges`, `machine_credentials` (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
 | Tooling | Aegis MCP, CI (typecheck/build/test + `npm run test:infra` on the real Compose stack) | rubric engine expansion |
 | Native | READMEs only | collector, eBPF, SPARK, NASM |
 
@@ -58,6 +58,8 @@ docs/               architecture, roadmap, rubric, security, decisions
 - Never print, log or commit tokens, passwords, API keys, private keys or credentialed connection strings.
 - Validate all external input with Zod at the presentation boundary.
 - Authorization is enforced server-side; the frontend is never trusted.
+- Human and machine identity never substitute each other: user routes take a user JWT, machine routes take a machine credential with an explicit scope (ADR-037, ADR-040).
+- Pairing codes and machine tokens exist in plain form only in the single response that delivers them: stored as hashes, never logged, never in browser storage.
 
 ## Protected Resources
 

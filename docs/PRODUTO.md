@@ -35,9 +35,9 @@ TELEMETRIA → EVENTO → REGRA → ALERTA → INCIDENTE → INVESTIGAÇÃO
 
 | Conceito | Definição |
 | --- | --- |
-| Host | Máquina cadastrada em um workspace. Hoje é cadastro manual (nome e descrição); hostname, SO, arquitetura, estado de conexão e último contato serão informados pelo Aegis Collector após o pareamento (PLANNED). Sem Collector, o host é "Não pareado". |
+| Host | Máquina cadastrada em um workspace. Hoje é cadastro manual (nome e descrição), e um OWNER pode autorizar um Collector por código temporário (CURRENT, BF 07). Hostname, SO, arquitetura, online/offline e último contato serão informados pelo Aegis Collector (PLANNED). "Pareado" significa que existe uma credencial ativa; não significa conectado. |
 | Telemetria | Dados técnicos produzidos pelo host/collector |
-| Evento | Fato técnico imutável observado em um host autorizado, no formato OS-independente do Event Contract v1 (processo, rede, sistema). Somente metadados. CURRENT desde o BF 06 via ingestão de laboratório; Collector PLANNED ([EVENTOS.md](EVENTOS.md)) |
+| Evento | Fato técnico imutável observado em um host autorizado, no formato OS-independente do Event Contract v1 (processo, rede, sistema). Somente metadados. CURRENT desde o BF 06; a ingestão exige credencial de máquina desde o BF 07; Collector PLANNED ([EVENTOS.md](EVENTOS.md)) |
 | Regra | Condição declarativa (schema v1: campo da allowlist, operador fechado, valor tipado) para detectar comportamento relevante. Pertence a um workspace e vale para todos os hosts ou para hosts selecionados. Hoje é apenas configuração: o motor de detecção ainda não existe. |
 | Alerta | Resultado de uma regra acionada |
 | Incidente | Caso de segurança que merece acompanhamento humano, no workspace, envolvendo um ou mais hosts e, opcionalmente, regras relacionadas. Tem severidade e ciclo de vida (Aberto → Em investigação → Resolvido → Encerrado, com reabertura antes do encerramento). Hoje é **registrado manualmente** (origem "Manual"); no futuro também agrupará eventos/alertas via correlação (PLANNED). |
@@ -131,22 +131,23 @@ instalar o Collector e sem acessar máquinas reais** (ADR-012).
 O workspace de demonstração **jamais** revela dados de hosts reais do desenvolvedor:
 os dados demo são gerados/curados, nunca copiados de telemetria real.
 
-### Pareamento temporário de laboratório
+### Pareamento de hosts
 
-Modo futuro para demonstração ao vivo (ADR-013):
+O mecanismo está **implementado** (BF 07, ADR-037 a ADR-042); o Collector que o usará continua
+**planejado**.
 
 ```
-Usuário autenticado
-  → Adicionar host
-  → Aegis gera código/token temporário
-  → Collector é iniciado em Linux / VM / WSL autorizado
-  → Collector usa o código
-  → Host aparece no painel
-  → Telemetria começa a chegar
+Usuário OWNER
+  → Abre o host e escolhe "Parear Collector"
+  → Aegis gera um código temporário, exibido uma única vez        (CURRENT)
+  → Collector troca o código por uma credencial exclusiva do host  (CURRENT: API; agente PLANNED)
+  → Host aparece como "Pareado"                                    (CURRENT)
+  → Telemetria começa a chegar                                     (PLANNED)
 ```
 
-Requisitos: token temporário, revogável, de escopo limitado (um workspace, apenas
-ingestão) e com registro de auditoria.
+A credencial pertence a um único host, só permite enviar eventos dele e pode ser rotacionada ou
+revogada pelo painel. "Pareado", "online", "última utilização da credencial" e "último evento
+recebido" são conceitos diferentes, e a interface não os confunde.
 
 ## IA: componente auxiliar
 

@@ -14,7 +14,8 @@ configurável e removível.
 | Tokens JWT | roubo, forja | CURRENT: HS256 com segredo validado no startup, `alg` fixo, `iss`/`aud`/`exp` verificados, TTL 1 h; token em localStorage mitigado por CSP (ADR-017). PLANNED: revogação |
 | Banco MySQL | acesso direto | CURRENT: porta 3306 não publicada; rede `aegis_data` interna |
 | API | exposição direta | CURRENT: somente Nginx publica porta |
-| Telemetria de hosts | coleta excessiva/privada | PLANNED: allowlist de eventos, sem payload |
+| Telemetria de hosts | coleta excessiva/privada | CURRENT: Event Contract v1 (só metadados), propriedades desconhecidas rejeitadas. PLANNED: Collector |
+| Credenciais de máquina | roubo, reuso, escalada, troca de host | CURRENT: segredos de 256 bits só como hash, código de uso único e curta duração, escopo mínimo por host, rotação e revogação imediatas, limites por IP e por host |
 | Segredos no repositório | commit acidental | CURRENT: `.gitignore`, `.dockerignore`, MCP secret guard |
 | Agentes de IA | leitura/exfiltração de segredos | CURRENT: AGENTS.md + MCP restrito |
 
@@ -80,12 +81,27 @@ configurável e removível.
 - **Sem dados sensíveis por construção:** o Event Contract v1 só tem metadados. Linha de comando, argumentos, ambiente, senhas, tokens, segredos, teclas, área de transferência, conteúdo de arquivos ou mensagens e payload de rede não existem no contrato; propriedades desconhecidas em qualquer nível são rejeitadas (400), nunca descartadas em silêncio. Persiste-se só a representação validada.
 - **Imutável:** sem `PUT`/`DELETE` de evento; host com eventos não pode ser excluído (409, FK `RESTRICT`), checado só depois de confirmar que o host é do workspace (host alheio continua 404) — ADR-036.
 - **Tenant:** `workspaceId` e `hostId` vêm da rota autenticada, nunca do payload; host de outro workspace e inexistente recebem o mesmo 404; leitura de evento alheio é 404.
-- **Ingestão USER-AUTH temporária** (ADR-035): exige OWNER no workspace; não é autenticação de Collector e não marca o host como `ONLINE`. Limites: 1–100 eventos por lote, corpo ≤ 1 MiB (413), `INGEST_RATE_LIMIT_MAX` lotes/min por IP (separado do limite de login), `occurredAt` no máximo 5 min no futuro.
+- **Ingestão por credencial de máquina** (ADR-042): JWT de usuário é recusado; não marca o host como `ONLINE`. Limites: 1–100 eventos por lote, corpo ≤ 1 MiB (413), `INGEST_RATE_LIMIT_MAX` lotes/min por IP (separado do limite de login), `occurredAt` no máximo 5 min no futuro.
 - **Idempotência sem sobrescrita:** reuso de `sourceEventId` com conteúdo diferente → 409 `EVENT_ID_CONFLICT` e rollback; o evento original nunca é alterado (ADR-034).
 - **Logs:** a ingestão registra só contagens e duração — nunca payload, endereços, dados de processo ou `sourceEventId`.
 
+### Identidade de máquina (CURRENT, BF 07)
+
+- **Separação:** JWT humano e credencial de máquina têm formatos incompatíveis e contextos distintos. Credencial de máquina recebe 401 em toda rota humana (coberto por teste que percorre as rotas); JWT recebe 401 na ingestão (ADR-037).
+- **Segredos:** código e credencial têm 256 bits (`randomBytes`) e são gravados só como SHA-256, comparados em tempo constante. Aparecem uma única vez, em resposta `no-store`; consultas administrativas têm allowlist de campos e nunca devolvem segredo nem hash (ADR-038, ADR-039).
+- **Uso único:** transação com lock do host, releitura `FOR UPDATE`, `UPDATE` condicional e índices `UNIQUE` no banco. Dez requisições simultâneas em MySQL real criam exatamente uma credencial.
+- **Escopo:** somente `events:ingest`, verificado no caso de uso. A máquina não lê dados nem administra recursos (ADR-040).
+- **Isolamento:** workspace e host vêm do challenge ou da credencial, nunca do cliente. URL divergente responde o mesmo 404 de host inexistente; FK composta impede vínculo entre host e workspace diferentes no banco.
+- **Erros genéricos:** todo código recusado recebe o mesmo 401; toda credencial inválida recebe o mesmo 401 do JWT inválido. Id desconhecido custa uma comparação, e revogação só é distinguível por quem tem o segredo real.
+- **Abuso:** `PAIR_RATE_LIMIT_MAX` por IP/min; `PAIR_INVALID_ATTEMPTS_MAX` códigos recusados por IP em janela de `PAIR_INVALID_ATTEMPTS_WINDOW_SECONDS`; `PAIR_CODES_PER_HOST_PER_HOUR` por host; um código aberto por host. A ingestão mantém `INGEST_RATE_LIMIT_MAX`. Todos expiram: não há bloqueio permanente.
+- **Auditoria:** linhas `audit` no log estruturado para código solicitado, pareamento concluído ou recusado (com motivo, inclusive expirado), rotação, revogação e autenticação de máquina inválida, com ids internos e horário. Nunca contêm código, token, segredo, hash ou cabeçalho `Authorization` (coberto por teste que captura o log). Não há tabela de auditoria.
+- **Frontend:** código e credencial ficam só no estado do componente, nunca em `localStorage`; as mutações usam `gcTime: 0`, para não permanecerem no cache do TanStack Query, e o valor some ao sair da tela.
+- **Aegis MCP:** `aegis_security_check` e a redação de saída reconhecem o formato de tokens e códigos do Aegis.
+
 ### Limitações conhecidas
 
+- Uma requisição de máquina que já passou da autenticação quando a revogação é confirmada ainda termina (ADR-041).
+- Os contadores de pareamento por IP ficam em memória: zeram ao reiniciar a API, e quem compartilha IP com um atacante pode ter o pareamento pausado até a janela expirar.
 - Logout é local; tokens emitidos continuam válidos até expirar (sem revogação).
 - Troca de senha não invalida sessões existentes.
 - Rate limit em memória zera quando a API reinicia e não é compartilhado entre instâncias.
@@ -139,10 +155,9 @@ O projeto **não** implementa e não aceitará contribuições de:
 - execução remota não autorizada;
 - criptografia própria.
 
-## Workspace de demonstração e pareamento (planejado)
+## Workspace de demonstração (planejado)
 
 - **AEGIS DEMO:** somente dados gerados/curados; nenhuma telemetria real; acesso de visitantes preferencialmente somente leitura (ADR-012).
-- **Pareamento:** token temporário com expiração curta, revogável, escopo limitado à ingestão de um workspace, armazenado apenas como hash e com auditoria de uso (ADR-013).
 
 ## Limites de resposta e IA
 

@@ -6,8 +6,8 @@
 | 01 | Academic Core | Tratamento de erros, paginação genérica, base de repositórios/use cases | DONE — erros, repositórios, use cases, UnitOfWork (BF 01); paginação genérica (BF 02) |
 | 02 | Authentication & User Management | Cadastro, login, JWT, Argon2, validação de email/CPF/senha, edição do próprio usuário | DONE (BF 01) |
 | 03 | CRUD Domain | Workspace + Membership (ADR-009); Hosts, Detection Rules, Incidents, Investigations por workspace, com relações e paginação | DONE — Workspace pessoal + Membership OWNER (BF 01); Hosts CRUD com paginação e isolamento por workspace (BF 02); Detection Rules CRUD com DSL declarativa e targets por host (BF 03); Incidents CRUD manual com ciclo de vida e relações N:N com hosts e regras (BF 04); Investigations CRUD com relação N:N com incidentes, conclusão obrigatória para encerrar e estado final somente leitura (BF 05). Os quatro CRUDs acadêmicos estão concluídos; novos CRUDs não são planejados |
-| 04 | Event Model | Schema de eventos normalizados, ingestão via API | DONE — Event Contract v1 (6 tipos, 3 categorias, OS-independente), Event Store imutável e idempotente, ingestão em lote com autenticação de usuário (laboratório) e navegador de eventos (BF 06). Collector e credenciais de máquina: BF 07 |
-| 05 | Aegis Collector | Agente Rust: buffering, batching, envio autenticado | TODO (Linux) |
+| 04 | Event Model | Schema de eventos normalizados, ingestão via API | DONE — Event Contract v1 (6 tipos, 3 categorias, OS-independente), Event Store imutável e idempotente, ingestão em lote com autenticação de usuário (laboratório) e navegador de eventos (BF 06). Credenciais de máquina e pareamento: BF 07 (substituiu a ingestão com autenticação de usuário). Collector: fase 05 |
+| 05 | Aegis Collector | Agente Rust: buffering, batching, envio autenticado | TODO (Linux) — identidade pronta: pareamento por código, credenciais de máquina, rotação, revogação e ingestão autenticada (BF 07); o agente em si não existe |
 | 06 | eBPF Telemetry | Probes Aya: exec/exit, parent/child, arquivo, rede (sem payload) | TODO (Linux) |
 | 07 | Detection Engine | Avaliação de regras sobre eventos | TODO — regras já são cadastradas e validadas (schema v1, BF 03), mas não executadas |
 | 08 | Correlation & Incidents | Agrupamento de alertas em incidentes, timeline | TODO — incidentes já existem como registro manual (origem `MANUAL`, BF 04); correlação automática, alertas e timeline não |
@@ -16,7 +16,7 @@
 | 11 | AI Assistance | Resumo/triagem de incidentes via API externa | TODO |
 | 12 | Observability | Métricas, logs estruturados, tracing | TODO |
 | 13 | Hardening | TLS, rate limiting, headers, revisão de segurança | TODO |
-| 14 | Presentation / Demo | Workspace AEGIS DEMO, pareamento temporário de laboratório, roteiro mapeado à rubrica | TODO |
+| 14 | Presentation / Demo | Workspace AEGIS DEMO, demonstração de pareamento em laboratório, roteiro mapeado à rubrica | TODO — o mecanismo de pareamento já existe (BF 07) |
 
 ## Pendência acadêmica identificada no BF 05.6
 

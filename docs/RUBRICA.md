@@ -141,12 +141,13 @@ Nenhum. A confirmação literal contra a rubrica primária depende de uma cópia
 
 #### AEGIS EXPERIMENTAL — PLANNED, fora do PASS acadêmico atual
 
-O Event Contract v1, o Event Store e a ingestão de laboratório existem desde o BF 06 (ver [EVENTOS.md](EVENTOS.md)); deles, só o registro de definições e a suíte de contrato do repositório entram como evidência acadêmica (SOLID O e L). Collector, pareamento, eBPF/Aya, Detection Engine, Alerts e correlação automática, IA, Ada/SPARK e Assembly continuam planejados e não contam como evidência.
+O Event Contract v1, o Event Store e a ingestão de laboratório existem desde o BF 06 (ver [EVENTOS.md](EVENTOS.md)); deles, só o registro de definições e a suíte de contrato do repositório entram como evidência acadêmica (SOLID O e L). O pareamento e as credenciais de máquina existem desde o BF 07 e também não contam como evidência acadêmica. Collector, eBPF/Aya, Detection Engine, Alerts e correlação automática, IA, Ada/SPARK e Assembly continuam planejados e não contam como evidência.
 
 ```
 CORE ACADÊMICO (PASS)                 AEGIS TELEMETRY
 ├── Auth, JWT, Argon2id               ├── Event Contract v1 + ingestão (CURRENT, BF 06)
-├── User (self-service)               ├── Pareamento · Collector (Rust) · eBPF (PLANNED)
+├── User (self-service)               ├── Pareamento e credenciais de máquina (CURRENT, BF 07)
+                                      ├── Collector (Rust) · eBPF (PLANNED)
 ├── 4 CRUDs + paginação + relações    ├── Detection Engine · Alerts
 ├── MySQL + migrations                ├── Correlation · incidentes automáticos
 ├── Docker · Nginx · isolamento       ├── IA
