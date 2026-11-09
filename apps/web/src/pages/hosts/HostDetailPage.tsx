@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ConfirmAction } from '../../components/ConfirmAction';
+import { HostPairingPanel } from '../../features/hosts/HostPairingPanel';
 import { HostStatusBadge } from '../../features/hosts/HostStatusBadge';
 import { formatDateTime } from '../../features/hosts/host-format';
 import { useDeleteHost, useHost } from '../../features/hosts/hosts-api';
@@ -58,7 +59,7 @@ export function HostDetailPage() {
         <h2 id="collector-title" className="section-title">
           Collector e telemetria
         </h2>
-        <p className="muted small">Estes dados serão informados pelo Aegis Collector após o pareamento. Não podem ser editados.</p>
+        <p className="muted small">Estes dados serão informados pelo Aegis Collector quando ele existir. Não podem ser editados.</p>
         <dl className="facts">
           <div>
             <dt>Collector</dt>
@@ -82,6 +83,8 @@ export function HostDetailPage() {
           </div>
         </dl>
       </section>
+
+      {activeWorkspace && <HostPairingPanel workspaceId={activeWorkspace.id} hostId={data.id} canManage={activeWorkspace.role === 'OWNER'} />}
 
       <section className="surface" aria-labelledby="record-title">
         <h2 id="record-title" className="section-title">
@@ -110,7 +113,7 @@ export function HostDetailPage() {
         <ConfirmAction
           triggerLabel="Excluir"
           title="Excluir este host?"
-          description="O cadastro será removido deste workspace. Nesta etapa ainda não há telemetria associada a ele."
+          description="O cadastro será removido deste workspace. Hosts com telemetria, regras, incidentes ou credenciais não podem ser excluídos."
           confirmLabel="Excluir host"
           pendingLabel="Excluindo…"
           onConfirm={async () => {
@@ -121,7 +124,7 @@ export function HostDetailPage() {
       </div>
       {deleteHost.isError && (
         <p className="notice notice--error" role="alert">
-          {/* 409: the host is targeted by rules or involved in incidents — the API message says what to do. */}
+          {/* 409: rules, incidents, events or credentials refer to the host — the API message says what to do. */}
           {deleteHost.error instanceof ApiError && deleteHost.error.status === 409
             ? deleteHost.error.message
             : 'Não foi possível excluir o host agora. Tente novamente.'}
