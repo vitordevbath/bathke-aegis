@@ -89,7 +89,7 @@ export function HostsPage() {
       {list.data && total === 0 && !q && (
         <EmptyState
           title="Nenhum host cadastrado neste workspace."
-          description="Adicione uma máquina para preparar o monitoramento pelo Aegis. O Collector será pareado em uma etapa futura."
+          description="Adicione uma máquina para preparar o monitoramento pelo Aegis. O pareamento do Collector é feito na página de cada host."
           action={
             <Link to="/hosts/novo" className="button button--primary">
               Adicionar host

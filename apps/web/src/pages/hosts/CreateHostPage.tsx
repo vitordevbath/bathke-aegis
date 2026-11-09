@@ -13,7 +13,7 @@ export function CreateHostPage() {
       <header className="page-header">
         <p className="eyebrow">{activeWorkspace?.name}</p>
         <h1 className="title">Adicionar host</h1>
-        <p className="muted small">Cadastre a máquina agora; o Collector será pareado em uma etapa futura.</p>
+        <p className="muted small">Cadastre a máquina agora; depois, autorize o Collector na página do host.</p>
       </header>
       <HostForm
         submitLabel="Adicionar host"

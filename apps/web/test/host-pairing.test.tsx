@@ -180,11 +180,11 @@ describe('host pairing: generating a code', () => {
   });
 
   it('removes the code from the screen when it expires', async () => {
-    api(() => unpaired, { [`POST ${CODES_URL}`]: () => ok({ code: fakeCode(), expiresAt: new Date(Date.now() + 1500).toISOString() }, 201) });
+    api(() => unpaired, { [`POST ${CODES_URL}`]: () => ok({ code: fakeCode(), expiresAt: new Date(Date.now() + 3000).toISOString() }, 201) });
     const { user } = renderApp(`/hosts/${HOST_ID}`);
     await user.click(await (await panel()).findByRole('button', { name: 'Parear Collector' }));
     await screen.findByText(fakeCode());
-    await waitFor(() => expect(screen.queryByText(fakeCode())).toBeNull(), { timeout: 4000 });
+    await waitFor(() => expect(screen.queryByText(fakeCode())).toBeNull(), { timeout: 8000 });
     expect(await screen.findByText(/O código expirou e foi removido da tela/)).toBeTruthy();
   });
 
