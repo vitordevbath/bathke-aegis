@@ -74,6 +74,15 @@ export class NotFoundError extends DomainError {
   }
 }
 
+/** A business limit on how often an operation may be requested was reached. Always temporary. */
+export class TooManyRequestsError extends DomainError {
+  override readonly code = 'RATE_LIMITED';
+
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 /**
  * The input is valid, but the resource's current state does not allow the
  * operation (e.g. an invalid lifecycle transition, editing a closed record).

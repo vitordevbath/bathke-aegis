@@ -7,6 +7,8 @@ import type { DetectionRule } from '../../domain/detection-rule.js';
 import type { Incident } from '../../domain/incident.js';
 import type { Investigation } from '../../domain/investigation.js';
 import type { TelemetryEvent } from '../../domain/telemetry-event.js';
+import type { PairingChallenge } from '../../domain/pairing-challenge.js';
+import type { MachineCredential } from '../../domain/machine-credential.js';
 import type {
   DetectionEventCategory,
   DetectionSeverity,
@@ -72,6 +74,8 @@ export interface HostRepository {
   listInWorkspace(workspaceId: string, filter: HostListFilter): Promise<Page<Host>>;
   /** Persists the administrative fields only. */
   update(host: Host): Promise<void>;
+  /** Persists only `agentId`, `connectionState` and `updatedAt`, set by the pairing flow. */
+  updatePairing(host: Host): Promise<void>;
   /** Returns false when no such host exists in that workspace. */
   deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean>;
 }
@@ -181,6 +185,36 @@ export interface EventRepository {
   existsForHost(hostId: string): Promise<boolean>;
 }
 
+/** Codes are looked up by hash; everything else is scoped to a host of a workspace. */
+export interface PairingChallengeRepository {
+  insert(challenge: PairingChallenge): Promise<void>;
+  /** Plain read. The hash is the proof of possession, and a code names its own tenant. */
+  findByCodeHash(codeHash: string): Promise<PairingChallenge | null>;
+  /** Re-reads under a row lock. Must run inside a `UnitOfWork`, after locking the host. */
+  lockById(challengeId: string): Promise<PairingChallenge | null>;
+  /** The code that was neither used nor revoked, expired or not; at most one per host. */
+  findOpenForHost(workspaceId: string, hostId: string): Promise<PairingChallenge | null>;
+  /** Codes requested for the host since `since`, whatever became of them. */
+  countCreatedSince(workspaceId: string, hostId: string, since: Date): Promise<number>;
+  /** Writes the consumption only if the row is still open. Returns false when it no longer was. */
+  markConsumed(challenge: PairingChallenge): Promise<boolean>;
+  markRevoked(challenge: PairingChallenge): Promise<void>;
+}
+
+export interface MachineCredentialRepository {
+  insert(credential: MachineCredential): Promise<void>;
+  /** The only unscoped read: machine authentication learns the tenant from this row. */
+  findForAuthentication(credentialId: string): Promise<MachineCredential | null>;
+  /** Holds a row lock. Must run inside a `UnitOfWork`, after locking the host. */
+  lockInHost(workspaceId: string, hostId: string, credentialId: string): Promise<MachineCredential | null>;
+  /** Most recent first. */
+  listForHost(workspaceId: string, hostId: string, limit: number): Promise<MachineCredential[]>;
+  markRevoked(credential: MachineCredential): Promise<void>;
+  /** Records usage unless a newer value exists or the credential was revoked meanwhile. */
+  touchLastUsed(credentialId: string, usedAt: Date, olderThan: Date): Promise<void>;
+  existsForHost(hostId: string): Promise<boolean>;
+}
+
 export interface Repositories {
   readonly users: UserRepository;
   readonly workspaces: WorkspaceRepository;
@@ -190,6 +224,8 @@ export interface Repositories {
   readonly incidents: IncidentRepository;
   readonly investigations: InvestigationRepository;
   readonly events: EventRepository;
+  readonly pairingChallenges: PairingChallengeRepository;
+  readonly machineCredentials: MachineCredentialRepository;
 }
 
 /**

@@ -42,7 +42,7 @@ describe('hosts list', () => {
     renderApp('/hosts');
 
     expect(await screen.findByText('Nenhum host cadastrado neste workspace.')).toBeTruthy();
-    expect(screen.getByText(/O Collector será pareado em uma etapa futura/)).toBeTruthy();
+    expect(screen.getByText(/O pareamento do Collector é feito na página de cada host/)).toBeTruthy();
     expect(screen.getAllByRole('link', { name: 'Adicionar host' }).length).toBeGreaterThan(0);
   });
 

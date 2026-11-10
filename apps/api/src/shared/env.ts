@@ -25,8 +25,15 @@ const EnvSchema = DatabaseEnvSchema.extend({
   JWT_TTL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
   /** Requests per minute per client IP on `/auth/login` and `/auth/register`. */
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
-  /** Event ingestion batches per client IP per minute on the user-auth lab route. */
+  /** Event ingestion batches per client IP per minute (machine credentials). */
   INGEST_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
+  /** Requests per client IP per minute on `POST /agent/pair`. */
+  PAIR_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  /** Refused pairing codes per client IP per window before that IP is paused. */
+  PAIR_INVALID_ATTEMPTS_MAX: z.coerce.number().int().positive().default(20),
+  PAIR_INVALID_ATTEMPTS_WINDOW_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
+  /** Pairing codes an OWNER may request for one host per hour. */
+  PAIR_CODES_PER_HOST_PER_HOUR: z.coerce.number().int().positive().default(10),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

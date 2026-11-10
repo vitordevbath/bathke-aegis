@@ -1,19 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { EventIdConflictError, ForbiddenError, NotFoundError, ValidationError } from '@aegis/domain';
+import { EventIdConflictError, MachineScopeError, NotFoundError, ValidationError } from '@aegis/domain';
 import type { PasswordHasher } from '../../src/application/ports/password-hasher.js';
 import type { Repositories, UnitOfWork } from '../../src/application/ports/repositories.js';
 import { EventIngestionService } from '../../src/application/event-ingestion-service.js';
 import { RegisterUser } from '../../src/application/use-cases/register-user.js';
 import { WorkspaceAccess } from '../../src/application/workspace-access.js';
 import { CreateHost } from '../../src/application/use-cases/hosts/create-host.js';
-import { IngestEventsAsUser } from '../../src/application/use-cases/events/ingest-events.js';
+import { IngestEventsAsMachine } from '../../src/application/use-cases/events/ingest-events.js';
+import { MachineAuthContext } from '../../src/application/machine-auth-context.js';
 import { ListEvents } from '../../src/application/use-cases/events/list-events.js';
 import { GetEvent } from '../../src/application/use-cases/events/get-event.js';
 import { Membership } from '../../src/domain/membership.js';
 import { createInMemoryPersistence } from '../support/in-memory-persistence.js';
 import { makeRegistration } from '../support/fixtures.js';
-import { bearer, buildTestApp, signedInUser } from '../support/test-app.js';
+import { bearer, buildTestApp, pairHost, signedInUser } from '../support/test-app.js';
 
 const plainHasher: PasswordHasher = { hash: async (plain) => `hashed:${plain}`, verify: async (hash, plain) => hash === `hashed:${plain}` };
 const NOW = new Date('2026-05-01T12:00:00.000Z');
@@ -104,7 +105,7 @@ describe('EventIngestionService (transport-independent core)', () => {
     expect(persistence.store.events.size).toBe(1);
   });
 
-  it('user-auth adapter: members may read, only managers may ingest; outsiders get 404', async () => {
+  it('machine adapter: only the identified host, only with the scope; members may read, outsiders get 404', async () => {
     const owner = await tenant();
     const viewer = await tenant();
     const outsider = await tenant();
@@ -112,16 +113,18 @@ describe('EventIngestionService (transport-independent core)', () => {
       `${viewer.user.id}:${owner.workspaceId}`,
       Membership.restore({ userId: viewer.user.id, workspaceId: owner.workspaceId, role: 'VIEWER', createdAt: new Date() }).toSnapshot(),
     );
-    const ingest = new IngestEventsAsUser(access, new EventIngestionService(persistence.unitOfWork));
-    await ingest.execute(owner.user, owner.workspaceId, owner.hostId, [boot(randomUUID(), new Date(Date.now() - 60_000).toISOString())]);
+    const ingest = new IngestEventsAsMachine(new EventIngestionService(persistence.unitOfWork));
+    const machine = new MachineAuthContext(randomUUID(), owner.workspaceId, owner.hostId, ['events:ingest']);
+    await ingest.execute(machine, owner.workspaceId, owner.hostId, [boot(randomUUID(), new Date(Date.now() - 60_000).toISOString())]);
     const [stored] = [...persistence.store.events.values()];
 
-    await expect(ingest.execute(viewer.user, owner.workspaceId, owner.hostId, [boot()])).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(ingest.execute(new MachineAuthContext(randomUUID(), owner.workspaceId, owner.hostId, []), owner.workspaceId, owner.hostId, [boot()])).rejects.toBeInstanceOf(MachineScopeError);
+    await expect(ingest.execute(machine, outsider.workspaceId, outsider.hostId, [boot()])).rejects.toBeInstanceOf(NotFoundError);
+    await expect(ingest.execute(machine, owner.workspaceId, viewer.hostId, [boot()])).rejects.toBeInstanceOf(NotFoundError);
     await expect(new ListEvents(access, persistence.repositories.events).execute(viewer.user, owner.workspaceId, { page: 1, pageSize: 10 })).resolves.toMatchObject({ total: 1 });
     await expect(new GetEvent(access, persistence.repositories.events).execute(viewer.user, owner.workspaceId, stored?.id ?? '')).resolves.toMatchObject({
       hostDisplayName: 'servidor',
     });
-    await expect(ingest.execute(outsider.user, owner.workspaceId, owner.hostId, [boot()])).rejects.toBeInstanceOf(NotFoundError);
     await expect(new GetEvent(access, persistence.repositories.events).execute(outsider.user, outsider.workspaceId, stored?.id ?? '')).rejects.toBeInstanceOf(NotFoundError);
     expect(persistence.store.events.size).toBe(1);
   });
@@ -134,8 +137,9 @@ describe('ingestion rate limit', () => {
       const { token, session } = await signedInUser(app);
       const base = `/workspaces/${session.workspaces[0]?.id}`;
       const host = (await app.inject({ method: 'POST', url: `${base}/hosts`, headers: bearer(token), payload: { displayName: 'servidor' } })).json<{ id: string }>();
+      const machine = bearer((await pairHost(app, token, session.workspaces[0]?.id ?? '', host.id)).token);
       const send = () =>
-        app.inject({ method: 'POST', url: `${base}/hosts/${host.id}/events/ingest`, headers: bearer(token), payload: { events: [boot(randomUUID(), new Date(Date.now() - 60_000).toISOString())] } });
+        app.inject({ method: 'POST', url: `${base}/hosts/${host.id}/events/ingest`, headers: machine, payload: { events: [boot(randomUUID(), new Date(Date.now() - 60_000).toISOString())] } });
       expect([(await send()).statusCode, (await send()).statusCode, (await send()).statusCode]).toEqual([200, 200, 429]);
       // Reads are not limited by the ingestion budget.
       expect((await app.inject({ method: 'GET', url: `${base}/events`, headers: bearer(token) })).statusCode).toBe(200);

@@ -3,7 +3,11 @@ import { HOST_DESCRIPTION_MESSAGE, HOST_DISPLAY_NAME_MESSAGE, HOST_LIMITS } from
 import { UNKNOWN_FIELD_MESSAGE } from './fields.js';
 import { PaginationQuerySchema } from './pagination.js';
 
-export const HOST_CONNECTION_STATES = ['UNPAIRED', 'ONLINE', 'OFFLINE'] as const;
+/**
+ * `PAIRED` means the host has an active machine credential and says nothing
+ * about connectivity. `ONLINE`/`OFFLINE` stay reserved for a future heartbeat.
+ */
+export const HOST_CONNECTION_STATES = ['UNPAIRED', 'ONLINE', 'OFFLINE', 'PAIRED'] as const;
 export type HostConnectionState = (typeof HOST_CONNECTION_STATES)[number];
 
 /**
@@ -53,7 +57,7 @@ export interface HostResponse {
   readonly workspaceId: string;
   readonly displayName: string;
   readonly description: string | null;
-  /** Collector-controlled; null until pairing exists. */
+  /** Public id of the host's active machine credential; null while unpaired. */
   readonly agentId: string | null;
   readonly hostname: string | null;
   readonly osName: string | null;

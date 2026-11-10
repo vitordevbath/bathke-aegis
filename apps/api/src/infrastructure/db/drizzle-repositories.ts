@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, like, lte, ne, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, type SQL } from 'drizzle-orm';
 import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { MySql2PreparedQueryHKT, MySql2QueryResultHKT } from 'drizzle-orm/mysql2';
 import { ConflictError, type Cpf, type Email } from '@aegis/domain';
@@ -10,6 +10,8 @@ import { DetectionRule } from '../../domain/detection-rule.js';
 import { Incident } from '../../domain/incident.js';
 import { Investigation } from '../../domain/investigation.js';
 import { TelemetryEvent } from '../../domain/telemetry-event.js';
+import { PairingChallenge } from '../../domain/pairing-challenge.js';
+import { MachineCredential } from '../../domain/machine-credential.js';
 import { offsetOf, type Page } from '../../application/pagination.js';
 import type {
   DetectionRuleListFilter,
@@ -22,7 +24,9 @@ import type {
   IncidentRepository,
   InvestigationListFilter,
   InvestigationRepository,
+  MachineCredentialRepository,
   MembershipRepository,
+  PairingChallengeRepository,
   Repositories,
   StoredEvent,
   UnitOfWork,
@@ -31,7 +35,7 @@ import type {
   WorkspaceRepository,
 } from '../../application/ports/repositories.js';
 import { CPF_TAKEN_MESSAGE, EMAIL_TAKEN_MESSAGE } from '../../application/use-cases/register-user.js';
-import { HOST_HAS_EVENTS_MESSAGE, HOST_IN_INCIDENT_MESSAGE, HOST_TARGETED_MESSAGE } from '../../application/use-cases/hosts/delete-host.js';
+import { HOST_HAS_CREDENTIALS_MESSAGE, HOST_HAS_EVENTS_MESSAGE, HOST_IN_INCIDENT_MESSAGE, HOST_TARGETED_MESSAGE } from '../../application/use-cases/hosts/delete-host.js';
 import { RULE_IN_INCIDENT_MESSAGE } from '../../application/use-cases/detection-rules/delete-detection-rule.js';
 import { INCIDENT_IN_INVESTIGATION_MESSAGE } from '../../application/use-cases/incidents/delete-incident.js';
 import type { Database } from './client.js';
@@ -46,7 +50,9 @@ import {
   incidents,
   investigationIncidents,
   investigations,
+  machineCredentials,
   memberships,
+  pairingChallenges,
   users,
   workspaces,
 } from './schema.js';
@@ -230,15 +236,24 @@ class DrizzleHostRepository implements HostRepository {
       .where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, host.id)));
   }
 
+  async updatePairing(host: Host): Promise<void> {
+    const { workspaceId, agentId, connectionState, updatedAt } = host.toSnapshot();
+    await this.db
+      .update(hosts)
+      .set({ agentId, connectionState, updatedAt })
+      .where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, host.id)));
+  }
+
   async deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean> {
     try {
       const [result] = await this.db.delete(hosts).where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, hostId)));
       return result.affectedRows > 0;
     } catch (error) {
-      // FK RESTRICT from detection_rule_targets, incident_hosts or events (a reference was added concurrently).
+      // FK RESTRICT from detection_rule_targets, incident_hosts, events or machine_credentials (a reference was added concurrently).
       const message = referencedBy(error);
       if (message !== undefined) {
         if (message.includes('`events`')) throw new ConflictError(HOST_HAS_EVENTS_MESSAGE);
+        if (message.includes('`machine_credentials`')) throw new ConflictError(HOST_HAS_CREDENTIALS_MESSAGE);
         throw new ConflictError(message.includes('incident_hosts') ? HOST_IN_INCIDENT_MESSAGE : HOST_TARGETED_MESSAGE);
       }
       throw error;
@@ -669,6 +684,126 @@ class DrizzleEventRepository implements EventRepository {
   }
 }
 
+type PairingChallengeRow = typeof pairingChallenges.$inferSelect;
+
+class DrizzlePairingChallengeRepository implements PairingChallengeRepository {
+  constructor(private readonly db: Executor) {}
+
+  async insert(challenge: PairingChallenge): Promise<void> {
+    await this.db.insert(pairingChallenges).values(challenge.toSnapshot());
+  }
+
+  async findByCodeHash(codeHash: string): Promise<PairingChallenge | null> {
+    const [row] = await this.db.select().from(pairingChallenges).where(eq(pairingChallenges.codeHash, codeHash)).limit(1);
+    return row ? this.toEntity(row) : null;
+  }
+
+  async lockById(challengeId: string): Promise<PairingChallenge | null> {
+    const [row] = await this.db.select().from(pairingChallenges).where(eq(pairingChallenges.id, challengeId)).limit(1).for('update');
+    return row ? this.toEntity(row) : null;
+  }
+
+  async findOpenForHost(workspaceId: string, hostId: string): Promise<PairingChallenge | null> {
+    const [row] = await this.db
+      .select()
+      .from(pairingChallenges)
+      .where(and(eq(pairingChallenges.workspaceId, workspaceId), eq(pairingChallenges.openHostId, hostId)))
+      .limit(1);
+    return row ? this.toEntity(row) : null;
+  }
+
+  async countCreatedSince(workspaceId: string, hostId: string, since: Date): Promise<number> {
+    const [totals] = await this.db
+      .select({ total: count() })
+      .from(pairingChallenges)
+      .where(and(eq(pairingChallenges.hostId, hostId), eq(pairingChallenges.workspaceId, workspaceId), gte(pairingChallenges.createdAt, since)));
+    return totals?.total ?? 0;
+  }
+
+  async markConsumed(challenge: PairingChallenge): Promise<boolean> {
+    const { consumedAt } = challenge.toSnapshot();
+    const [result] = await this.db
+      .update(pairingChallenges)
+      .set({ consumedAt })
+      .where(and(eq(pairingChallenges.id, challenge.id), isNull(pairingChallenges.consumedAt), isNull(pairingChallenges.revokedAt)));
+    return result.affectedRows === 1;
+  }
+
+  async markRevoked(challenge: PairingChallenge): Promise<void> {
+    const { revokedAt } = challenge.toSnapshot();
+    await this.db.update(pairingChallenges).set({ revokedAt }).where(eq(pairingChallenges.id, challenge.id));
+  }
+
+  private toEntity(row: PairingChallengeRow): PairingChallenge {
+    const { openHostId: _openHostId, ...snapshot } = row;
+    return PairingChallenge.restore(snapshot);
+  }
+}
+
+type MachineCredentialRow = typeof machineCredentials.$inferSelect;
+
+class DrizzleMachineCredentialRepository implements MachineCredentialRepository {
+  constructor(private readonly db: Executor) {}
+
+  async insert(credential: MachineCredential): Promise<void> {
+    const { scopes, ...snapshot } = credential.toSnapshot();
+    await this.db.insert(machineCredentials).values({ ...snapshot, scopes: [...scopes] });
+  }
+
+  async findForAuthentication(credentialId: string): Promise<MachineCredential | null> {
+    const [row] = await this.db.select().from(machineCredentials).where(eq(machineCredentials.id, credentialId)).limit(1);
+    return row ? this.toEntity(row) : null;
+  }
+
+  async lockInHost(workspaceId: string, hostId: string, credentialId: string): Promise<MachineCredential | null> {
+    const [row] = await this.db
+      .select()
+      .from(machineCredentials)
+      .where(and(eq(machineCredentials.workspaceId, workspaceId), eq(machineCredentials.hostId, hostId), eq(machineCredentials.id, credentialId)))
+      .limit(1)
+      .for('update');
+    return row ? this.toEntity(row) : null;
+  }
+
+  async listForHost(workspaceId: string, hostId: string, limit: number): Promise<MachineCredential[]> {
+    const rows = await this.db
+      .select()
+      .from(machineCredentials)
+      .where(and(eq(machineCredentials.hostId, hostId), eq(machineCredentials.workspaceId, workspaceId)))
+      .orderBy(desc(machineCredentials.createdAt), desc(machineCredentials.id))
+      .limit(limit);
+    return rows.map((row) => this.toEntity(row));
+  }
+
+  async markRevoked(credential: MachineCredential): Promise<void> {
+    const { revokedAt } = credential.toSnapshot();
+    await this.db.update(machineCredentials).set({ revokedAt }).where(eq(machineCredentials.id, credential.id));
+  }
+
+  async touchLastUsed(credentialId: string, usedAt: Date, olderThan: Date): Promise<void> {
+    await this.db
+      .update(machineCredentials)
+      .set({ lastUsedAt: usedAt })
+      .where(
+        and(
+          eq(machineCredentials.id, credentialId),
+          isNull(machineCredentials.revokedAt),
+          or(isNull(machineCredentials.lastUsedAt), lt(machineCredentials.lastUsedAt, olderThan)),
+        ),
+      );
+  }
+
+  async existsForHost(hostId: string): Promise<boolean> {
+    const rows = await this.db.select({ id: machineCredentials.id }).from(machineCredentials).where(eq(machineCredentials.hostId, hostId)).limit(1);
+    return rows.length > 0;
+  }
+
+  private toEntity(row: MachineCredentialRow): MachineCredential {
+    const { activeHostId: _activeHostId, ...snapshot } = row;
+    return MachineCredential.restore(snapshot);
+  }
+}
+
 export function createDrizzleRepositories(db: Executor): Repositories {
   return {
     users: new DrizzleUserRepository(db),
@@ -679,6 +814,8 @@ export function createDrizzleRepositories(db: Executor): Repositories {
     incidents: new DrizzleIncidentRepository(db),
     investigations: new DrizzleInvestigationRepository(db),
     events: new DrizzleEventRepository(db),
+    pairingChallenges: new DrizzlePairingChallengeRepository(db),
+    machineCredentials: new DrizzleMachineCredentialRepository(db),
   };
 }
 

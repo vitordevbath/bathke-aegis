@@ -3,11 +3,13 @@ import type {
   DetectionRuleSummary,
   EventResponse,
   EventSummary,
+  HostPairingResponse,
   HostResponse,
   IncidentResponse,
   IncidentSummary,
   InvestigationResponse,
   InvestigationSummary,
+  MachineCredentialResponse,
   MeResponse,
   PaginatedResponse,
   UserResponse,
@@ -25,6 +27,8 @@ import type { IncidentView } from '../../application/use-cases/incidents/inciden
 import type { Investigation } from '../../domain/investigation.js';
 import type { InvestigationView } from '../../application/use-cases/investigations/investigation-view.js';
 import type { StoredEvent } from '../../application/ports/repositories.js';
+import type { MachineCredential } from '../../domain/machine-credential.js';
+import type { HostPairingView } from '../../application/use-cases/machine-identity/get-host-pairing.js';
 
 /** Explicit allowlist of public user fields — the password hash can never slip through. */
 export function toUserResponse(user: User): UserResponse {
@@ -181,4 +185,28 @@ export function toEventResponse(stored: StoredEvent): EventResponse {
   // Spreading the normalized event keeps the union discriminated by `type`.
   const { category: _category, type: _type, ...summary } = toEventSummary(stored);
   return { ...stored.event.event, ...summary };
+}
+
+/** Explicit allowlist: the token hash can never slip through. */
+export function toMachineCredentialResponse(credential: MachineCredential): MachineCredentialResponse {
+  const snapshot = credential.toSnapshot();
+  return {
+    id: snapshot.id,
+    tokenPrefix: snapshot.tokenPrefix,
+    scopes: [...snapshot.scopes],
+    status: credential.isActive ? 'ACTIVE' : 'REVOKED',
+    createdAt: snapshot.createdAt.toISOString(),
+    lastUsedAt: snapshot.lastUsedAt?.toISOString() ?? null,
+    revokedAt: snapshot.revokedAt?.toISOString() ?? null,
+    rotatedFromCredentialId: snapshot.rotatedFromCredentialId,
+  };
+}
+
+export function toHostPairingResponse({ pendingCodeExpiresAt, credentials }: HostPairingView): HostPairingResponse {
+  const items = credentials.map(toMachineCredentialResponse);
+  return {
+    pendingCode: pendingCodeExpiresAt ? { expiresAt: pendingCodeExpiresAt.toISOString() } : null,
+    activeCredential: items.find((credential) => credential.status === 'ACTIVE') ?? null,
+    credentials: items,
+  };
 }

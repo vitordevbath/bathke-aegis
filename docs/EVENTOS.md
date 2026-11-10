@@ -1,8 +1,8 @@
 # Aegis Event Contract v1
 
 Status: **CURRENT** (BF 06) — contrato, Event Store, API de ingestão e navegador de eventos.
-O **Aegis Collector não existe ainda** (PLANNED, BF 07+): hoje os eventos só chegam pela rota de
-ingestão de laboratório com autenticação de usuário.
+O **Aegis Collector não existe ainda** (PLANNED): a ingestão exige uma credencial de máquina, obtida
+por pareamento (BF 07, [contrato do Collector](ARCHITECTURE.md#contrato-do-futuro-aegis-collector-planned)).
 
 Fonte única: [`packages/domain/src/event-contract.ts`](../packages/domain/src/event-contract.ts).
 
@@ -115,7 +115,7 @@ POST /api/workspaces/:workspaceId/hosts/:hostId/events/ingest
 - **Atomicidade:** o lote inteiro é validado antes de qualquer I/O; um evento inválido → 400 com
   issues `events.<i>.<campo>` e nada é armazenado.
 - O host deve existir no workspace da rota; host inexistente ou de outro workspace → o mesmo 404.
-- Ingerir eventos **não** muda o host para `ONLINE` nem atualiza `lastSeenAt` (não há Collector autenticado).
+- Ingerir eventos **não** muda o host para `ONLINE` nem atualiza `lastSeenAt` (heartbeat não existe); a credencial registra apenas sua última utilização.
 
 ## Idempotência e fingerprint
 
@@ -131,12 +131,13 @@ POST /api/workspaces/:workspaceId/hosts/:hostId/events/ingest
 - Lotes concorrentes para o mesmo host são serializados por um lock na linha do host
   (`SELECT … FOR UPDATE`), então não há corrida entre a verificação e a inserção.
 
-## Autenticação temporária (USER-AUTH INGESTION)
+## Autenticação de máquina
 
-A rota de ingestão usa o JWT de usuário existente e exige papel de escrita (OWNER) no workspace.
-É um **adaptador de laboratório/desenvolvimento**, não o protocolo do Collector (ADR-035). O núcleo,
-`EventIngestionService`, não conhece HTTP, JWT nem usuário: recebe `{workspaceId, hostId}` e o lote.
-O BF 07 acrescentará credenciais próprias de Collector chamando o mesmo serviço.
+A rota de ingestão exige `Authorization: Bearer <credencial de máquina>` com o escopo `events:ingest`
+e recusa JWT de usuário, mesmo de OWNER (ADR-042). `workspaceId` e `hostId` da URL precisam
+coincidir com os da credencial; caso contrário, a resposta é o mesmo 404 de um host inexistente. O
+núcleo, `EventIngestionService`, não conhece HTTP, JWT nem credenciais: recebe `{workspaceId, hostId}`
+e o lote.
 
 ## Consulta
 
@@ -161,5 +162,5 @@ rotas não mudam. Uma futura `schemaVersion: 2` conviverá com eventos v1 armaze
 
 ## Roadmap
 
-Pareamento e credenciais de Collector (BF 07) → Collector Rust → telemetria Linux → eBPF →
+Collector Rust → telemetria Linux → eBPF →
 Detection Engine → Alerts → Correlation → incidentes automáticos. Todos **PLANNED**.

@@ -11,7 +11,7 @@ export interface IngestionResult {
 /**
  * The transport-independent core of event ingestion. It knows nothing about
  * HTTP, JWT or users: callers authenticate the source and name the target
- * host (today the user-auth lab route; later the Collector credential route).
+ * host (today, the route authenticated by a machine credential).
  *
  * Batch semantics (ADR-034):
  *  1. every event is validated first — any invalid event fails the whole

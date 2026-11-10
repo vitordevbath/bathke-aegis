@@ -25,9 +25,15 @@ import type { ListInvestigations } from '../../application/use-cases/investigati
 import type { GetInvestigation } from '../../application/use-cases/investigations/get-investigation.js';
 import type { UpdateInvestigation } from '../../application/use-cases/investigations/update-investigation.js';
 import type { DeleteInvestigation } from '../../application/use-cases/investigations/delete-investigation.js';
-import type { IngestEventsAsUser } from '../../application/use-cases/events/ingest-events.js';
+import type { IngestEventsAsMachine } from '../../application/use-cases/events/ingest-events.js';
 import type { ListEvents } from '../../application/use-cases/events/list-events.js';
 import type { GetEvent } from '../../application/use-cases/events/get-event.js';
+import type { RequestPairingCode } from '../../application/use-cases/machine-identity/request-pairing-code.js';
+import type { RedeemPairingCode } from '../../application/use-cases/machine-identity/redeem-pairing-code.js';
+import type { AuthenticateMachine } from '../../application/use-cases/machine-identity/authenticate-machine.js';
+import type { RotateMachineCredential } from '../../application/use-cases/machine-identity/rotate-machine-credential.js';
+import type { RevokeMachineCredential } from '../../application/use-cases/machine-identity/revoke-machine-credential.js';
+import type { GetHostPairing } from '../../application/use-cases/machine-identity/get-host-pairing.js';
 import { errorHandler } from './error-handler.js';
 import { healthRoute } from './routes/health.route.js';
 import { authRoute } from './routes/auth.route.js';
@@ -36,7 +42,9 @@ import { hostsRoute } from './routes/hosts.route.js';
 import { detectionRulesRoute } from './routes/detection-rules.route.js';
 import { incidentsRoute } from './routes/incidents.route.js';
 import { investigationsRoute } from './routes/investigations.route.js';
-import { eventsRoute } from './routes/events.route.js';
+import { eventIngestionRoute, eventsRoute } from './routes/events.route.js';
+import { agentRoute } from './routes/agent.route.js';
+import { hostPairingRoute } from './routes/host-pairing.route.js';
 
 /** Use cases the HTTP layer delegates to. Assembled by the composition root (or by tests). */
 export interface AppDependencies {
@@ -65,13 +73,24 @@ export interface AppDependencies {
   readonly getInvestigation: GetInvestigation;
   readonly updateInvestigation: UpdateInvestigation;
   readonly deleteInvestigation: DeleteInvestigation;
-  readonly ingestEvents: IngestEventsAsUser;
+  readonly ingestEvents: IngestEventsAsMachine;
   readonly listEvents: ListEvents;
   readonly getEvent: GetEvent;
+  readonly requestPairingCode: RequestPairingCode;
+  readonly redeemPairingCode: RedeemPairingCode;
+  readonly authenticateMachine: AuthenticateMachine;
+  readonly rotateMachineCredential: RotateMachineCredential;
+  readonly revokeMachineCredential: RevokeMachineCredential;
+  readonly getHostPairing: GetHostPairing;
   /** Requests per client IP per minute on each auth route. */
   readonly authRateLimitMax: number;
-  /** Event ingestion batches per client IP per minute (user-auth lab route). */
+  /** Event ingestion batches per client IP per minute (machine credentials). */
   readonly ingestRateLimitMax: number;
+  /** Requests per client IP per minute on `POST /agent/pair`. */
+  readonly pairRateLimitMax: number;
+  /** Refused pairing codes per client IP per window before that IP is paused. */
+  readonly pairInvalidAttemptsMax: number;
+  readonly pairInvalidAttemptsWindowMs: number;
 }
 
 /** Builds the HTTP application without binding a port, so tests can use `inject`. */
@@ -81,6 +100,7 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
   app.setErrorHandler(errorHandler);
   app.setNotFoundHandler((_request, reply) => reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Rota não encontrada.' } }));
   app.decorateRequest('currentUser', null);
+  app.decorateRequest('machineAuth', null);
 
   // In-memory, per-route limits only (opt-in via route config). Enough for a single API instance.
   await app.register(rateLimit, { global: false });
@@ -130,10 +150,26 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
   });
   await app.register(eventsRoute, {
     resolveAuthenticatedUser: dependencies.resolveAuthenticatedUser,
-    ingestEvents: dependencies.ingestEvents,
     listEvents: dependencies.listEvents,
     getEvent: dependencies.getEvent,
+  });
+  await app.register(eventIngestionRoute, {
+    authenticateMachine: dependencies.authenticateMachine,
+    ingestEvents: dependencies.ingestEvents,
     ingestRateLimitMax: dependencies.ingestRateLimitMax,
+  });
+  await app.register(agentRoute, {
+    redeemPairingCode: dependencies.redeemPairingCode,
+    rateLimitMax: dependencies.pairRateLimitMax,
+    invalidAttemptsMax: dependencies.pairInvalidAttemptsMax,
+    invalidAttemptsWindowMs: dependencies.pairInvalidAttemptsWindowMs,
+  });
+  await app.register(hostPairingRoute, {
+    resolveAuthenticatedUser: dependencies.resolveAuthenticatedUser,
+    requestPairingCode: dependencies.requestPairingCode,
+    getHostPairing: dependencies.getHostPairing,
+    rotateMachineCredential: dependencies.rotateMachineCredential,
+    revokeMachineCredential: dependencies.revokeMachineCredential,
   });
 
   return app;

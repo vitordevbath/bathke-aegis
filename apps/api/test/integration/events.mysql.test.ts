@@ -12,7 +12,7 @@ import { createDrizzleRepositories } from '../../src/infrastructure/db/drizzle-r
 import { Host } from '../../src/domain/host.js';
 import type { Repositories } from '../../src/application/ports/repositories.js';
 import { TEST_PASSWORD, makeRegistration, testJwtSecret } from '../support/fixtures.js';
-import { bearer } from '../support/test-app.js';
+import { bearer, pairHost } from '../support/test-app.js';
 import { TEST_DATABASE_URL, createMigratedDatabase } from '../support/mysql-test-database.js';
 
 const recent = () => new Date(Date.now() - 60_000).toISOString();
@@ -34,7 +34,7 @@ describe.skipIf(!TEST_DATABASE_URL)('events against MySQL (integration)', () => 
 
   beforeAll(async () => {
     database = await createMigratedDatabase();
-    const env = loadEnv({ DATABASE_URL: database.url, JWT_SECRET: testJwtSecret(), AUTH_RATE_LIMIT_MAX: '1000', INGEST_RATE_LIMIT_MAX: '1000' });
+    const env = loadEnv({ DATABASE_URL: database.url, JWT_SECRET: testJwtSecret(), AUTH_RATE_LIMIT_MAX: '1000', INGEST_RATE_LIMIT_MAX: '1000', PAIR_RATE_LIMIT_MAX: '1000' });
     const production = createProductionDependencies(env);
     closeApp = production.close;
     app = await buildApp(production.dependencies);
@@ -65,12 +65,13 @@ describe.skipIf(!TEST_DATABASE_URL)('events against MySQL (integration)', () => 
     const base = `/workspaces/${workspaceId}`;
     const host = Host.register({ workspaceId, displayName: 'servidor-web-01' });
     await repositories.hosts.insert(host);
+    const machine = bearer((await pairHost(app, session.token, workspaceId, host.id)).token);
     return {
       workspaceId,
       headers,
       base,
       host,
-      ingest: (events: unknown[], hostId = host.id) => app.inject({ method: 'POST', url: `${base}/hosts/${hostId}/events/ingest`, headers, payload: { events } }),
+      ingest: (events: unknown[], hostId = host.id) => app.inject({ method: 'POST', url: `${base}/hosts/${hostId}/events/ingest`, headers: machine, payload: { events } }),
     };
   }
 

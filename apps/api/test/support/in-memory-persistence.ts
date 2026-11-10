@@ -7,6 +7,8 @@ import { DetectionRule, type DetectionRuleSnapshot } from '../../src/domain/dete
 import { Incident, type IncidentSnapshot } from '../../src/domain/incident.js';
 import { Investigation, type InvestigationSnapshot } from '../../src/domain/investigation.js';
 import { TelemetryEvent, type TelemetryEventSnapshot } from '../../src/domain/telemetry-event.js';
+import { PairingChallenge, type PairingChallengeSnapshot } from '../../src/domain/pairing-challenge.js';
+import { MachineCredential, type MachineCredentialSnapshot } from '../../src/domain/machine-credential.js';
 import { offsetOf, type Page } from '../../src/application/pagination.js';
 import type {
   DetectionRuleListFilter,
@@ -19,7 +21,9 @@ import type {
   IncidentRepository,
   InvestigationListFilter,
   InvestigationRepository,
+  MachineCredentialRepository,
   MembershipRepository,
+  PairingChallengeRepository,
   Repositories,
   StoredEvent,
   UnitOfWork,
@@ -42,6 +46,8 @@ export class InMemoryStore {
   incidents = new Map<string, IncidentSnapshot>();
   investigations = new Map<string, InvestigationSnapshot>();
   events = new Map<string, TelemetryEventSnapshot>();
+  pairingChallenges = new Map<string, PairingChallengeSnapshot>();
+  machineCredentials = new Map<string, MachineCredentialSnapshot>();
 
   clone(): InMemoryStore {
     const copy = new InMemoryStore();
@@ -53,6 +59,8 @@ export class InMemoryStore {
     copy.incidents = new Map(this.incidents);
     copy.investigations = new Map(this.investigations);
     copy.events = new Map(this.events);
+    copy.pairingChallenges = new Map(this.pairingChallenges);
+    copy.machineCredentials = new Map(this.machineCredentials);
     return copy;
   }
 
@@ -65,6 +73,8 @@ export class InMemoryStore {
     this.incidents = other.incidents;
     this.investigations = other.investigations;
     this.events = other.events;
+    this.pairingChallenges = other.pairingChallenges;
+    this.machineCredentials = other.machineCredentials;
   }
 }
 
@@ -193,16 +203,28 @@ class InMemoryHostRepository implements HostRepository {
     this.store.hosts.set(host.id, { ...current, displayName, description, updatedAt });
   }
 
+  async updatePairing(host: Host): Promise<void> {
+    const current = this.store.hosts.get(host.id);
+    if (!current || current.workspaceId !== host.workspaceId) return;
+    const { agentId, connectionState, updatedAt } = host.toSnapshot();
+    this.store.hosts.set(host.id, { ...current, agentId, connectionState, updatedAt });
+  }
+
   async deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean> {
     const current = this.store.hosts.get(hostId);
     if (!current || current.workspaceId !== workspaceId) return false;
-    // Mirrors ON DELETE RESTRICT on detection_rule_targets.host_id, incident_hosts.host_id and events.host_id.
+    // Mirrors ON DELETE RESTRICT on detection_rule_targets, incident_hosts, events and machine_credentials.
     if (
       [...this.store.detectionRules.values()].some((rule) => rule.targetHostIds.includes(hostId)) ||
       [...this.store.incidents.values()].some((incident) => incident.hostIds.includes(hostId)) ||
-      [...this.store.events.values()].some((event) => event.hostId === hostId)
+      [...this.store.events.values()].some((event) => event.hostId === hostId) ||
+      [...this.store.machineCredentials.values()].some((credential) => credential.hostId === hostId)
     ) {
       throw new Error('foreign key constraint fails (restrict)');
+    }
+    // Mirrors ON DELETE CASCADE on pairing_challenges.
+    for (const challenge of this.store.pairingChallenges.values()) {
+      if (challenge.hostId === hostId) this.store.pairingChallenges.delete(challenge.id);
     }
     return this.store.hosts.delete(hostId);
   }
@@ -465,6 +487,104 @@ class InMemoryEventRepository implements EventRepository {
   }
 }
 
+const isOpen = (challenge: PairingChallengeSnapshot) => challenge.consumedAt === null && challenge.revokedAt === null;
+
+/** Same contract as the SQL adapter: unique code hash, one open code per host, FK to a host of the same workspace. */
+class InMemoryPairingChallengeRepository implements PairingChallengeRepository {
+  constructor(private readonly store: InMemoryStore) {}
+
+  async insert(challenge: PairingChallenge): Promise<void> {
+    const snapshot = challenge.toSnapshot();
+    if (this.store.hosts.get(snapshot.hostId)?.workspaceId !== snapshot.workspaceId) throw new Error('foreign key constraint fails');
+    for (const other of this.store.pairingChallenges.values()) {
+      if (other.codeHash === snapshot.codeHash) throw new Error('duplicate entry for pairing_challenges_code_hash_unique');
+      if (other.hostId === snapshot.hostId && isOpen(other)) throw new Error('duplicate entry for pairing_challenges_open_host_unique');
+    }
+    this.store.pairingChallenges.set(snapshot.id, snapshot);
+  }
+
+  async findByCodeHash(codeHash: string): Promise<PairingChallenge | null> {
+    const snapshot = [...this.store.pairingChallenges.values()].find((challenge) => challenge.codeHash === codeHash);
+    return snapshot ? PairingChallenge.restore(snapshot) : null;
+  }
+
+  async lockById(challengeId: string): Promise<PairingChallenge | null> {
+    const snapshot = this.store.pairingChallenges.get(challengeId);
+    return snapshot ? PairingChallenge.restore(snapshot) : null;
+  }
+
+  async findOpenForHost(workspaceId: string, hostId: string): Promise<PairingChallenge | null> {
+    const snapshot = [...this.store.pairingChallenges.values()].find((challenge) => challenge.workspaceId === workspaceId && challenge.hostId === hostId && isOpen(challenge));
+    return snapshot ? PairingChallenge.restore(snapshot) : null;
+  }
+
+  async countCreatedSince(workspaceId: string, hostId: string, since: Date): Promise<number> {
+    return [...this.store.pairingChallenges.values()].filter(
+      (challenge) => challenge.workspaceId === workspaceId && challenge.hostId === hostId && challenge.createdAt.getTime() >= since.getTime(),
+    ).length;
+  }
+
+  async markConsumed(challenge: PairingChallenge): Promise<boolean> {
+    const current = this.store.pairingChallenges.get(challenge.id);
+    if (!current || !isOpen(current)) return false;
+    this.store.pairingChallenges.set(challenge.id, { ...current, consumedAt: challenge.toSnapshot().consumedAt });
+    return true;
+  }
+
+  async markRevoked(challenge: PairingChallenge): Promise<void> {
+    const current = this.store.pairingChallenges.get(challenge.id);
+    if (current) this.store.pairingChallenges.set(challenge.id, { ...current, revokedAt: challenge.toSnapshot().revokedAt });
+  }
+}
+
+/** Same contract as the SQL adapter: one active credential per host, one credential per challenge, FK to a host of the same workspace. */
+class InMemoryMachineCredentialRepository implements MachineCredentialRepository {
+  constructor(private readonly store: InMemoryStore) {}
+
+  async insert(credential: MachineCredential): Promise<void> {
+    const snapshot = credential.toSnapshot();
+    if (this.store.hosts.get(snapshot.hostId)?.workspaceId !== snapshot.workspaceId) throw new Error('foreign key constraint fails');
+    for (const other of this.store.machineCredentials.values()) {
+      if (other.hostId === snapshot.hostId && other.revokedAt === null && snapshot.revokedAt === null) throw new Error('duplicate entry for machine_credentials_active_host_unique');
+      if (snapshot.pairingChallengeId !== null && other.pairingChallengeId === snapshot.pairingChallengeId) throw new Error('duplicate entry for machine_credentials_challenge_unique');
+    }
+    this.store.machineCredentials.set(snapshot.id, snapshot);
+  }
+
+  async findForAuthentication(credentialId: string): Promise<MachineCredential | null> {
+    const snapshot = this.store.machineCredentials.get(credentialId);
+    return snapshot ? MachineCredential.restore(snapshot) : null;
+  }
+
+  async lockInHost(workspaceId: string, hostId: string, credentialId: string): Promise<MachineCredential | null> {
+    const snapshot = this.store.machineCredentials.get(credentialId);
+    return snapshot && snapshot.workspaceId === workspaceId && snapshot.hostId === hostId ? MachineCredential.restore(snapshot) : null;
+  }
+
+  async listForHost(workspaceId: string, hostId: string, limit: number): Promise<MachineCredential[]> {
+    return [...this.store.machineCredentials.values()]
+      .filter((credential) => credential.workspaceId === workspaceId && credential.hostId === hostId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+      .slice(0, limit)
+      .map((credential) => MachineCredential.restore(credential));
+  }
+
+  async markRevoked(credential: MachineCredential): Promise<void> {
+    const current = this.store.machineCredentials.get(credential.id);
+    if (current) this.store.machineCredentials.set(credential.id, { ...current, revokedAt: credential.toSnapshot().revokedAt });
+  }
+
+  async touchLastUsed(credentialId: string, usedAt: Date, olderThan: Date): Promise<void> {
+    const current = this.store.machineCredentials.get(credentialId);
+    if (!current || current.revokedAt !== null) return;
+    if (current.lastUsedAt === null || current.lastUsedAt.getTime() < olderThan.getTime()) this.store.machineCredentials.set(credentialId, { ...current, lastUsedAt: usedAt });
+  }
+
+  async existsForHost(hostId: string): Promise<boolean> {
+    return [...this.store.machineCredentials.values()].some((credential) => credential.hostId === hostId);
+  }
+}
+
 export function repositoriesFor(store: InMemoryStore): Repositories {
   return {
     users: new InMemoryUserRepository(store),
@@ -475,6 +595,8 @@ export function repositoriesFor(store: InMemoryStore): Repositories {
     incidents: new InMemoryIncidentRepository(store),
     investigations: new InMemoryInvestigationRepository(store),
     events: new InMemoryEventRepository(store),
+    pairingChallenges: new InMemoryPairingChallengeRepository(store),
+    machineCredentials: new InMemoryMachineCredentialRepository(store),
   };
 }
 

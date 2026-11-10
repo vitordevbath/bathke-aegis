@@ -64,6 +64,20 @@
       "when": 1792631659950,
       "tag": "0008_events",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1794266149086,
+      "tag": "0009_pairing_challenges",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1794266198441,
+      "tag": "0010_machine_credentials",
+      "breakpoints": true
     }
   ]
 }

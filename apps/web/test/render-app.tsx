@@ -41,7 +41,7 @@ export function renderApp(path: string) {
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
-  return { router, user: userEvent.setup() };
+  return { router, queryClient, user: userEvent.setup() };
 }
 
 /** Request body of the first call matching `method path`. */

@@ -1,4 +1,5 @@
-import { boolean, char, datetime, index, json, mysqlEnum, mysqlTable, primaryKey, smallint, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import { sql } from 'drizzle-orm';
+import { boolean, char, datetime, foreignKey, index, json, mysqlEnum, mysqlTable, primaryKey, smallint, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
 import {
   EVENT_CATEGORIES,
   EVENT_TYPES,
@@ -8,6 +9,7 @@ import {
   SEVERITIES,
   type DetectionDefinitionV1,
   type EventBodyV1,
+  type MachineScope,
 } from '@aegis/domain';
 
 /**
@@ -59,8 +61,9 @@ export const memberships = mysqlTable(
 
 /**
  * Machines registered in a workspace. `display_name`/`description` are
- * administrative (user-edited); the remaining nullable columns and
- * `connection_state` are reserved for the future Aegis Collector.
+ * administrative (user-edited). `agent_id` holds the active credential's id and
+ * `connection_state` becomes PAIRED with it; the remaining nullable columns are
+ * reserved for the future Aegis Collector.
  */
 export const hosts = mysqlTable(
   'hosts',
@@ -77,13 +80,15 @@ export const hosts = mysqlTable(
     osName: varchar('os_name', { length: 100 }),
     osVersion: varchar('os_version', { length: 100 }),
     architecture: varchar('architecture', { length: 32 }),
-    connectionState: mysqlEnum('connection_state', ['UNPAIRED', 'ONLINE', 'OFFLINE']).notNull().default('UNPAIRED'),
+    connectionState: mysqlEnum('connection_state', ['UNPAIRED', 'ONLINE', 'OFFLINE', 'PAIRED']).notNull().default('UNPAIRED'),
     lastSeenAt: datetime('last_seen_at', { mode: 'date', fsp: 3 }),
     ...timestamps,
   },
   (table) => [
     // Serves the workspace FK and the paginated list (WHERE workspace_id = ? ORDER BY created_at DESC, id DESC).
     index('hosts_workspace_created_idx').on(table.workspaceId, table.createdAt, table.id),
+    // Target of the composite FKs that tie a pairing record to a host of its own workspace.
+    uniqueIndex('hosts_id_workspace_unique').on(table.id, table.workspaceId),
   ],
 );
 
@@ -302,5 +307,83 @@ export const events = mysqlTable(
     // Same timeline filtered by host or by category (event types imply their category).
     index('events_workspace_host_occurred_idx').on(table.workspaceId, table.hostId, table.occurredAt, table.id),
     index('events_workspace_category_occurred_idx').on(table.workspaceId, table.category, table.occurredAt, table.id),
+  ],
+);
+
+/**
+ * Temporary authorization to connect one machine to one host (ADR-038). Only
+ * the SHA-256 of the code is stored. `open_host_id` is non-null while the code
+ * was neither used nor revoked, so its UNIQUE index allows one open code per
+ * host. The composite FK makes a code for another workspace's host
+ * impossible. Unused codes leave with their host.
+ */
+export const pairingChallenges = mysqlTable(
+  'pairing_challenges',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    workspaceId: char('workspace_id', { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    hostId: char('host_id', { length: 36 }).notNull(),
+    codeHash: char('code_hash', { length: 64 }).notNull().unique('pairing_challenges_code_hash_unique'),
+    createdBy: char('created_by', { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamps.createdAt,
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    consumedAt: datetime('consumed_at', { mode: 'date', fsp: 3 }),
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+    openHostId: char('open_host_id', { length: 36 }).generatedAlwaysAs(sql`(case when (\`consumed_at\` is null and \`revoked_at\` is null) then \`host_id\` end)`, {
+      mode: 'virtual',
+    }),
+  },
+  (table) => [
+    foreignKey({ name: 'pairing_challenges_host_fk', columns: [table.hostId, table.workspaceId], foreignColumns: [hosts.id, hosts.workspaceId] }).onDelete('cascade'),
+    uniqueIndex('pairing_challenges_open_host_unique').on(table.openHostId),
+    // Serves the composite FK and the per-host limit on requested codes.
+    index('pairing_challenges_host_created_idx').on(table.hostId, table.workspaceId, table.createdAt),
+    index('pairing_challenges_created_by_idx').on(table.createdBy),
+  ],
+);
+
+/**
+ * Machine identity of a Collector (ADR-039): an opaque token whose secret is
+ * stored only as SHA-256. Revocation is logical, so `active_host_id` (non-null
+ * while not revoked) allows one active credential per host through its UNIQUE
+ * index, and the unique `pairing_challenge_id` makes one code yield at most one
+ * credential. The composite FK ties the credential to a host of its own
+ * workspace, and RESTRICT keeps a host with credential history from being
+ * deleted. `credentials_workspace_fk` deliberately sorts before
+ * `hosts_workspace_id_workspaces_id_fk`: InnoDB cascades in constraint-name
+ * order, and credentials must go before the hosts they restrict.
+ */
+export const machineCredentials = mysqlTable(
+  'machine_credentials',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    workspaceId: char('workspace_id', { length: 36 }).notNull(),
+    hostId: char('host_id', { length: 36 }).notNull(),
+    tokenHash: char('token_hash', { length: 64 }).notNull(),
+    tokenPrefix: varchar('token_prefix', { length: 32 }).notNull(),
+    scopes: json('scopes').$type<MachineScope[]>().notNull(),
+    createdAt: timestamps.createdAt,
+    lastUsedAt: datetime('last_used_at', { mode: 'date', fsp: 3 }),
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+    pairingChallengeId: char('pairing_challenge_id', { length: 36 }),
+    rotatedFromCredentialId: char('rotated_from_credential_id', { length: 36 }),
+    activeHostId: char('active_host_id', { length: 36 }).generatedAlwaysAs(sql`(case when \`revoked_at\` is null then \`host_id\` end)`, { mode: 'virtual' }),
+  },
+  (table) => [
+    foreignKey({ name: 'credentials_workspace_fk', columns: [table.workspaceId], foreignColumns: [workspaces.id] }).onDelete('cascade'),
+    foreignKey({ name: 'credentials_host_fk', columns: [table.hostId, table.workspaceId], foreignColumns: [hosts.id, hosts.workspaceId] }).onDelete('restrict'),
+    foreignKey({ name: 'credentials_challenge_fk', columns: [table.pairingChallengeId], foreignColumns: [pairingChallenges.id] }).onDelete('set null'),
+    // SET NULL, not RESTRICT: a workspace cascade removes a rotation chain row by row.
+    foreignKey({ name: 'credentials_rotated_from_fk', columns: [table.rotatedFromCredentialId], foreignColumns: [table.id] }).onDelete('set null'),
+    uniqueIndex('machine_credentials_active_host_unique').on(table.activeHostId),
+    uniqueIndex('machine_credentials_challenge_unique').on(table.pairingChallengeId),
+    uniqueIndex('machine_credentials_rotated_from_unique').on(table.rotatedFromCredentialId),
+    // Serves the composite FK and the credential list of a host.
+    index('machine_credentials_host_created_idx').on(table.hostId, table.workspaceId, table.createdAt, table.id),
+    index('machine_credentials_workspace_idx').on(table.workspaceId),
   ],
 );
