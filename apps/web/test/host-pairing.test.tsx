@@ -475,7 +475,7 @@ describe('host pairing: credential history (BF 08)', () => {
 describe('Collector communication (BF 08)', () => {
   const summary = async () => within(await screen.findByRole('region', { name: 'Collector e telemetria' }));
   const events = (total: number) => ({
-    items: total > 0 ? [{ id: 'e1', hostId: HOST_ID, hostDisplayName: 'Servidor 1', category: 'SYSTEM', eventType: 'SYSTEM_BOOT', occurredAt: '2026-03-02T09:00:00.000Z', ingestedAt: '2026-03-02T09:00:01.000Z', summary: 'boot' }] : [],
+    items: total > 0 ? [{ id: 'e1', hostId: HOST_ID, hostDisplayName: 'Servidor 1', category: 'SYSTEM', type: 'SYSTEM_BOOT', occurredAt: '2026-03-02T09:00:00.000Z', ingestedAt: '2026-03-02T09:00:01.000Z', summary: 'boot' }] : [],
     pagination: { page: 1, pageSize: 1, total, totalPages: total },
   });
 
