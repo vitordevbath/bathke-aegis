@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { HostPairingResponse, PairingCodeResponse, RotateCredentialResponse } from '@aegis/contracts';
 import { apiRequest } from '../../lib/api-client';
-import { hostKeys } from './hosts-api';
+import { HOST_REFRESH_MS, hostKeys } from './hosts-api';
 
 const pairingPath = (workspaceId: string, hostId: string) => `/workspaces/${encodeURIComponent(workspaceId)}/hosts/${encodeURIComponent(hostId)}`;
 const credentialPath = (workspaceId: string, hostId: string, credentialId: string) => `${pairingPath(workspaceId, hostId)}/credentials/${encodeURIComponent(credentialId)}`;
@@ -13,6 +13,8 @@ export function useHostPairing(workspaceId: string, hostId: string) {
     queryKey: hostPairingKey(workspaceId, hostId),
     queryFn: () => apiRequest<HostPairingResponse>(`${pairingPath(workspaceId, hostId)}/pairing`),
     retry: false,
+    // A pending code consumed by the Collector shows up as a credential without a reload.
+    refetchInterval: HOST_REFRESH_MS,
   });
 }
 
@@ -46,5 +48,14 @@ export function useRevokeCredential(workspaceId: string, hostId: string) {
   return useMutation({
     mutationFn: (credentialId: string) => apiRequest<void>(credentialPath(workspaceId, hostId, credentialId), { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: hostKeys.all(workspaceId) }),
+  });
+}
+
+/** Cancels a pending code. Idempotent on the server; a credential already issued is never touched. */
+export function useCancelPairingCode(workspaceId: string, hostId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (challengeId: string) => apiRequest<void>(`${pairingPath(workspaceId, hostId)}/pairing-codes/${encodeURIComponent(challengeId)}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: hostPairingKey(workspaceId, hostId) }),
   });
 }

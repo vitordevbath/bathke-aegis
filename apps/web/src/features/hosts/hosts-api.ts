@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { HostDetailsCommand, HostResponse, PaginatedResponse } from '@aegis/contracts';
+import { HOST_PRESENCE_POLICY, type HostDetailsCommand, type HostResponse, type PaginatedResponse } from '@aegis/contracts';
 import { apiRequest } from '../../lib/api-client';
 
 export interface HostListParams {
@@ -31,12 +31,20 @@ export function useHostList(workspaceId: string | undefined, params: HostListPar
   });
 }
 
+/**
+ * Connection state is derived by the API from the last heartbeat, so the
+ * detail screen refreshes it twice per heartbeat interval: ONLINE/OFFLINE
+ * changes without a manual reload, and only while the screen is open.
+ */
+export const HOST_REFRESH_MS = HOST_PRESENCE_POLICY.heartbeatIntervalMs / 2;
+
 export function useHost(workspaceId: string | undefined, hostId: string | undefined) {
   return useQuery({
     queryKey: hostKeys.detail(workspaceId ?? '', hostId ?? ''),
     queryFn: () => apiRequest<HostResponse>(hostPath(workspaceId ?? '', hostId ?? '')),
     enabled: Boolean(workspaceId && hostId),
     retry: false,
+    refetchInterval: HOST_REFRESH_MS,
   });
 }
 

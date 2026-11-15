@@ -11,6 +11,8 @@ const HOST_URL = `/api/workspaces/${WS}/hosts/${HOST_ID}`;
 const PAIRING_URL = `${HOST_URL}/pairing`;
 const CODES_URL = `${HOST_URL}/pairing-codes`;
 const CREDENTIAL_URL = `${HOST_URL}/credentials/${CREDENTIAL_ID}`;
+const CHALLENGE_ID = '3c3b3c4d-5e6f-4a1b-8c2d-0123456789ab';
+const EVENTS_URL = `/api/workspaces/${WS}/events`;
 
 // Assembled at runtime: nothing sensitive-looking is committed as a literal.
 const fakeCode = () => ['aegis', 'pair', 'c'.repeat(43)].join('_');
@@ -36,7 +38,7 @@ const host = (overrides: Partial<HostResponse> = {}): HostResponse => ({
 const credential = (overrides: Partial<MachineCredentialResponse> = {}): MachineCredentialResponse => ({
   id: CREDENTIAL_ID,
   tokenPrefix: 'aegis_agent_1a2b3c4d',
-  scopes: ['events:ingest'],
+  scopes: ['events:ingest', 'host:heartbeat'],
   status: 'ACTIVE',
   createdAt: '2026-03-01T10:00:00.000Z',
   lastUsedAt: null,
@@ -91,11 +93,13 @@ describe('host pairing: not paired', () => {
     expect(await region.findByText('Host ainda não pareado.')).toBeTruthy();
     expect(region.getByText(/ainda precisa ser conectado/)).toBeTruthy();
     expect(region.getByRole('button', { name: 'Parear Collector' })).toBeTruthy();
+    expect(screen.queryByText('Online')).toBeNull();
     expect(screen.queryByText(/online/i)).toBeNull();
+    expect(region.queryByRole('region', { name: 'Histórico de credenciais' })).toBeNull();
   });
 
   it('reports a pending code by its expiry and offers to replace it, never showing a code', async () => {
-    api(() => ({ ...unpaired, pendingCode: { expiresAt: inFuture() } }));
+    api(() => ({ ...unpaired, pendingCode: { id: CHALLENGE_ID, expiresAt: inFuture() } }));
     renderApp(`/hosts/${HOST_ID}`);
     const region = await panel();
     expect(await region.findByText(/Há um código pendente/)).toBeTruthy();
@@ -121,7 +125,7 @@ describe('host pairing: generating a code', () => {
     api(() => state, {
       [`POST ${CODES_URL}`]: () => {
         const body = generated();
-        state = { ...unpaired, pendingCode: { expiresAt: body.expiresAt } };
+        state = { ...unpaired, pendingCode: { id: CHALLENGE_ID, expiresAt: body.expiresAt } };
         return ok(body, 201);
       },
     });
@@ -225,7 +229,7 @@ describe('host pairing: paired', () => {
     expect(await region.findByText('aegis_agent_1a2b3c4d')).toBeTruthy();
     expect(region.getByText('Pareado')).toBeTruthy();
     expect(region.getByText('Ativa')).toBeTruthy();
-    expect(region.getByText('Enviar eventos deste host')).toBeTruthy();
+    expect(region.getByText('Enviar eventos deste host; Informar que o Collector deste host está ativo')).toBeTruthy();
     expect(region.getByText('Última utilização da credencial')).toBeTruthy();
     expect(region.queryByText('Nunca utilizada')).toBeNull();
     expect(region.getByText(/não que o Collector esteja online/)).toBeTruthy();
@@ -351,5 +355,183 @@ describe('connection state badge', () => {
     await panel();
     expect((await screen.findAllByText('Pareado')).length).toBeGreaterThan(0);
     expect(screen.queryByText('Online')).toBeNull();
+  });
+});
+
+describe('host pairing: cancelling a pending code (BF 08)', () => {
+  it('asks first, cancels by id and reports it; the dismiss button keeps the code', async () => {
+    let state: HostPairingResponse = { ...unpaired, pendingCode: { id: CHALLENGE_ID, expiresAt: inFuture() } };
+    const fetchMock = api(() => state, {
+      [`DELETE ${CODES_URL}/${CHALLENGE_ID}`]: () => {
+        state = unpaired;
+        return { status: 204, body: null };
+      },
+    });
+    const { user } = renderApp(`/hosts/${HOST_ID}`);
+    await user.click(await (await panel()).findByRole('button', { name: 'Cancelar código' }));
+    let dialog = await screen.findByRole('alertdialog', { name: 'Cancelar o código de pareamento pendente?' });
+    expect(within(dialog).getByText(/a credencial criada não é afetada/)).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Manter código' }));
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
+
+    await user.click(await (await panel()).findByRole('button', { name: 'Cancelar código' }));
+    dialog = await screen.findByRole('alertdialog', { name: 'Cancelar o código de pareamento pendente?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancelar código' }));
+    expect(await screen.findByText(/Código cancelado. Ele não pode mais ser usado/)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText(/Há um código pendente/)).toBeNull());
+    expect((await panel()).queryByRole('button', { name: 'Cancelar código' })).toBeNull();
+    expect(fetchMock.mock.calls.filter(([input, init]) => init?.method === 'DELETE' && String(input) === `${CODES_URL}/${CHALLENGE_ID}`)).toHaveLength(1);
+  });
+
+  it('removes a code still on screen when it is cancelled', async () => {
+    let state: HostPairingResponse = unpaired;
+    api(() => state, {
+      [`POST ${CODES_URL}`]: () => {
+        const expiresAt = inFuture();
+        state = { ...unpaired, pendingCode: { id: CHALLENGE_ID, expiresAt } };
+        return ok({ code: fakeCode(), expiresAt }, 201);
+      },
+      [`DELETE ${CODES_URL}/${CHALLENGE_ID}`]: () => ((state = unpaired), { status: 204, body: null }),
+    });
+    const { user } = renderApp(`/hosts/${HOST_ID}`);
+    await user.click(await (await panel()).findByRole('button', { name: 'Parear Collector' }));
+    await screen.findByText(fakeCode());
+    expect(screen.getByText(/aegis-collector pair --server/)).toBeTruthy();
+    await user.click(await (await panel()).findByRole('button', { name: 'Cancelar código' }));
+    await confirmIn('Cancelar o código de pareamento pendente?', 'Cancelar código', user);
+    await waitFor(() => expect(screen.queryByText(fakeCode())).toBeNull());
+  });
+
+  it('is not offered to members who cannot manage', async () => {
+    api(() => ({ ...unpaired, pendingCode: { id: CHALLENGE_ID, expiresAt: inFuture() } }), {}, viewerMe);
+    renderApp(`/hosts/${HOST_ID}`);
+    expect(await (await panel()).findByText(/Há um código pendente/)).toBeTruthy();
+    expect((await panel()).queryByRole('button', { name: 'Cancelar código' })).toBeNull();
+  });
+});
+
+describe('host pairing: credential history (BF 08)', () => {
+  const FIRST = '0a0b3c4d-5e6f-4a1b-8c2d-0123456789ab';
+  const chain = (): HostPairingResponse => {
+    const current = credential({ rotatedFromCredentialId: FIRST, createdAt: '2026-03-05T10:00:00.000Z', lastUsedAt: '2026-03-06T10:00:00.000Z' });
+    const first = credential({ id: FIRST, tokenPrefix: 'aegis_agent_0a0b3c4d', status: 'REVOKED', revokedAt: '2026-03-05T10:00:00.000Z', lastUsedAt: '2026-03-04T10:00:00.000Z' });
+    return { pendingCode: null, activeCredential: current, credentials: [current, first] };
+  };
+
+  it('lists previous credentials with dates, state and rotation links, without actions or secrets', async () => {
+    api(chain);
+    renderApp(`/hosts/${HOST_ID}`);
+    const history = within(await screen.findByRole('region', { name: 'Credenciais anteriores' }));
+    const item = within(history.getByRole('listitem', { name: 'Credencial aegis_agent_0a0b3c4d' }));
+    expect(item.getByText('Revogada')).toBeTruthy();
+    expect(item.getByText('Criada em')).toBeTruthy();
+    expect(item.getByText('Revogada em')).toBeTruthy();
+    expect(item.getByText('Último uso')).toBeTruthy();
+    expect(item.getByText(/Substituída por aegis_agent_1a2b3c4d por rotação/)).toBeTruthy();
+    expect(history.queryAllByRole('button')).toHaveLength(0);
+    expect((await panel()).getByText('Rotação de aegis_agent_0a0b3c4d')).toBeTruthy();
+    // Only the active credential can be rotated or revoked.
+    expect((await panel()).getAllByRole('button', { name: 'Revogar credencial' })).toHaveLength(1);
+    expect(document.body.textContent).not.toMatch(/token_hash|tokenHash|aegis_agent_[0-9a-f]{32}\./);
+  });
+
+  it('after a revocation: says the Collector can no longer transmit, offers a new pairing and keeps the history', async () => {
+    api(() => ({ pendingCode: null, activeCredential: null, credentials: [credential({ status: 'REVOKED', revokedAt: '2026-03-03T10:00:00.000Z' })] }));
+    renderApp(`/hosts/${HOST_ID}`);
+    const region = await panel();
+    expect(await region.findByText(/aegis_agent_1a2b3c4d revogada em/)).toBeTruthy();
+    expect(region.getByText(/não consegue mais enviar heartbeat nem eventos/)).toBeTruthy();
+    expect(region.getByRole('button', { name: 'Parear Collector' })).toBeTruthy();
+    expect(region.queryByRole('button', { name: 'Revogar credencial' })).toBeNull();
+    expect(within(await screen.findByRole('region', { name: 'Credenciais anteriores' })).getByText('Revogada')).toBeTruthy();
+  });
+
+  it('flags a credential issued before the heartbeat and explains how to get it', async () => {
+    api(() => paired({ scopes: ['events:ingest'] }));
+    renderApp(`/hosts/${HOST_ID}`);
+    const region = await panel();
+    expect(await region.findByText(/emitida antes do heartbeat existir/)).toBeTruthy();
+    expect(region.getByText('aegis-collector replace-credential')).toBeTruthy();
+  });
+
+  it('after a rotation, tells how to install the new credential on the host', async () => {
+    let state = paired();
+    const next: RotateCredentialResponse = { token: fakeToken(), tokenType: 'Bearer', credential: credential({ id: '2a2b3c4d-5e6f-4a1b-8c2d-0123456789ab', tokenPrefix: 'aegis_agent_2a2b3c4d', rotatedFromCredentialId: CREDENTIAL_ID }) };
+    api(() => state, {
+      [`POST ${CREDENTIAL_URL}/rotate`]: () => {
+        state = { pendingCode: null, activeCredential: next.credential, credentials: [next.credential, credential({ status: 'REVOKED', revokedAt: '2026-03-03T10:00:00.000Z' })] };
+        return ok(next);
+      },
+    });
+    const { user } = renderApp(`/hosts/${HOST_ID}`);
+    await user.click(await (await panel()).findByRole('button', { name: 'Rotacionar credencial' }));
+    await confirmIn('Rotacionar esta credencial?', 'Rotacionar', user);
+    const secret = await screen.findByRole('group', { name: 'Nova credencial de máquina' });
+    expect(within(secret).getByText('aegis-collector replace-credential')).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Credenciais anteriores' })).toBeTruthy();
+  });
+});
+
+describe('Collector communication (BF 08)', () => {
+  const summary = async () => within(await screen.findByRole('region', { name: 'Collector e telemetria' }));
+  const events = (total: number) => ({
+    items: total > 0 ? [{ id: 'e1', hostId: HOST_ID, hostDisplayName: 'Servidor 1', category: 'SYSTEM', eventType: 'SYSTEM_BOOT', occurredAt: '2026-03-02T09:00:00.000Z', ingestedAt: '2026-03-02T09:00:01.000Z', summary: 'boot' }] : [],
+    pagination: { page: 1, pageSize: 1, total, totalPages: total },
+  });
+
+  it.each([
+    ['UNPAIRED', null, 'Não pareado', /Nenhuma credencial de máquina ativa/],
+    ['PAIRED', null, 'Pareado, sem comunicação', /ainda não enviou nenhum heartbeat/],
+    ['ONLINE', '2026-03-02T10:00:00.000Z', 'Online', /enviou um heartbeat recentemente/],
+    ['OFFLINE', '2026-03-02T10:00:00.000Z', 'Offline', /sem enviar heartbeat além do limite/],
+  ] as const)('%s is shown as the API derived it, with its meaning', async (state, lastSeenAt, label, hint) => {
+    mockApi({ ...signedIn(), [`GET ${HOST_URL}`]: () => ok(host({ connectionState: state, lastSeenAt, agentId: state === 'UNPAIRED' ? null : CREDENTIAL_ID })), [`GET ${PAIRING_URL}`]: () => ok(state === 'UNPAIRED' ? unpaired : paired()), [`GET ${EVENTS_URL}`]: () => ok(events(0)) });
+    renderApp(`/hosts/${HOST_ID}`);
+    const region = await summary();
+    expect(await region.findByText(label)).toBeTruthy();
+    expect(region.getByText(hint)).toBeTruthy();
+    expect(region.getByText(lastSeenAt ? /2026/ : 'Nunca')).toBeTruthy();
+  });
+
+  it('counts the events received and links to them, filtered by this host', async () => {
+    const fetchMock = mockApi({ ...signedIn(), [`GET ${HOST_URL}`]: () => ok(host({ connectionState: 'ONLINE', lastSeenAt: new Date().toISOString(), agentId: CREDENTIAL_ID })), [`GET ${PAIRING_URL}`]: () => ok(paired()), [`GET ${EVENTS_URL}`]: () => ok(events(7)) });
+    renderApp(`/hosts/${HOST_ID}`);
+    const region = await summary();
+    expect(await region.findByText('7')).toBeTruthy();
+    expect(region.getByText(/último ocorrido em/)).toBeTruthy();
+    expect(region.getByRole('link', { name: 'Ver eventos deste host' }).getAttribute('href')).toBe(`/eventos?hostId=${HOST_ID}`);
+    const eventCalls = fetchMock.mock.calls.map(([input]) => String(input)).filter((url) => url.startsWith(EVENTS_URL));
+    expect(eventCalls[0]).toContain(`hostId=${HOST_ID}`);
+  });
+
+  it('updates from "never heard from" to Online without a reload', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let current = host({ connectionState: 'PAIRED', agentId: CREDENTIAL_ID });
+      mockApi({ ...signedIn(), [`GET ${HOST_URL}`]: () => ok(current), [`GET ${PAIRING_URL}`]: () => ok(paired()), [`GET ${EVENTS_URL}`]: () => ok(events(0)) });
+      renderApp(`/hosts/${HOST_ID}`);
+      expect(await (await summary()).findByText('Pareado, sem comunicação')).toBeTruthy();
+      current = host({ connectionState: 'ONLINE', agentId: CREDENTIAL_ID, lastSeenAt: new Date().toISOString() });
+      await act(() => vi.advanceTimersByTimeAsync(15_000));
+      expect(await (await summary()).findByText('Online')).toBeTruthy();
+      expect(screen.getAllByText('Online').length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('explains why a paired host cannot be deleted', async () => {
+    mockApi({
+      ...signedIn(),
+      [`GET ${HOST_URL}`]: () => ok(host({ connectionState: 'PAIRED', agentId: CREDENTIAL_ID })),
+      [`GET ${PAIRING_URL}`]: () => ok(paired()),
+      [`DELETE ${HOST_URL}`]: () => failure(409, 'CONFLICT', 'Este host já foi pareado com um Collector e mantém o histórico das credenciais de máquina para auditoria; por isso não pode ser excluído.'),
+    });
+    const { user } = renderApp(`/hosts/${HOST_ID}`);
+    await user.click(await screen.findByRole('button', { name: 'Excluir' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Excluir este host?' });
+    expect(within(dialog).getByText(/revogue a credencial/)).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Excluir host' }));
+    expect(await screen.findByText(/mantém o histórico das credenciais de máquina para auditoria/)).toBeTruthy();
   });
 });

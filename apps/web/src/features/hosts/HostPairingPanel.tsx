@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { MACHINE_SCOPE_LABELS, type MachineCredentialResponse } from '@aegis/contracts';
 import { ConfirmAction } from '../../components/ConfirmAction';
 import { ApiError } from '../../lib/api-client';
+import { CredentialHistory } from './CredentialHistory';
 import { formatDateTime } from './host-format';
-import { useHostPairing, useRequestPairingCode, useRevokeCredential, useRotateCredential } from './host-pairing-api';
+import { useCancelPairingCode, useHostPairing, useRequestPairingCode, useRevokeCredential, useRotateCredential } from './host-pairing-api';
 import { OneTimeSecret } from './OneTimeSecret';
 
 interface HostPairingPanelProps {
@@ -18,10 +19,13 @@ type Issued = { readonly kind: 'code'; readonly value: string; readonly expiresA
 const errorMessageOf = (error: unknown) =>
   error instanceof ApiError && [403, 409, 429].includes(error.status) ? error.message : 'Não foi possível concluir a ação agora. Tente novamente.';
 
+/** The address the Collector must use: this panel's own origin (Nginx serves the API under /api). */
+const serverAddress = () => window.location.origin;
+
 /**
  * Authorizes a Collector for this host and manages its credential. Pairing,
- * connectivity and telemetry are different things and are worded apart: nothing
- * here claims a Collector is installed, connected or online.
+ * connectivity and telemetry are different things and are worded apart: an
+ * active credential is "paired", never "online" by itself.
  *
  * Secrets stay in this component's state: leaving the screen unmounts it and
  * they are gone. They are never written to browser storage or to a query cache.
@@ -29,6 +33,7 @@ const errorMessageOf = (error: unknown) =>
 export function HostPairingPanel({ workspaceId, hostId, canManage }: HostPairingPanelProps) {
   const pairing = useHostPairing(workspaceId, hostId);
   const requestCode = useRequestPairingCode(workspaceId, hostId);
+  const cancelCode = useCancelPairingCode(workspaceId, hostId);
   const rotate = useRotateCredential(workspaceId, hostId);
   const revoke = useRevokeCredential(workspaceId, hostId);
   const [issued, setIssued] = useState<Issued | null>(null);
@@ -59,33 +64,43 @@ export function HostPairingPanel({ workspaceId, hostId, canManage }: HostPairing
 
   const data = pairing.data;
   const active = data?.activeCredential ?? null;
+  const latest = data?.credentials[0] ?? null;
   // Once a machine used the code, the code has no further purpose on screen.
   const visible = issued?.kind === 'code' && active ? null : issued;
-  const actionError = requestCode.error ?? rotate.error ?? revoke.error;
+  const actionError = requestCode.error ?? cancelCode.error ?? rotate.error ?? revoke.error;
 
-  const generate = () => {
+  const resetAll = () => {
+    requestCode.reset();
+    cancelCode.reset();
     rotate.reset();
     revoke.reset();
     setResult(null);
+  };
+
+  const generate = () => {
+    resetAll();
     requestCode.mutate(undefined, { onSuccess: ({ code, expiresAt: expiry }) => setIssued({ kind: 'code', value: code, expiresAt: expiry }) });
   };
 
+  const cancelPending = async (challengeId: string) => {
+    resetAll();
+    await cancelCode.mutateAsync(challengeId);
+    setIssued(null);
+    setResult('Código cancelado. Ele não pode mais ser usado para parear este host.');
+  };
+
   const rotateActive = async (credential: MachineCredentialResponse) => {
-    requestCode.reset();
-    revoke.reset();
-    setResult(null);
+    resetAll();
     const { token } = await rotate.mutateAsync(credential.id);
     setIssued({ kind: 'token', value: token });
     setResult('Credencial rotacionada. A credencial anterior deixou de funcionar.');
   };
 
   const revokeActive = async (credential: MachineCredentialResponse) => {
-    requestCode.reset();
-    rotate.reset();
-    setResult(null);
+    resetAll();
     await revoke.mutateAsync(credential.id);
     setIssued(null);
-    setResult('Credencial revogada. Este Collector não consegue mais enviar eventos.');
+    setResult('Credencial revogada. Este Collector não consegue mais enviar eventos nem heartbeat.');
   };
 
   return (
@@ -109,11 +124,18 @@ export function HostPairingPanel({ workspaceId, hostId, canManage }: HostPairing
         <OneTimeSecret title="Código de pareamento" value={visible.value}>
           <p className="muted small">Válido até {formatDateTime(visible.expiresAt)}. Este código é exibido uma única vez e não poderá ser recuperado depois.</p>
           <p className="muted small">Não compartilhe este código: quem o tiver pode conectar uma máquina a este host. Ele será usado uma única vez pelo Aegis Collector.</p>
+          <p className="muted small">
+            No host, execute <code className="command">aegis-collector pair --server {serverAddress()}</code> e cole o código quando ele for pedido (não aparece na tela).
+          </p>
         </OneTimeSecret>
       )}
       {visible?.kind === 'token' && (
         <OneTimeSecret title="Nova credencial de máquina" value={visible.value}>
-          <p className="muted small">Esta credencial é exibida uma única vez e não poderá ser recuperada depois. Atualize o Collector deste host para voltar a enviar eventos.</p>
+          <p className="muted small">Esta credencial é exibida uma única vez e não poderá ser recuperada depois.</p>
+          <p className="muted small">
+            No host, execute <code className="command">aegis-collector replace-credential</code> e cole a credencial quando ela for pedida; até lá o Collector
+            não consegue enviar eventos.
+          </p>
         </OneTimeSecret>
       )}
 
@@ -121,6 +143,11 @@ export function HostPairingPanel({ workspaceId, hostId, canManage }: HostPairing
 
       {data && !active && (
         <>
+          {latest?.status === 'REVOKED' && latest.revokedAt && (
+            <p className="notice notice--warn">
+              Credencial {latest.tokenPrefix} revogada em {formatDateTime(latest.revokedAt)}. O Collector deste host não consegue mais enviar heartbeat nem eventos.
+            </p>
+          )}
           <p>Host ainda não pareado.</p>
           <p className="muted small">O Aegis Collector ainda precisa ser conectado a este host. Gerar um código autoriza a conexão, mas não instala nem conecta nada.</p>
           {data.pendingCode && !visible && (
@@ -131,6 +158,18 @@ export function HostPairingPanel({ workspaceId, hostId, canManage }: HostPairing
               <button type="button" className="button button--primary" disabled={requestCode.isPending} onClick={generate}>
                 {requestCode.isPending ? 'Gerando…' : visible?.kind === 'code' || data.pendingCode ? 'Gerar novo código' : 'Parear Collector'}
               </button>
+              {data.pendingCode && (
+                <ConfirmAction
+                  key={`cancel-${data.pendingCode.id}`}
+                  triggerLabel="Cancelar código"
+                  title="Cancelar o código de pareamento pendente?"
+                  description="O código deixa de funcionar imediatamente. Se uma máquina já o usou, a credencial criada não é afetada."
+                  confirmLabel="Cancelar código"
+                  pendingLabel="Cancelando…"
+                  dismissLabel="Manter código"
+                  onConfirm={() => cancelPending(data.pendingCode?.id ?? '')}
+                />
+              )}
             </div>
           ) : (
             <p className="muted small">Somente o proprietário do workspace pode parear este host.</p>
@@ -165,9 +204,21 @@ export function HostPairingPanel({ workspaceId, hostId, canManage }: HostPairing
             </div>
             <div>
               <dt>Escopos</dt>
-              <dd>{active.scopes.map((scope) => MACHINE_SCOPE_LABELS[scope]).join(', ')}</dd>
+              <dd>{active.scopes.map((scope) => MACHINE_SCOPE_LABELS[scope]).join('; ')}</dd>
             </div>
+            {active.rotatedFromCredentialId && (
+              <div>
+                <dt>Origem</dt>
+                <dd>Rotação de {data.credentials.find((credential) => credential.id === active.rotatedFromCredentialId)?.tokenPrefix ?? 'uma credencial anterior'}</dd>
+              </div>
+            )}
           </dl>
+          {!active.scopes.includes('host:heartbeat') && (
+            <p className="notice notice--warn">
+              Esta credencial foi emitida antes do heartbeat existir: ela envia eventos, mas não informa atividade, então o host não aparece como online. Rotacione-a e
+              instale a nova no host com <code className="command">aegis-collector replace-credential</code>.
+            </p>
+          )}
           <p className="muted small">“Pareado” significa que existe uma credencial ativa, não que o Collector esteja online. A última utilização da credencial também não é o último evento recebido.</p>
           {canManage ? (
             <div className="detail-actions">
@@ -196,6 +247,8 @@ export function HostPairingPanel({ workspaceId, hostId, canManage }: HostPairing
           )}
         </>
       )}
+
+      {data && <CredentialHistory credentials={data.credentials} />}
     </section>
   );
 }

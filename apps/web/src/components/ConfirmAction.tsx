@@ -6,6 +6,8 @@ interface ConfirmActionProps {
   readonly description: string;
   readonly confirmLabel: string;
   readonly pendingLabel: string;
+  /** Label of the safe choice; defaults to "Cancelar". */
+  readonly dismissLabel?: string;
   readonly onConfirm: () => Promise<void>;
 }
 
@@ -14,7 +16,7 @@ interface ConfirmActionProps {
  * confirmation panel. Focus moves to "Cancelar" (the safe choice); Escape
  * cancels and focus returns to the trigger.
  */
-export function ConfirmAction({ triggerLabel, title, description, confirmLabel, pendingLabel, onConfirm }: ConfirmActionProps) {
+export function ConfirmAction({ triggerLabel, title, description, confirmLabel, pendingLabel, dismissLabel = 'Cancelar', onConfirm }: ConfirmActionProps) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const titleId = useId();
@@ -55,7 +57,7 @@ export function ConfirmAction({ triggerLabel, title, description, confirmLabel, 
       </p>
       <div className="confirm__actions">
         <button ref={cancelRef} type="button" className="button" disabled={pending} onClick={close}>
-          Cancelar
+          {dismissLabel}
         </button>
         <button
           type="button"

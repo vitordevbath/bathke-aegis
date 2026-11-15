@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ConfirmAction } from '../../components/ConfirmAction';
+import { HostCollectorSummary } from '../../features/hosts/HostCollectorSummary';
 import { HostPairingPanel } from '../../features/hosts/HostPairingPanel';
 import { HostStatusBadge } from '../../features/hosts/HostStatusBadge';
 import { formatDateTime } from '../../features/hosts/host-format';
@@ -7,8 +8,6 @@ import { useDeleteHost, useHost } from '../../features/hosts/hosts-api';
 import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
 import { ApiError } from '../../lib/api-client';
 import { HostNotFound } from './HostNotFound';
-
-const NOT_REPORTED = 'Ainda não informado';
 
 export function HostDetailPage() {
   const { hostId = '' } = useParams();
@@ -31,7 +30,6 @@ export function HostDetailPage() {
   if (!host.data) return <main className="content content--narrow muted">Carregando host…</main>;
 
   const data = host.data;
-  const os = [data.osName, data.osVersion].filter(Boolean).join(' ');
 
   return (
     <main className="content content--narrow">
@@ -55,34 +53,7 @@ export function HostDetailPage() {
         </p>
       )}
 
-      <section className="surface" aria-labelledby="collector-title">
-        <h2 id="collector-title" className="section-title">
-          Collector e telemetria
-        </h2>
-        <p className="muted small">Estes dados serão informados pelo Aegis Collector quando ele existir. Não podem ser editados.</p>
-        <dl className="facts">
-          <div>
-            <dt>Collector</dt>
-            <dd>{data.agentId ? 'Pareado' : 'Não pareado'}</dd>
-          </div>
-          <div>
-            <dt>Hostname</dt>
-            <dd>{data.hostname ?? NOT_REPORTED}</dd>
-          </div>
-          <div>
-            <dt>Sistema operacional</dt>
-            <dd>{os || NOT_REPORTED}</dd>
-          </div>
-          <div>
-            <dt>Arquitetura</dt>
-            <dd>{data.architecture ?? 'Ainda não informada'}</dd>
-          </div>
-          <div>
-            <dt>Último contato</dt>
-            <dd>{data.lastSeenAt ? formatDateTime(data.lastSeenAt) : 'Nunca'}</dd>
-          </div>
-        </dl>
-      </section>
+      {activeWorkspace && <HostCollectorSummary workspaceId={activeWorkspace.id} host={data} />}
 
       {activeWorkspace && <HostPairingPanel workspaceId={activeWorkspace.id} hostId={data.id} canManage={activeWorkspace.role === 'OWNER'} />}
 
@@ -113,7 +84,11 @@ export function HostDetailPage() {
         <ConfirmAction
           triggerLabel="Excluir"
           title="Excluir este host?"
-          description="O cadastro será removido deste workspace. Hosts com telemetria, regras, incidentes ou credenciais não podem ser excluídos."
+          description={
+            data.agentId
+              ? 'Este host está pareado com um Collector. Hosts que já foram pareados mantêm o histórico das credenciais para auditoria e não podem ser excluídos; para interromper o Collector, revogue a credencial.'
+              : 'O cadastro será removido deste workspace. Hosts com telemetria, regras, incidentes ou histórico de credenciais não podem ser excluídos.'
+          }
           confirmLabel="Excluir host"
           pendingLabel="Excluindo…"
           onConfirm={async () => {

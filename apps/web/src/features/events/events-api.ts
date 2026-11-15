@@ -22,8 +22,9 @@ export const eventKeys = {
 const eventsPath = (workspaceId: string) => `/workspaces/${encodeURIComponent(workspaceId)}/events`;
 
 /** Read-only: the web never creates or edits events (they arrive through ingestion). */
-export function useEventList(workspaceId: string | undefined, params: EventListParams) {
+export function useEventList(workspaceId: string | undefined, params: EventListParams, options: { readonly refetchInterval?: number } = {}) {
   return useQuery({
+    ...options,
     queryKey: eventKeys.list(workspaceId ?? '', params),
     queryFn: () => {
       const search = new URLSearchParams({ page: String(params.page), pageSize: String(params.pageSize) });
