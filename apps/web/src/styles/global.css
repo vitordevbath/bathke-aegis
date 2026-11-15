@@ -422,3 +422,8 @@ a { color: inherit; text-decoration: none; }
   .brand__mark { letter-spacing: 0.16em; }
   .nav__link { font-size: var(--text-xs); }
 }
+/* Any width: when brand, navigation and account controls do not fit (narrow windows, wider system
+   fonts), the bar wraps onto another row instead of overflowing the page. */
+.topbar { flex-wrap: wrap; row-gap: var(--space-2); }
+.topbar__start { flex-wrap: wrap; row-gap: var(--space-2); }
+.nav { flex-wrap: wrap; row-gap: var(--space-1); }
