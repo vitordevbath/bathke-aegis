@@ -1,14 +1,14 @@
 import { z } from 'zod';
-import { HOST_DESCRIPTION_MESSAGE, HOST_DISPLAY_NAME_MESSAGE, HOST_LIMITS } from '@aegis/domain';
+import { HOST_DESCRIPTION_MESSAGE, HOST_DISPLAY_NAME_MESSAGE, HOST_LIMITS, type HostConnectionState } from '@aegis/domain';
 import { UNKNOWN_FIELD_MESSAGE } from './fields.js';
 import { PaginationQuerySchema } from './pagination.js';
 
 /**
- * `PAIRED` means the host has an active machine credential and says nothing
- * about connectivity. `ONLINE`/`OFFLINE` stay reserved for a future heartbeat.
+ * Derived by the API at response time from the active credential and the last
+ * heartbeat (`HOST_PRESENCE_POLICY`): `UNPAIRED`, `PAIRED` (never heard from),
+ * `ONLINE` or `OFFLINE`. Never stored as ONLINE/OFFLINE.
  */
-export const HOST_CONNECTION_STATES = ['UNPAIRED', 'ONLINE', 'OFFLINE', 'PAIRED'] as const;
-export type HostConnectionState = (typeof HOST_CONNECTION_STATES)[number];
+export { HOST_CONNECTION_STATES, HOST_PRESENCE_POLICY, type HostConnectionState } from '@aegis/domain';
 
 /**
  * Administrative fields — the only ones a user may set. Everything else

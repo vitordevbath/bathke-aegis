@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { Entity, normalizeHostDescription, normalizeHostDisplayName } from '@aegis/domain';
+import { Entity, InvalidStateError, hostConnectionStateOf, normalizeHostDescription, normalizeHostDisplayName, type HostConnectionState } from '@aegis/domain';
+
+export type { HostConnectionState };
 
 /**
- * `PAIRED` means the host has an active machine credential and says nothing
- * about connectivity. `ONLINE`/`OFFLINE` are reserved for a future Collector
- * heartbeat and are never set here or by users.
+ * Stored pairing state: `UNPAIRED` or `PAIRED` (an active credential exists).
+ * The column still accepts the ONLINE/OFFLINE values of earlier migrations,
+ * but connectivity is never stored: `connectionStateAt` derives it from
+ * `lastSeenAt` (ADR-043).
  */
-export type HostConnectionState = 'UNPAIRED' | 'ONLINE' | 'OFFLINE' | 'PAIRED';
+export type HostPairingState = HostConnectionState;
 
 export interface HostSnapshot {
   readonly id: string;
@@ -18,7 +21,7 @@ export interface HostSnapshot {
   readonly osName: string | null;
   readonly osVersion: string | null;
   readonly architecture: string | null;
-  readonly connectionState: HostConnectionState;
+  readonly connectionState: HostPairingState;
   readonly lastSeenAt: Date | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -31,7 +34,7 @@ interface CollectorFacts {
   readonly osName: string | null;
   readonly osVersion: string | null;
   readonly architecture: string | null;
-  readonly connectionState: HostConnectionState;
+  readonly connectionState: HostPairingState;
   readonly lastSeenAt: Date | null;
 }
 
@@ -49,7 +52,8 @@ const UNPAIRED: CollectorFacts = {
  * A machine registered in a workspace, which may later be paired with an Aegis
  * Collector. Users manage only the administrative fields (`displayName`,
  * `description`); the collector facts have no setters — they change only
- * through the pairing flow (`markPaired`/`markUnpaired`) or a future heartbeat.
+ * through the pairing flow (`markPaired`/`markUnpaired`) and the heartbeat
+ * (`recordHeartbeat`).
  */
 export class Host extends Entity<string> {
   readonly #workspaceId: string;
@@ -115,8 +119,13 @@ export class Host extends Entity<string> {
     return this.#description;
   }
 
-  get connectionState(): HostConnectionState {
-    return this.#collector.connectionState;
+  /** Connectivity at `now`, derived from the active credential and the last heartbeat. */
+  connectionStateAt(now: Date): HostConnectionState {
+    return hostConnectionStateOf({ paired: this.isPaired, lastSeenAt: this.#collector.lastSeenAt }, now);
+  }
+
+  get lastSeenAt(): Date | null {
+    return this.#collector.lastSeenAt;
   }
 
   get agentId(): string | null {
@@ -142,11 +151,21 @@ export class Host extends Entity<string> {
     this.#updatedAt = now;
   }
 
-  /** Binds the host to its active credential. A heartbeat-owned state, when one exists, is left alone. */
+  /** Binds the host to its active credential. Earlier heartbeats stay as history. */
   markPaired(credentialId: string, now: Date = new Date()): void {
-    const connectionState = this.#collector.connectionState === 'UNPAIRED' ? 'PAIRED' : this.#collector.connectionState;
-    this.#collector = { ...this.#collector, agentId: credentialId, connectionState };
+    this.#collector = { ...this.#collector, agentId: credentialId, connectionState: 'PAIRED' };
     this.#updatedAt = now;
+  }
+
+  /**
+   * The paired Collector reported in, at the server's time. Never moves
+   * backwards, and is not an administrative change (`updatedAt` is untouched).
+   */
+  recordHeartbeat(now: Date): void {
+    if (!this.isPaired) throw new InvalidStateError('Este host não está pareado.');
+    const last = this.#collector.lastSeenAt;
+    if (last && last.getTime() >= now.getTime()) return;
+    this.#collector = { ...this.#collector, lastSeenAt: now };
   }
 
   /** The host no longer has an active credential. Facts the Collector already reported stay as history. */

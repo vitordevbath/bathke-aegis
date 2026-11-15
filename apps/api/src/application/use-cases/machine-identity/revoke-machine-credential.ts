@@ -17,13 +17,15 @@ export class RevokeMachineCredential {
 
   async execute(user: User, workspaceId: string, hostId: string, credentialId: string): Promise<{ revoked: boolean }> {
     await this.access.requireManager(user, workspaceId);
-    const now = this.clock();
 
     return this.unitOfWork.run(async (repositories) => {
+      // Same lock order as ingestion and heartbeat: once this commits, none of them can commit with this credential (ADR-045).
       const host = await repositories.hosts.lockInWorkspace(workspaceId, hostId);
       if (!host) throw new NotFoundError();
       const credential = await repositories.machineCredentials.lockInHost(workspaceId, hostId, credentialId);
       if (!credential) throw new NotFoundError();
+      // Read after the locks, so `revokedAt` is later than anything a machine committed before.
+      const now = this.clock();
 
       if (!credential.revoke(now)) return { revoked: false };
       await repositories.machineCredentials.markRevoked(credential);

@@ -32,7 +32,11 @@ permitir suporte futuro a coletores para outros sistemas operacionais.
 
 ## Status atual
 
-BF 07 — pareamento de hosts e credenciais de máquina: um OWNER autoriza um host por código temporário e a ingestão de eventos passa a confiar na identidade da máquina, não em uma sessão de usuário. Ainda **não há Collector** ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#identidade-de-máquina-current-bf-07), [docs/EVENTOS.md](docs/EVENTOS.md)).
+BF 08 — **primeiro MVP operacional**: o Aegis Collector em Rust, executado em um host Fedora/Linux, pareia por código temporário, envia heartbeat (o painel mostra Online/Offline) e eventos SYSTEM reais (boot e mudanças de serviços systemd) por uma fila local persistente; a revogação no painel interrompe a máquina ([docs/LINUX_SETUP.md](docs/LINUX_SETUP.md#aegis-collector--demonstração-no-fedora), [native/aegis-collector](native/aegis-collector/README.md)).
+
+```
+Fedora → Rust Collector → credencial de máquina → heartbeat + eventos SYSTEM → fila persistente → API → Event Store → Aegis Web
+```
 
 ### Status acadêmico
 
@@ -42,7 +46,7 @@ BF 07 — pareamento de hosts e credenciais de máquina: um OWNER autoriza um ho
 - infraestrutura (Docker Compose, Nginx, isolamento): validada automaticamente;
 - agentes (AGENTS.md, 3 skills, MCP): concluídos;
 - matriz Tech Forge: componentização, POO, tipos, camadas e SOLID (S, O, L, DIP) evidenciados;
-- telemetria: contrato de eventos, ingestão e identidade de máquina implementados; Collector, eBPF, detecção, alertas e IA planejados.
+- telemetria: contrato de eventos, ingestão, identidade de máquina, Collector Rust (SYSTEM + heartbeat) implementados; eBPF (PROCESS/NETWORK), detecção, alertas e IA planejados.
 
 Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 
@@ -60,9 +64,10 @@ Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 | Incidents CRUD — registro manual com ciclo de vida, hosts envolvidos e regras relacionadas | **IMPLEMENTADO** |
 | Investigations CRUD — caso humano que agrupa incidentes; encerrar exige conclusão e torna a investigação somente leitura | **IMPLEMENTADO** |
 | Event Contract v1 + Event Store: ingestão em lote idempotente (credencial de máquina) e navegador `/eventos` somente leitura | **IMPLEMENTADO** |
-| Pareamento por código de uso único, credenciais de máquina com escopo, rotação e revogação; painel no detalhe do host | **IMPLEMENTADO** |
+| Pareamento por código de uso único (cancelável), credenciais de máquina com escopo, rotação, revogação confirmada na transação e histórico; painel no detalhe do host | **IMPLEMENTADO** |
+| Aegis Collector (Rust): pareamento, heartbeat (Online/Offline derivado), eventos SYSTEM (boot, serviços systemd), fila SQLite persistente com reenvio idempotente | **IMPLEMENTADO** (BF 08; validado no Fedora 44 e no CI) |
 | Detection Engine (execução das regras), alertas, correlação automática, IA, workspaces compartilhados | **PLANEJADO** |
-| Aegis Collector (Rust), camada de telemetria eBPF | **PLANEJADO** |
+| Camada de telemetria eBPF, eventos PROCESS e NETWORK | **PLANEJADO** |
 | Aegis Verified Core (Ada/SPARK), experimentos x86-64 | **PLANEJADO** |
 | Análise assistida por IA (API externa) | **PLANEJADO** |
 
@@ -79,14 +84,14 @@ Redes: `aegis_edge` (nginx), `aegis_application` (nginx, web, api — interna),
 ## Arquitetura alvo
 
 ```
-Linux host ─► eBPF (planejado) ─► Aegis Collector (planejado) ─► Aegis API
-  ─► Detection ─► Correlation ─► Incidents ─► IA (opcional) ─► Aegis Web
+Linux host ─► eBPF (planejado) ─► Aegis Collector (atual: SYSTEM + heartbeat) ─► Aegis API
+  ─► Detection ─► Correlation ─► Incidents ─► IA (opcional) ─► Aegis Web     (detecção em diante: planejado)
 ```
 
 ## Tecnologia
 
-- **Atual:** TypeScript (strict), React, Vite, React Router, TanStack Query, React Hook Form, Zod, Fastify, @fastify/rate-limit, Drizzle ORM, MySQL 8.4, Argon2id (`argon2`), JWT (`jose`), Nginx, Docker Compose, Vitest, Testing Library, MCP SDK.
-- **Planejado (Aegis Labs):** Rust, Aya/eBPF, Ada/SPARK + GNATprove, NASM x86-64.
+- **Atual:** TypeScript (strict), React, Vite, React Router, TanStack Query, React Hook Form, Zod, Fastify, @fastify/rate-limit, Drizzle ORM, MySQL 8.4, Argon2id (`argon2`), JWT (`jose`), Nginx, Docker Compose, Vitest, Testing Library, MCP SDK; Rust (Collector: `ureq` + rustls, `rusqlite`, `serde`).
+- **Planejado (Aegis Labs):** Aya/eBPF, Ada/SPARK + GNATprove, NASM x86-64.
 
 ## Estrutura do repositório
 
@@ -96,7 +101,7 @@ apps/api            Aegis API
 packages/contracts  contratos de transporte compartilhados
 packages/domain     primitivas de domínio (Entity, DomainError)
 tools/aegis-mcp     Aegis MCP
-native/             componentes low-level planejados (README apenas)
+native/             Aegis Collector (Rust, atual) e componentes low-level planejados
 agents/skills/      skills para agentes
 infra/              Dockerfiles e Nginx
 docs/               documentação
@@ -123,6 +128,13 @@ docker compose up -d --build
 ```
 
 Teste automatizado da infraestrutura (stack isolada, limpa ao final): `npm run test:infra`.
+
+Collector e fluxo ponta a ponta (requer Rust):
+
+```bash
+(cd native/aegis-collector && cargo build --release)
+npm run test:collector-e2e     # stack isolada + binário real: pareamento, heartbeat, eventos, revogação
+```
 
 ## Escopo de segurança
 

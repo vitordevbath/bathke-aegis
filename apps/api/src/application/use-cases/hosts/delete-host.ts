@@ -6,7 +6,8 @@ import type { WorkspaceAccess } from '../../workspace-access.js';
 export const HOST_TARGETED_MESSAGE = 'Este host é alvo de regras de detecção. Remova-o dessas regras antes de excluí-lo.';
 export const HOST_IN_INCIDENT_MESSAGE = 'Este host está envolvido em incidentes. Remova-o desses incidentes antes de excluí-lo.';
 export const HOST_HAS_EVENTS_MESSAGE = 'Este host tem telemetria armazenada e não pode ser excluído; os eventos são históricos e imutáveis.';
-export const HOST_HAS_CREDENTIALS_MESSAGE = 'Este host já foi pareado e mantém o histórico das credenciais de máquina; por isso não pode ser excluído.';
+export const HOST_HAS_CREDENTIALS_MESSAGE =
+  'Este host já foi pareado com um Collector e mantém o histórico das credenciais de máquina para auditoria; por isso não pode ser excluído. Para interromper o Collector, revogue a credencial. O arquivamento de hosts ainda não existe.';
 
 /**
  * Physical delete, only while nothing refers to the host (409 otherwise): a

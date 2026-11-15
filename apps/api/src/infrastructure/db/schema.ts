@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, char, datetime, foreignKey, index, json, mysqlEnum, mysqlTable, primaryKey, smallint, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import { boolean, char, datetime, foreignKey, index, int, json, mysqlEnum, mysqlTable, primaryKey, smallint, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
 import {
   EVENT_CATEGORIES,
   EVENT_TYPES,
@@ -386,4 +386,21 @@ export const machineCredentials = mysqlTable(
     index('machine_credentials_host_created_idx').on(table.hostId, table.workspaceId, table.createdAt, table.id),
     index('machine_credentials_workspace_idx').on(table.workspaceId),
   ],
+);
+
+/**
+ * Persistent fixed-window rate-limit counters (ADR-046), shared by every API
+ * instance and kept across restarts. `subject_hash` is an HMAC of the subject
+ * (a client address), never the address itself. Expired rows are purged in
+ * bounded batches through `rate_limit_counters_expiry_idx`.
+ */
+export const rateLimitCounters = mysqlTable(
+  'rate_limit_counters',
+  {
+    scope: varchar('scope', { length: 32 }).notNull(),
+    subjectHash: char('subject_hash', { length: 64 }).notNull(),
+    hits: int('hits', { unsigned: true }).notNull(),
+    windowExpiresAt: datetime('window_expires_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [primaryKey({ name: 'rate_limit_counters_pk', columns: [table.scope, table.subjectHash] }), index('rate_limit_counters_expiry_idx').on(table.windowExpiresAt)],
 );

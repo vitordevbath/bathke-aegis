@@ -1,8 +1,9 @@
 # Aegis Event Contract v1
 
 Status: **CURRENT** (BF 06) — contrato, Event Store, API de ingestão e navegador de eventos.
-O **Aegis Collector não existe ainda** (PLANNED): a ingestão exige uma credencial de máquina, obtida
-por pareamento (BF 07, [contrato do Collector](ARCHITECTURE.md#contrato-do-futuro-aegis-collector-planned)).
+Desde o BF 08 o **Aegis Collector** (Rust, Linux) envia eventos **SYSTEM** reais — `SYSTEM_BOOT` e
+`SYSTEM_SERVICE_STATE_CHANGED` — com uma credencial de máquina obtida por pareamento (BF 07). PROCESS e
+NETWORK continuam sem fonte (eBPF planejado). Ver [ARCHITECTURE.md](ARCHITECTURE.md#aegis-collector-current-bf-08).
 
 Fonte única: [`packages/domain/src/event-contract.ts`](../packages/domain/src/event-contract.ts).
 
@@ -115,7 +116,10 @@ POST /api/workspaces/:workspaceId/hosts/:hostId/events/ingest
 - **Atomicidade:** o lote inteiro é validado antes de qualquer I/O; um evento inválido → 400 com
   issues `events.<i>.<campo>` e nada é armazenado.
 - O host deve existir no workspace da rota; host inexistente ou de outro workspace → o mesmo 404.
-- Ingerir eventos **não** muda o host para `ONLINE` nem atualiza `lastSeenAt` (heartbeat não existe); a credencial registra apenas sua última utilização.
+- Ingerir eventos **não** muda o host para `ONLINE` nem atualiza `lastSeenAt`: isso é papel do heartbeat
+  (`POST …/hosts/:hostId/heartbeat`, ADR-043). A credencial registra apenas sua última utilização.
+- A credencial é reconfirmada dentro da transação, depois do lock do host: um lote de uma credencial
+  revogada enquanto a requisição estava em andamento recebe 401 e nada é gravado (ADR-045).
 
 ## Idempotência e fingerprint
 
@@ -160,7 +164,19 @@ Adicionar um tipo de evento é declarar sua definição em `EVENT_DEFINITIONS` (
 TypeScript e o valor do enum na migration); validador, fingerprint, serviço de ingestão, repositório e
 rotas não mudam. Uma futura `schemaVersion: 2` conviverá com eventos v1 armazenados — não implementada.
 
+## Fonte SYSTEM: Aegis Collector (CURRENT, BF 08)
+
+| Tipo | Origem no Linux | `sourceEventId` | `occurredAt` |
+| --- | --- | --- | --- |
+| `SYSTEM_BOOT` | `/proc/sys/kernel/random/boot_id` + `btime` de `/proc/stat` | UUID v5 do `boot_id` (estável: o mesmo boot nunca vira dois eventos) | hora do boot, UTC |
+| `SYSTEM_SERVICE_STATE_CHANGED` | `systemctl list-units --type=service --all` (linha de base + diferenças a cada 15 s) | UUID v4 fixado quando a mudança é observada | hora da observação, UTC |
+
+`ActiveState` → estado do contrato: `active`/`reloading`/`refreshing` → `RUNNING`, `activating` →
+`STARTING`, `deactivating` → `STOPPING`, `inactive`/`maintenance` → `STOPPED`, `failed` → `FAILED`;
+unidade que sai da lista → `STOPPED`. Os eventos passam por uma fila local persistente e saem dela só
+depois de confirmados pela API ([README do Collector](../native/aegis-collector/README.md)).
+
 ## Roadmap
 
-Collector Rust → telemetria Linux → eBPF →
-Detection Engine → Alerts → Correlation → incidentes automáticos. Todos **PLANNED**.
+Collector Rust com SYSTEM: **CURRENT** (BF 08). eBPF → PROCESS e NETWORK → Detection Engine → Alerts →
+Correlation → incidentes automáticos: **PLANNED**.

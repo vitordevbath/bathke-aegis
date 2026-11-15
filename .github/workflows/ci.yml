@@ -57,3 +57,52 @@ jobs:
           node-version: 24
       - run: docker compose version
       - run: npm run test:infra
+
+  rust:
+    # Aegis Collector (native/aegis-collector). Separate job: the Core jobs above never need Rust (ADR-006).
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native/aegis-collector
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the stable toolchain with rustfmt and clippy
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/aegis-collector/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('native/aegis-collector/Cargo.lock') }}
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+      - run: cargo build --locked --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aegis-collector
+          path: native/aegis-collector/target/release/aegis-collector
+          retention-days: 7
+
+  collector-e2e:
+    # The real Collector binary from the rust job against the real Compose stack (isolated project):
+    # pairing, heartbeat, SYSTEM_BOOT through the queue, /events, revocation and refusal afterwards,
+    # plus a layout check of the web screens in headless Chrome (preinstalled on the runner).
+    needs: rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: aegis-collector
+          path: collector-bin
+      - run: chmod +x collector-bin/aegis-collector
+      - run: npm run test:collector-e2e
+        env:
+          AEGIS_COLLECTOR_BIN: ${{ github.workspace }}/collector-bin/aegis-collector
+          AEGIS_REQUIRE_BROWSER: '1'

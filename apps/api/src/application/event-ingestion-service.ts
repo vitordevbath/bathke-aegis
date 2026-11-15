@@ -1,6 +1,13 @@
 import { EventIdConflictError, NotFoundError, ValidationError, validateEvent, type FieldIssue } from '@aegis/domain';
 import { TelemetryEvent, type EventOrigin } from '../domain/telemetry-event.js';
-import type { UnitOfWork } from './ports/repositories.js';
+import type { Repositories, UnitOfWork } from './ports/repositories.js';
+
+/**
+ * Lets the caller confirm, inside the ingestion transaction and after the host
+ * lock, that the source it authenticated may still write. The service does not
+ * know what a source or a credential is.
+ */
+export type SourceConfirmation = (repositories: Repositories) => Promise<void>;
 
 export interface IngestionResult {
   readonly received: number;
@@ -23,6 +30,9 @@ export interface IngestionResult {
  *     `EVENT_ID_CONFLICT` and the transaction is rolled back (nothing from the
  *     batch is stored);
  *  3. the remaining new events are inserted together.
+ *
+ * `confirmSource`, when given, runs right after the host lock, so a source
+ * revoked by a writer that serializes on the same lock cannot commit events.
  */
 export class EventIngestionService {
   constructor(
@@ -30,7 +40,7 @@ export class EventIngestionService {
     private readonly clock: () => Date = () => new Date(),
   ) {}
 
-  async ingest(origin: EventOrigin, rawEvents: readonly unknown[]): Promise<IngestionResult> {
+  async ingest(origin: EventOrigin, rawEvents: readonly unknown[], confirmSource?: SourceConfirmation): Promise<IngestionResult> {
     const now = this.clock();
     const issues: FieldIssue[] = [];
     const received = rawEvents.map((raw, index) => {
@@ -45,6 +55,7 @@ export class EventIngestionService {
     return this.unitOfWork.run(async (repositories) => {
       const host = await repositories.hosts.lockInWorkspace(origin.workspaceId, origin.hostId);
       if (!host) throw new NotFoundError();
+      await confirmSource?.(repositories);
 
       const stored = await repositories.events.fingerprintsBySourceId(host.id, [...new Set(events.map((event) => event.sourceEventId))]);
       const seen = new Map(stored);

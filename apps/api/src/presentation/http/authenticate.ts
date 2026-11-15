@@ -1,4 +1,4 @@
-import type { FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
+import type { FastifyRequest, onErrorAsyncHookHandler, preHandlerAsyncHookHandler } from 'fastify';
 import { AuthenticationError, MachineAuthenticationError } from '@aegis/domain';
 import type { User } from '../../domain/user.js';
 import type { ResolveAuthenticatedUser } from '../../application/use-cases/resolve-authenticated-user.js';
@@ -61,3 +61,14 @@ export function machineAuthOf(request: FastifyRequest): MachineAuthContext {
   if (!request.machineAuth) throw new AuthenticationError();
   return request.machineAuth;
 }
+
+/**
+ * onError hook for machine routes: a credential revoked after this request was
+ * authenticated is refused inside the request's transaction (ADR-045). The
+ * preHandler cannot see that case, so it is audited here, with the same fields.
+ */
+export const auditRevokedInFlight: onErrorAsyncHookHandler = async (request, _reply, error) => {
+  if (error instanceof MachineAuthenticationError && error.reason === 'REVOKED_IN_FLIGHT') {
+    request.log.warn({ audit: 'machine_auth.failed', reason: error.reason, credentialId: error.credentialId }, 'machine authentication failed');
+  }
+};

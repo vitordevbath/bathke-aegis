@@ -131,8 +131,8 @@ describe('host detail', () => {
     renderApp(`/hosts/${target.id}`);
 
     expect(await screen.findByRole('heading', { name: 'Servidor 3' })).toBeTruthy();
-    expect(screen.getAllByText('Ainda não informado')).toHaveLength(2);
-    expect(screen.getByText('Ainda não informada')).toBeTruthy();
+    // Hostname, OS and architecture are not reported by the Collector in this version.
+    expect(screen.getAllByText('Não informado pelo Collector')).toHaveLength(3);
     expect(screen.getByText('Nunca')).toBeTruthy();
     expect(screen.getAllByText('Não pareado').length).toBeGreaterThan(0);
     expect(screen.queryAllByRole('textbox')).toHaveLength(0);

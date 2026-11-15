@@ -25,9 +25,10 @@ const ID = '1a2b3c4d-5e6f-4a1b-8c2d-0123456789ab';
 const SECRET = 'A'.repeat(21) + '-_' + 'z'.repeat(20);
 
 describe('machine scopes', () => {
-  it('exposes only the capability that exists today', () => {
-    expect(MACHINE_SCOPES).toEqual(['events:ingest']);
+  it('exposes only the capabilities that exist today', () => {
+    expect(MACHINE_SCOPES).toEqual(['events:ingest', 'host:heartbeat']);
     expect(isMachineScope('events:ingest')).toBe(true);
+    expect(isMachineScope('host:heartbeat')).toBe(true);
     expect(isMachineScope('hosts:write')).toBe(false);
     expect(isMachineScope(1)).toBe(false);
   });

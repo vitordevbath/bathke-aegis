@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { EventIdConflictError, MachineScopeError, NotFoundError, ValidationError } from '@aegis/domain';
+import { EventIdConflictError, MachineAuthenticationError, MachineScopeError, NotFoundError, ValidationError } from '@aegis/domain';
 import type { PasswordHasher } from '../../src/application/ports/password-hasher.js';
 import type { Repositories, UnitOfWork } from '../../src/application/ports/repositories.js';
 import { EventIngestionService } from '../../src/application/event-ingestion-service.js';
@@ -12,6 +12,7 @@ import { MachineAuthContext } from '../../src/application/machine-auth-context.j
 import { ListEvents } from '../../src/application/use-cases/events/list-events.js';
 import { GetEvent } from '../../src/application/use-cases/events/get-event.js';
 import { Membership } from '../../src/domain/membership.js';
+import { MachineCredential } from '../../src/domain/machine-credential.js';
 import { createInMemoryPersistence } from '../support/in-memory-persistence.js';
 import { makeRegistration } from '../support/fixtures.js';
 import { bearer, buildTestApp, pairHost, signedInUser } from '../support/test-app.js';
@@ -114,7 +115,9 @@ describe('EventIngestionService (transport-independent core)', () => {
       Membership.restore({ userId: viewer.user.id, workspaceId: owner.workspaceId, role: 'VIEWER', createdAt: new Date() }).toSnapshot(),
     );
     const ingest = new IngestEventsAsMachine(new EventIngestionService(persistence.unitOfWork));
-    const machine = new MachineAuthContext(randomUUID(), owner.workspaceId, owner.hostId, ['events:ingest']);
+    const credential = MachineCredential.issue({ workspaceId: owner.workspaceId, hostId: owner.hostId, tokenHash: '0'.repeat(64), scopes: ['events:ingest'] });
+    await persistence.repositories.machineCredentials.insert(credential);
+    const machine = new MachineAuthContext(credential.id, owner.workspaceId, owner.hostId, ['events:ingest']);
     await ingest.execute(machine, owner.workspaceId, owner.hostId, [boot(randomUUID(), new Date(Date.now() - 60_000).toISOString())]);
     const [stored] = [...persistence.store.events.values()];
 
@@ -127,6 +130,25 @@ describe('EventIngestionService (transport-independent core)', () => {
     });
     await expect(new GetEvent(access, persistence.repositories.events).execute(outsider.user, outsider.workspaceId, stored?.id ?? '')).rejects.toBeInstanceOf(NotFoundError);
     expect(persistence.store.events.size).toBe(1);
+  });
+
+  it('machine adapter: a credential revoked after authentication cannot commit events (ADR-045)', async () => {
+    const owner = await tenant();
+    const credential = MachineCredential.issue({ workspaceId: owner.workspaceId, hostId: owner.hostId, tokenHash: '0'.repeat(64), scopes: ['events:ingest'] });
+    await persistence.repositories.machineCredentials.insert(credential);
+    // Authenticated while active…
+    const machine = new MachineAuthContext(credential.id, owner.workspaceId, owner.hostId, ['events:ingest']);
+    // …then revoked before the request's transaction ran.
+    credential.revoke(new Date());
+    await persistence.repositories.machineCredentials.markRevoked(credential);
+
+    const before = persistence.store.events.size;
+    const failure = await new IngestEventsAsMachine(new EventIngestionService(persistence.unitOfWork))
+      .execute(machine, owner.workspaceId, owner.hostId, [boot()])
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(MachineAuthenticationError);
+    expect((failure as MachineAuthenticationError).reason).toBe('REVOKED_IN_FLIGHT');
+    expect(persistence.store.events.size).toBe(before);
   });
 });
 

@@ -14,8 +14,9 @@ configurável e removível.
 | Tokens JWT | roubo, forja | CURRENT: HS256 com segredo validado no startup, `alg` fixo, `iss`/`aud`/`exp` verificados, TTL 1 h; token em localStorage mitigado por CSP (ADR-017). PLANNED: revogação |
 | Banco MySQL | acesso direto | CURRENT: porta 3306 não publicada; rede `aegis_data` interna |
 | API | exposição direta | CURRENT: somente Nginx publica porta |
-| Telemetria de hosts | coleta excessiva/privada | CURRENT: Event Contract v1 (só metadados), propriedades desconhecidas rejeitadas. PLANNED: Collector |
-| Credenciais de máquina | roubo, reuso, escalada, troca de host | CURRENT: segredos de 256 bits só como hash, código de uso único e curta duração, escopo mínimo por host, rotação e revogação imediatas, limites por IP e por host |
+| Telemetria de hosts | coleta excessiva/privada | CURRENT: Event Contract v1 (só metadados), propriedades desconhecidas rejeitadas; Collector coleta só SYSTEM (boot e estado de serviços), sem conteúdo |
+| Credenciais de máquina | roubo, reuso, escalada, troca de host | CURRENT: segredos de 256 bits só como hash, código de uso único e curta duração (cancelável), escopos mínimos por host, rotação e revogação imediatas e confirmadas dentro da transação, limites persistentes por IP e por host |
+| Credencial no host Linux | leitura por outro usuário, vazamento em logs/argumentos | CURRENT: arquivo `0600` em diretório `0700`, sem seguir links, nunca em argumentos, logs ou na fila; não criptografado (ver Aegis Collector) |
 | Segredos no repositório | commit acidental | CURRENT: `.gitignore`, `.dockerignore`, MCP secret guard |
 | Agentes de IA | leitura/exfiltração de segredos | CURRENT: AGENTS.md + MCP restrito |
 
@@ -90,21 +91,36 @@ configurável e removível.
 - **Separação:** JWT humano e credencial de máquina têm formatos incompatíveis e contextos distintos. Credencial de máquina recebe 401 em toda rota humana (coberto por teste que percorre as rotas); JWT recebe 401 na ingestão (ADR-037).
 - **Segredos:** código e credencial têm 256 bits (`randomBytes`) e são gravados só como SHA-256, comparados em tempo constante. Aparecem uma única vez, em resposta `no-store`; consultas administrativas têm allowlist de campos e nunca devolvem segredo nem hash (ADR-038, ADR-039).
 - **Uso único:** transação com lock do host, releitura `FOR UPDATE`, `UPDATE` condicional e índices `UNIQUE` no banco. Dez requisições simultâneas em MySQL real criam exatamente uma credencial.
-- **Escopo:** somente `events:ingest`, verificado no caso de uso. A máquina não lê dados nem administra recursos (ADR-040).
+- **Escopo:** `events:ingest` e `host:heartbeat` (BF 08), verificados em cada caso de uso. A máquina não lê dados nem administra recursos (ADR-040, ADR-044). Credenciais emitidas antes do BF 08 não ganham `host:heartbeat` automaticamente: só uma rotação feita por OWNER emite o conjunto atual.
 - **Isolamento:** workspace e host vêm do challenge ou da credencial, nunca do cliente. URL divergente responde o mesmo 404 de host inexistente; FK composta impede vínculo entre host e workspace diferentes no banco.
 - **Erros genéricos:** todo código recusado recebe o mesmo 401; toda credencial inválida recebe o mesmo 401 do JWT inválido. Id desconhecido custa uma comparação, e revogação só é distinguível por quem tem o segredo real.
-- **Abuso:** `PAIR_RATE_LIMIT_MAX` por IP/min; `PAIR_INVALID_ATTEMPTS_MAX` códigos recusados por IP em janela de `PAIR_INVALID_ATTEMPTS_WINDOW_SECONDS`; `PAIR_CODES_PER_HOST_PER_HOUR` por host; um código aberto por host. A ingestão mantém `INGEST_RATE_LIMIT_MAX`. Todos expiram: não há bloqueio permanente.
+- **Abuso:** `PAIR_RATE_LIMIT_MAX` por IP/min; `PAIR_INVALID_ATTEMPTS_MAX` códigos recusados por IP em janela de `PAIR_INVALID_ATTEMPTS_WINDOW_SECONDS` — ambos em MySQL (`rate_limit_counters`), compartilhados entre instâncias e preservados após reinício, com o endereço guardado só como HMAC (ADR-046); 429 traz `Retry-After`. `PAIR_CODES_PER_HOST_PER_HOUR` por host; um código aberto por host, cancelável pelo OWNER. A ingestão mantém `INGEST_RATE_LIMIT_MAX` e o heartbeat `HEARTBEAT_RATE_LIMIT_MAX`. Todos expiram: não há bloqueio permanente. O IP é o que o Nginx anexou ao `X-Forwarded-For` (único proxy confiável); valores escritos pelo cliente nesse cabeçalho são ignorados (teste `test/http/trust-proxy.test.ts`).
+- **Revogação (ADR-045):** ingestão e heartbeat releem a credencial com leitura de bloqueio dentro da transação, depois do lock do host que a revogação também trava. Depois que a revogação retorna, nenhuma operação com a credencial é confirmada; testado em MySQL real com espera de lock e rajadas concorrentes.
+- **Heartbeat (ADR-043):** só `last_seen_at` muda, com o relógio do servidor; o corpo deve ser vazio (qualquer campo → 400), o host vem da credencial (outro host → 404) e nenhum evento é criado. ONLINE/OFFLINE são derivados, nunca gravados.
 - **Auditoria:** linhas `audit` no log estruturado para código solicitado, pareamento concluído ou recusado (com motivo, inclusive expirado), rotação, revogação e autenticação de máquina inválida, com ids internos e horário. Nunca contêm código, token, segredo, hash ou cabeçalho `Authorization` (coberto por teste que captura o log). Não há tabela de auditoria.
 - **Frontend:** código e credencial ficam só no estado do componente, nunca em `localStorage`; as mutações usam `gcTime: 0`, para não permanecerem no cache do TanStack Query, e o valor some ao sair da tela.
 - **Aegis MCP:** `aegis_security_check` e a redação de saída reconhecem o formato de tokens e códigos do Aegis.
 
+### Aegis Collector (CURRENT, BF 08)
+
+- **Execução explícita:** o usuário roda `aegis-collector run` em primeiro plano. Não há instalador, serviço, persistência automática, elevação de privilégios ou ocultação. Encerra com Ctrl+C/SIGTERM preservando a fila.
+- **Sem privilégios:** lê `/proc/sys/kernel/random/boot_id`, `/proc/stat` e `systemctl list-units` como usuário comum. `systemctl` é chamado por caminho absoluto fixo, argumentos fixos, sem shell, com ambiente limpo, timeout e limite de saída. Nada vindo do servidor ou do usuário vira comando; o Collector não aceita instruções remotas (ADR-011).
+- **Coleta mínima (ADR-048):** somente `SYSTEM_BOOT` e `SYSTEM_SERVICE_STATE_CHANGED` (nome da unidade e estado). Nunca linhas de comando, argumentos, ambiente, conteúdo de arquivos ou logs, mensagens, teclas, senhas ou tráfego.
+- **Credencial local:** `~/.config/aegis-collector/config.json`, `0600` em diretório `0700`, dono = usuário; links simbólicos, donos diferentes e permissões abertas são recusados (o erro indica o `chmod` correto); escrita atômica que nunca sobrescreve uma configuração existente (exceto `replace-credential`, explícito e validado). Protege contra outros usuários locais sem privilégio; **não** protege contra root nem contra código da mesma conta, e o arquivo **não é criptografado**.
+- **Segredos fora de argumentos e logs:** código e credencial são lidos do terminal sem eco (ou da entrada padrão); `--code`/`--token` são recusados sem ecoar o valor. O tipo `Secret` não tem `Display` e seu `Debug` oculta o valor; `status` mostra só o rótulo público `aegis_agent_<8 hex>`. Testes capturam todo o log dos fluxos de pareamento, envio, 401 e rotação e verificam que nenhum segredo aparece.
+- **Transporte:** TLS sempre verificado pelas raízes do sistema (`rustls-platform-verifier`), sem opção de desativar; HTTPS obrigatório fora de loopback; URL sem credenciais, query ou fragmento; redirecionamentos não seguidos (teste prova que a credencial não chega ao destino); timeouts e respostas limitadas a 64 KiB.
+- **Fila local:** SQLite `0600`, sem credenciais, limitada (10 000 eventos / 16 MiB); cheia, recusa e conta o que não coube (ADR-047).
+- **Revogação:** 401 encerra a transmissão (exit 3) sem laço de tentativas.
+
 ### Limitações conhecidas
 
-- Uma requisição de máquina que já passou da autenticação quando a revogação é confirmada ainda termina (ADR-041).
-- Os contadores de pareamento por IP ficam em memória: zeram ao reiniciar a API, e quem compartilha IP com um atacante pode ter o pareamento pausado até a janela expirar.
+- Login, cadastro, ingestão e heartbeat têm rate limit em memória: zera quando a API reinicia e não é compartilhado entre instâncias (o do pareamento é persistente, ADR-046).
+- Quem compartilha IP com um atacante pode ter o pareamento pausado até a janela expirar. Trocar o `JWT_SECRET` zera os contadores persistentes.
 - Logout é local; tokens emitidos continuam válidos até expirar (sem revogação).
 - Troca de senha não invalida sessões existentes.
-- Rate limit em memória zera quando a API reinicia e não é compartilhado entre instâncias.
+- A credencial do Collector é protegida só por permissões do sistema de arquivos (sem criptografia, sem keyring).
+- Mudanças de serviço ocorridas com o Collector parado, ou mais curtas que o intervalo de 15 s, não são reportadas; `occurredAt` de uma mudança é a hora em que foi observada.
+- Hosts que já tiveram credencial não podem ser excluídos (sem arquivamento nesta fase).
 
 ## Fronteiras
 
@@ -131,16 +147,16 @@ Agentes seguem `AGENTS.md`: não leem `.env`, `.env.*` (exceto `.env.example`),
 - Saída de scripts passa por `redactSecrets`.
 - `aegis_security_check` reporta arquivo/linha/regra, nunca o valor encontrado.
 
-## Permissões futuras do collector
+## Permissões do Collector
 
-Executará com o mínimo necessário para carregar programas eBPF (capabilities
-específicas como `CAP_BPF`/`CAP_PERFMON` em vez de root completo, quando possível),
-como serviço visível e documentado, com desinstalação simples.
+CURRENT: nenhuma além das de um usuário comum. PLANNED (eBPF): o mínimo necessário para carregar
+programas eBPF (capabilities específicas como `CAP_BPF`/`CAP_PERFMON` em vez de root completo, quando
+possível), como serviço visível e documentado, com desinstalação simples — exigirá ADR próprio.
 
 ## Privacidade
 
-Coleta de metadados (pid, ppid, executável, caminho, endereço/porta), nunca de
-conteúdo: sem payload de rede, sem conteúdo de arquivos, sem teclado.
+CURRENT: boot e estado de serviços (SYSTEM). PLANNED: metadados de processo e rede (pid, ppid,
+executável, endereço/porta). Nunca conteúdo: sem payload de rede, sem conteúdo de arquivos, sem teclado.
 
 ## Non-Goals
 

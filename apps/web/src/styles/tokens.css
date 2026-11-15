@@ -23,6 +23,8 @@
   --color-danger-soft: rgba(229, 83, 75, 0.12);
   --color-ok-border: rgba(63, 182, 139, 0.3);
   --color-danger-border: rgba(229, 83, 75, 0.3);
+  --color-warn-soft: rgba(217, 164, 65, 0.12);
+  --color-warn-border: rgba(217, 164, 65, 0.3);
   --color-neutral: #6e7681;
 
   /* typography */

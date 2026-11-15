@@ -6,9 +6,9 @@ experimentais são opcionais; a aplicação web funciona sem eles.
 ## CURRENT ARCHITECTURE
 
 ```
-browser
-   │
-   ▼
+browser                       Aegis Collector (Rust, no host Linux, executado pelo usuário)
+   │                                │  HTTPS (HTTP só em loopback) · credencial de máquina
+   ▼                                ▼
 nginx (única porta publicada: ${AEGIS_HTTP_PORT:-8080} → 80)     redes: aegis_edge, aegis_application
    ├── /       → web:80    Nginx servindo o build estático do Vite (SPA fallback)
    └── /api/   → api:3000  Fastify; prefixo /api removido
@@ -19,13 +19,14 @@ nginx (única porta publicada: ${AEGIS_HTTP_PORT:-8080} → 80)     redes: aegis
 
 | Componente | Local | O que existe |
 | --- | --- | --- |
-| Aegis Web | `apps/web` | `/`, `/login`, `/cadastro` (públicas); `/dashboard`, `/perfil`, `/hosts`, `/hosts/novo`, `/hosts/:hostId`, `/hosts/:hostId/editar`, `/regras`, `/regras/nova`, `/regras/:ruleId`, `/regras/:ruleId/editar`, `/incidentes`, `/incidentes/novo`, `/incidentes/:incidentId`, `/incidentes/:incidentId/editar`, `/investigacoes`, `/investigacoes/nova`, `/investigacoes/:investigationId`, `/investigacoes/:investigationId/editar`, `/eventos`, `/eventos/:eventId` (somente leitura) (protegidas; pareamento do Collector no detalhe do host; telas de CRUD carregadas sob demanda); `AuthContext`, `WorkspaceContext` (workspace ativo), cliente HTTP central, token em localStorage (ADR-017) |
-| Aegis API | `apps/api` | `GET /health`; `POST /auth/register`, `POST /auth/login`; `GET`/`PUT /users/me`; CRUD `/workspaces/:workspaceId/hosts[/:hostId]`, `/workspaces/:workspaceId/detection-rules[/:ruleId]`, `/workspaces/:workspaceId/incidents[/:incidentId]` e `/workspaces/:workspaceId/investigations[/:investigationId]` com paginação; ingestão `POST /workspaces/:workspaceId/hosts/:hostId/events/ingest` (credencial de máquina) e consulta `GET /workspaces/:workspaceId/events[/:eventId]`; pareamento `POST /agent/pair`, `POST …/hosts/:hostId/pairing-codes`, `GET …/hosts/:hostId/pairing`, rotação e revogação em `…/hosts/:hostId/credentials/:credentialId`; Argon2id, JWT, rate limit em `/auth/*`, na ingestão e no pareamento |
+| Aegis Web | `apps/web` | `/`, `/login`, `/cadastro` (públicas); `/dashboard`, `/perfil`, `/hosts`, `/hosts/novo`, `/hosts/:hostId`, `/hosts/:hostId/editar`, `/regras`, `/regras/nova`, `/regras/:ruleId`, `/regras/:ruleId/editar`, `/incidentes`, `/incidentes/novo`, `/incidentes/:incidentId`, `/incidentes/:incidentId/editar`, `/investigacoes`, `/investigacoes/nova`, `/investigacoes/:investigationId`, `/investigacoes/:investigationId/editar`, `/eventos`, `/eventos/:eventId` (somente leitura) (protegidas; no detalhe do host: estado de comunicação derivado, último heartbeat, eventos recebidos, código de pareamento com cancelamento, rotação, revogação e credenciais anteriores, atualizados periodicamente; telas de CRUD carregadas sob demanda); `AuthContext`, `WorkspaceContext` (workspace ativo), cliente HTTP central, token em localStorage (ADR-017) |
+| Aegis API | `apps/api` | `GET /health`; `POST /auth/register`, `POST /auth/login`; `GET`/`PUT /users/me`; CRUD `/workspaces/:workspaceId/hosts[/:hostId]`, `/workspaces/:workspaceId/detection-rules[/:ruleId]`, `/workspaces/:workspaceId/incidents[/:incidentId]` e `/workspaces/:workspaceId/investigations[/:investigationId]` com paginação; ingestão `POST /workspaces/:workspaceId/hosts/:hostId/events/ingest` (credencial de máquina) e consulta `GET /workspaces/:workspaceId/events[/:eventId]`; pareamento `POST /agent/pair`, `POST`/`DELETE …/hosts/:hostId/pairing-codes[/:challengeId]`, `GET …/hosts/:hostId/pairing`, rotação e revogação em `…/hosts/:hostId/credentials/:credentialId`; heartbeat `POST …/hosts/:hostId/heartbeat` (credencial de máquina, escopo `host:heartbeat`); Argon2id, JWT, rate limit em `/auth/*`, na ingestão e no heartbeat (memória) e no pareamento (MySQL, persistente) |
 | Contracts | `packages/contracts` | DTOs + schemas Zod de auth, usuário, hosts, detection rules, incidents, investigations, events e identidade de máquina; `PaginationQuerySchema` + `PaginatedResponse<T>`; envelope de erro |
 | Domain | `packages/domain` | `Entity<TId>`, hierarquia `DomainError`, value objects `Email`, `Cpf`, `PasswordPolicy`, regras do Host, escala de severidade compartilhada, schema v1 de regras de detecção, ciclos de vida de incidentes e investigações e regras de identidade de máquina (ADR-018, ADR-022, ADR-026, ADR-029, ADR-037–041) |
-| MySQL | `compose.yaml` | MySQL 8.4; tabelas `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents`, `events`, `pairing_challenges`, `machine_credentials` via migrations versionadas aplicadas pelo serviço `migrate` (ADR-019) |
+| MySQL | `compose.yaml` | MySQL 8.4; tabelas `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents`, `events`, `pairing_challenges`, `machine_credentials`, `rate_limit_counters` via 12 migrations versionadas (0000–0011) aplicadas pelo serviço `migrate` (ADR-019) |
 | Nginx | `infra/nginx` | Reverse proxy, headers de segurança e CSP estrita |
-| Aegis MCP | `tools/aegis-mcp` | Servidor MCP stdio, 7 ferramentas, allowlist e secret guard |
+| Aegis MCP | `tools/aegis-mcp` | Servidor MCP stdio, 7 ferramentas, allowlist e secret guard; `aegis_architecture_info` testado contra o repositório |
+| Aegis Collector | `native/aegis-collector` | CLI Rust executada em primeiro plano pelo usuário (sem root, sem serviço, sem eBPF): `pair`, `run`, `status`, `replace-credential`, `unpair`; eventos SYSTEM, heartbeat e fila SQLite local ([README](../native/aegis-collector/README.md), ADR-047–049) |
 
 ### Camadas da API
 
@@ -36,13 +37,13 @@ application   → use cases (RegisterUser, AuthenticateUser, ResolveAuthenticate
                 Create/List/Get/Update/DeleteDetectionRule,
                 Create/List/Get/Update/DeleteIncident,
                 Create/List/Get/Update/DeleteInvestigation),
-                RequestPairingCode, RedeemPairingCode, AuthenticateMachine,
+                RequestPairingCode, CancelPairingCode, RedeemPairingCode, AuthenticateMachine,
                 RotateMachineCredential, RevokeMachineCredential, GetHostPairing,
-                IngestEventsAsMachine, EventIngestionService,
+                RecordHeartbeat, IngestEventsAsMachine, EventIngestionService, PairingThrottle,
                 WorkspaceAccess (membership/papel), MachineAuthContext, Page<T> + ports
-                (repositórios, UnitOfWork, PasswordHasher, TokenService, MachineSecrets)
+                (repositórios, UnitOfWork, PasswordHasher, TokenService, MachineSecrets, RateLimitStore)
 domain        → User, Workspace, Membership, Host, DetectionRule, Incident, Investigation, TelemetryEvent, PairingChallenge, MachineCredential (value objects/erros/schema/lifecycle vêm de @aegis/domain)
-infrastructure→ Drizzle/MySQL (repositórios + UnitOfWork transacional), Argon2id, jose, node:crypto (segredos de máquina)
+infrastructure→ Drizzle/MySQL (repositórios + UnitOfWork transacional, contadores de rate limit), Argon2id, jose, node:crypto (segredos de máquina, HMAC)
 shared        → env validado com Zod
 composition-root.ts → conecta use cases aos adapters (produção ou dublês de teste)
 ```
@@ -63,8 +64,9 @@ workspaces (id UUID, name, kind ∈ personal|demo|organization|lab, created_at, 
   │ N
 hosts (id UUID, workspace_id FK, display_name, description,          ← administrativos (usuário)
        agent_id UNIQUE NULL (id da credencial ativa),                ← preenchido pelo pareamento
-       hostname, os_name, os_version, architecture, last_seen_at,     ← fatos do Collector (futuro)
-       connection_state ∈ UNPAIRED|PAIRED|ONLINE|OFFLINE,
+       hostname, os_name, os_version, architecture,                  ← fatos do Collector (ainda não informados)
+       last_seen_at,                                                 ← último heartbeat, relógio do servidor (BF 08)
+       connection_state ∈ UNPAIRED|PAIRED (gravado; ONLINE/OFFLINE são derivados, ADR-043),
        created_at, updated_at)   INDEX (workspace_id, created_at, id), UNIQUE (id, workspace_id)
   │ 1                                      │ N (RESTRICT)
   │ N                                      │
@@ -108,10 +110,10 @@ regras, não geram alertas e não controlam hosts. A conclusão é escrita por u
 há IA. Um incidente agrupado não pode ser excluído (409). Ver ADR-028 a ADR-031.
 
 Events (CURRENT, BF 06) são **fatos técnicos imutáveis** observados em um host, no formato
-OS-independente do Event Contract v1 ([EVENTOS.md](EVENTOS.md)). Não há Collector implementado: a
-ingestão exige uma credencial de máquina (BF 07) e chama o `EventIngestionService`, que não conhece
-HTTP, JWT nem credenciais. Nada avalia eventos: regras não rodam, alertas e incidentes automáticos
-não existem. Ver ADR-032 a ADR-036 e ADR-042.
+OS-independente do Event Contract v1 ([EVENTOS.md](EVENTOS.md)). Desde o BF 08 o Aegis Collector envia
+eventos SYSTEM reais; a ingestão exige uma credencial de máquina (BF 07) e chama o
+`EventIngestionService`, que não conhece HTTP, JWT nem credenciais. Nada avalia eventos: regras não
+rodam, alertas e incidentes automáticos não existem. Ver ADR-032 a ADR-036, ADR-042 e ADR-045.
 
 ```
 workspaces 1 ── N events (id UUID, workspace_id FK CASCADE, host_id FK RESTRICT, source_event_id,
@@ -122,7 +124,8 @@ workspaces 1 ── N events (id UUID, workspace_id FK CASCADE, host_id FK RESTR
 
 POST …/hosts/:hostId/events/ingest ─► authenticateMachine ─► IngestEventsAsMachine (escopo + host) ─► EventIngestionService
    valida o lote inteiro (Event Contract v1) ─► 400, nada gravado
-   transação: lock do host ─► fingerprints por sourceEventId ─► igual: dedup · diferente: 409, rollback
+   transação: lock do host ─► releitura da credencial FOR SHARE (revogada ─► 401, ADR-045)
+              ─► fingerprints por sourceEventId ─► igual: dedup · diferente: 409, rollback
               ─► INSERT multi-linha dos novos
 ```
 
@@ -130,12 +133,13 @@ POST …/hosts/:hostId/events/ingest ─► authenticateMachine ─► IngestEve
 
 Uma máquina age em nome do host ao qual foi pareada e somente dentro de seus escopos. Identidade
 humana (JWT, `request.currentUser`) e de máquina (credencial opaca, `request.machineAuth`) não se
-substituem. Ver ADR-037 a ADR-042. O Collector **não está implementado**; isto é a fundação que ele usará.
+substituem. Ver ADR-037 a ADR-046. O Aegis Collector (BF 08) é o cliente real desta identidade.
 
 ```
 workspaces 1 ── N hosts 1 ── N pairing_challenges (id, workspace_id, host_id, code_hash UNIQUE,
        created_by FK users RESTRICT, created_at, expires_at, consumed_at, revoked_at,
        open_host_id gerada UNIQUE)   FK (host_id, workspace_id) → hosts CASCADE
+rate_limit_counters (scope, subject_hash HMAC, hits, window_expires_at)   PK (scope, subject_hash), INDEX (window_expires_at)
 hosts 1 ── N machine_credentials (id, workspace_id, host_id, token_hash, token_prefix, scopes JSON,
        created_at, last_used_at, revoked_at, pairing_challenge_id UNIQUE SET NULL,
        rotated_from_credential_id UNIQUE SET NULL, active_host_id gerada UNIQUE)
@@ -143,28 +147,49 @@ hosts 1 ── N machine_credentials (id, workspace_id, host_id, token_hash, tok
 
 OWNER ─► POST …/hosts/:hostId/pairing-codes ─► lock host ─► limite por host ─► revoga código aberto
          ─► grava só o hash ─► 201 { code, expiresAt } (exibido uma vez; o host segue UNPAIRED)
-máquina ─► POST /agent/pair { code } ─► transação: lock host ─► relê challenge FOR UPDATE
+OWNER ─► DELETE …/hosts/:hostId/pairing-codes/:challengeId ─► lock host ─► challenge FOR UPDATE
+         ─► aberto: revoga (UPDATE condicional) · usado/cancelado: nada muda ─► 204 (idempotente)
+máquina ─► POST /agent/pair { code } ─► limites persistentes por IP (MySQL, HMAC) ─► 429 + Retry-After
+         ─► transação: lock host ─► relê challenge FOR UPDATE
          ─► consome (UPDATE condicional) ─► cria credencial ─► host PAIRED
          ─► 201 { token, credentialId, workspaceId, hostId, scopes } (uma única vez)
 máquina ─► POST …/events/ingest (Bearer) ─► authenticateMachine ─► requireScope ─► requireHost ─► ingestão
+máquina ─► POST …/hosts/:hostId/heartbeat (Bearer, corpo vazio) ─► requireScope(host:heartbeat) ─► requireHost
+         ─► transação: lock host ─► releitura da credencial ─► last_seen_at = relógio do servidor
+         ─► 200 { lastSeenAt, heartbeatIntervalSeconds }
+GET host ─► connectionState = UNPAIRED | PAIRED (sem heartbeat) | ONLINE (< 90 s) | OFFLINE (derivado, ADR-043)
 ```
 
-### Contrato do futuro Aegis Collector (PLANNED)
+### Aegis Collector (CURRENT, BF 08)
 
-O Collector ainda não existe; este é o contrato que ele deverá seguir.
+CLI Rust em `native/aegis-collector`, executada explicitamente pelo usuário em primeiro plano, sem
+root. Detalhes em [native/aegis-collector/README.md](../native/aegis-collector/README.md).
 
-1. Recebe do operador o código temporário gerado no painel. Não há instalador nesta etapa.
-2. Envia `POST /api/agent/pair` com `{ "code": "<código>" }`, sem nenhum outro campo: workspace e host vêm do servidor.
-3. Em `201`, recebe `token`, `credentialId`, `workspaceId`, `hostId` e `scopes`. O `token` não pode ser obtido de novo.
-4. Armazena o `token` localmente de forma protegida (arquivo legível só pelo serviço), e nunca o escreve em logs nem o transmite a outros serviços.
-5. Envia eventos com `Authorization: Bearer <token>` para `POST /api/workspaces/<workspaceId>/hosts/<hostId>/events/ingest`, no formato do Event Contract v1.
+```
+Fedora/Linux
+  /proc (boot_id, btime) ──┐
+  systemctl list-units ────┼─► Collector ─► fila SQLite (0600, por host, limitada) ─► lotes ≤ 100 ─► POST …/events/ingest
+                           │       └─► heartbeat a cada 30 s ─────────────────────────────────────► POST …/hosts/:hostId/heartbeat
+  ~/.config/aegis-collector/config.json (0600): servidor, host, credencial de máquina
+```
 
-| Resposta | Significado | Ação esperada |
-| --- | --- | --- |
-| `401` em `/agent/pair` | código inválido, expirado, usado ou revogado (indistinguíveis) | pedir um novo código ao operador |
-| `401` na ingestão | credencial inválida, rotacionada ou revogada | parar de enviar e pedir nova credencial |
-| `404` na ingestão | URL não corresponde à identidade da credencial | erro de configuração; não repetir |
-| `429` | limite atingido | aguardar e tentar de novo |
+1. `aegis-collector pair --server <URL>` lê o código do terminal sem eco e envia só `{ "code" }` a
+   `POST /api/agent/pair`; grava `token`, `credentialId`, `workspaceId`, `hostId` e `scopes` em arquivo
+   `0600` que nunca é sobrescrito em silêncio.
+2. `aegis-collector run` envia `SYSTEM_BOOT` uma vez por boot e `SYSTEM_SERVICE_STATE_CHANGED` só quando
+   um serviço muda (linha de base na primeira leitura), sempre pela fila local; o `sourceEventId` é fixo
+   desde a observação, então reenvios são deduplicados pela API (ADR-034).
+3. Os eventos saem da fila só após 2xx; o heartbeat atualiza `last_seen_at` e o painel mostra ONLINE.
+
+| Resposta | Comportamento do Collector |
+| --- | --- |
+| `401` em `/agent/pair` | código inválido, expirado, usado ou cancelado: pedir outro código |
+| `401` no heartbeat ou na ingestão | credencial revogada, rotacionada ou inválida: para de transmitir (exit 3), preserva a fila |
+| `403` no heartbeat | credencial sem `host:heartbeat` (anterior ao BF 08): desativa só o heartbeat e orienta a rotação |
+| `403`/`404` na ingestão | sem escopo ou host divergente: para (exit 4) |
+| `409`/`400` | quarentena dos eventos apontados, sem retry infinito |
+| `429` | espera `Retry-After` |
+| `5xx`, rede | backoff exponencial com jitter (2 s … 5 min) |
 
 ### Ciclo de vida do incidente (CURRENT)
 
@@ -225,9 +250,10 @@ domínio nunca são serializadas diretamente.
 
 ```
 Linux host (autorizado)
-   │  eBPF (Rust + Aya)                       PLANNED
+   │  eBPF (Rust + Aya): PROCESS, NETWORK    PLANNED
+   │  /proc + systemctl: SYSTEM              CURRENT (BF 08)
    ▼
-Aegis Collector (Rust)                        PLANNED
+Aegis Collector (Rust)                        CURRENT (BF 08): heartbeat, fila, SYSTEM
    │  batches autenticados (HTTPS)
    ▼
 Aegis API ─► Event Pipeline ─► Detection ─► Correlation ─► Incidents
@@ -241,7 +267,7 @@ Aegis Web (timeline, grafo de relações, investigações)
 
 | Componente planejado | Local | Notas |
 | --- | --- | --- |
-| Aegis Collector | `native/aegis-collector` | Normalização, buffering, batching, health; apenas Linux autorizado |
+| Aegis Collector — eventos PROCESS/NETWORK | `native/aegis-collector` + `native/ebpf` | O Collector existe (SYSTEM, heartbeat, fila); faltam as fontes eBPF |
 | eBPF | `native/ebpf` | Metadados de processo/arquivo/rede; nunca payload, teclado ou senhas |
 | Aegis Verified Core | `native/spark-core` | Máquina de estados de incidentes e severidade; só alegamos verificação após GNATprove passar |
 | x86-64 | `native/asm64` | Kernels pequenos e medidos, sempre com implementação de referência segura |
@@ -257,8 +283,9 @@ User → Membership → Workspace → Host / DetectionRule / Incident / Investig
 no workspace do recurso (ADR-009, ADR-020). Planejado: os demais recursos de segurança
 seguem o mesmo caminho. Ver [PRODUTO.md](PRODUTO.md#modelo-de-workspace).
 
-### Contrato de telemetria (planejado)
+### Contrato de telemetria
 
-Collectors de qualquer sistema operacional enviam eventos no mesmo
-**Telemetry Event Contract** (futuro `@aegis/contracts`). O pipeline de detecção
-não depende de detalhes de um SO específico (ADR-010).
+Collectors de qualquer sistema operacional enviam eventos no mesmo **Event Contract v1**
+(CURRENT, `@aegis/domain` + `@aegis/contracts`, [EVENTOS.md](EVENTOS.md)); o Collector Linux do BF 08 é
+o primeiro a usá-lo. Collectors de outros sistemas e o pipeline de detecção (PLANNED) não dependem de
+detalhes de um SO específico (ADR-010).

@@ -100,7 +100,7 @@ Workspace
 | AGENTS.md | PASS | `AGENTS.md` | missão, arquitetura CURRENT/PLANNED, fluxo, regras de teste, segurança, recursos protegidos, dependências, git e commits | Verificação estrutural do MCP e `aegis_security_check` | |
 | 3 Skills | PASS | `agents/skills/{backend-engineering,frontend-engineering,security-review}/SKILL.md` | três skills por área descrevem escopo, ações permitidas/proibidas, comandos de validação e critérios de conclusão | Verificação estrutural do MCP | |
 | Guardrails de agentes | PASS | `AGENTS.md`, `agents/skills/*/SKILL.md`, `tools/aegis-mcp/src/policy/*` | instruções delimitam escopo defensivo, recursos proibidos, validação, proteção de segredos e operações permitidas; o MCP aplica allowlist | Testes de política do MCP (`tools/aegis-mcp/test/protected-paths.test.ts`) | |
-| MCP próprio | PASS | `tools/aegis-mcp` | 7 ferramentas via stdio, somente leitura e com allowlist; `aegis_rubric_status` avalia auth, CRUDs, paginação, relações, UI/componentes, POO, hierarquias, ports substituíveis, tipos/`any` via AST, camadas, Compose/volume/rede e guardrails; itens arquiteturais subjetivos retornam `IN_PROGRESS` para revisão manual | `tools/aegis-mcp/test` (`protected-paths`, `redact`, `rubric-status`, incluindo testes de degradação) | Após rebuild do MCP, o cliente precisa reconectar (`/mcp`) para carregar o código novo |
+| MCP próprio | PASS | `tools/aegis-mcp` | 7 ferramentas via stdio, somente leitura e com allowlist; `aegis_rubric_status` avalia auth, CRUDs, paginação, relações, UI/componentes, POO, hierarquias, ports substituíveis, tipos/`any` via AST, camadas, Compose/volume/rede e guardrails; itens arquiteturais subjetivos retornam `IN_PROGRESS` para revisão manual | `tools/aegis-mcp/test` (`protected-paths`, `redact`, `rubric-status`, incluindo testes de degradação; `architecture-info` confere as afirmações de arquitetura contra o repositório) | Após rebuild do MCP, o cliente precisa reconectar (`/mcp`) para carregar o código novo |
 | Proteção de arquivos sensíveis e `.env` | PASS | `AGENTS.md`, `tools/aegis-mcp/src/policy/protected-paths.ts`, `repo.ts`, `security-check.ts`, `.gitignore` | ferramentas MCP negam leitura de `.env`, `secrets/**`, `credentials/**` e arquivos de chave; saídas de segurança informam somente caminho/regra; credenciais de teste são geradas em memória/runtime | `tools/aegis-mcp/test/{protected-paths,redact}.test.ts`; `aegis_security_check` sem achados; `test-infra.mjs` usa env temporário e nunca carrega `.env` | |
 
 ## Reconciliação BF 05.6
@@ -141,13 +141,16 @@ Nenhum. A confirmação literal contra a rubrica primária depende de uma cópia
 
 #### AEGIS EXPERIMENTAL — PLANNED, fora do PASS acadêmico atual
 
-O Event Contract v1, o Event Store e a ingestão de laboratório existem desde o BF 06 (ver [EVENTOS.md](EVENTOS.md)); deles, só o registro de definições e a suíte de contrato do repositório entram como evidência acadêmica (SOLID O e L). O pareamento e as credenciais de máquina existem desde o BF 07 e também não contam como evidência acadêmica. Collector, eBPF/Aya, Detection Engine, Alerts e correlação automática, IA, Ada/SPARK e Assembly continuam planejados e não contam como evidência.
+O Event Contract v1, o Event Store e a ingestão de laboratório existem desde o BF 06 (ver [EVENTOS.md](EVENTOS.md)); deles, só o registro de definições e a suíte de contrato do repositório entram como evidência acadêmica (SOLID O e L). O pareamento e as credenciais de máquina (BF 07) e o Aegis Collector em Rust com heartbeat, eventos SYSTEM e fila persistente (BF 08) existem, mas não contam como evidência acadêmica: nenhum status acima mudou por causa deles. eBPF/Aya, eventos PROCESS/NETWORK, Detection Engine, Alerts e correlação automática, IA, Ada/SPARK e Assembly continuam planejados e não contam como evidência.
+
+Evidências do BF 08, para rastreabilidade (fora da matriz acadêmica): `native/aegis-collector` (61 testes unitários + 14 de integração, `cargo clippy -D warnings`), `apps/api/test/http/heartbeat.test.ts`, `apps/api/test/integration/{heartbeat-revocation,pairing-limits}.mysql.test.ts` (MySQL real), `apps/web/test/host-pairing.test.tsx`, `scripts/test-collector-e2e.mjs` (binário real contra a stack Compose + layout em Chrome headless), jobs `rust` e `collector-e2e` do CI.
 
 ```
 CORE ACADÊMICO (PASS)                 AEGIS TELEMETRY
 ├── Auth, JWT, Argon2id               ├── Event Contract v1 + ingestão (CURRENT, BF 06)
 ├── User (self-service)               ├── Pareamento e credenciais de máquina (CURRENT, BF 07)
-                                      ├── Collector (Rust) · eBPF (PLANNED)
+                                      ├── Collector Rust: SYSTEM, heartbeat (CURRENT, BF 08)
+                                      ├── eBPF · PROCESS/NETWORK (PLANNED)
 ├── 4 CRUDs + paginação + relações    ├── Detection Engine · Alerts
 ├── MySQL + migrations                ├── Correlation · incidentes automáticos
 ├── Docker · Nginx · isolamento       ├── IA

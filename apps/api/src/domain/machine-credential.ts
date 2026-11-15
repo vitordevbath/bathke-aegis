@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { CredentialRevokedError, Entity, machineTokenPrefixOf, parseMachineScopes, type MachineScope } from '@aegis/domain';
+import { CredentialRevokedError, DEFAULT_MACHINE_SCOPES, Entity, machineTokenPrefixOf, parseMachineScopes, type MachineScope } from '@aegis/domain';
 
 export interface MachineCredentialSnapshot {
   readonly id: string;
@@ -95,11 +95,15 @@ export class MachineCredential extends Entity<string> {
     return true;
   }
 
-  /** Replaces this credential: it is revoked and the successor inherits host, workspace and scopes. */
+  /**
+   * Replaces this credential: it is revoked and the successor inherits host and
+   * workspace and receives the current default scopes — an OWNER's explicit
+   * action, never a silent widening of a live credential (ADR-044).
+   */
   rotate(tokenHash: string, now: Date = new Date()): MachineCredential {
     if (!this.revoke(now)) throw new CredentialRevokedError();
     return MachineCredential.issue(
-      { workspaceId: this.workspaceId, hostId: this.hostId, tokenHash, scopes: this.#scopes, rotatedFromCredentialId: this.id },
+      { workspaceId: this.workspaceId, hostId: this.hostId, tokenHash, scopes: DEFAULT_MACHINE_SCOPES, rotatedFromCredentialId: this.id },
       now,
     );
   }

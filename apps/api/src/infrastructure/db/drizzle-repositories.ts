@@ -244,6 +244,16 @@ class DrizzleHostRepository implements HostRepository {
       .where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, host.id)));
   }
 
+  async updatePresence(host: Host): Promise<void> {
+    const { workspaceId, lastSeenAt } = host.toSnapshot();
+    if (!lastSeenAt) return;
+    // Conditional: a late writer never moves the last contact backwards.
+    await this.db
+      .update(hosts)
+      .set({ lastSeenAt })
+      .where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, host.id), or(isNull(hosts.lastSeenAt), lt(hosts.lastSeenAt, lastSeenAt))));
+  }
+
   async deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean> {
     try {
       const [result] = await this.db.delete(hosts).where(and(eq(hosts.workspaceId, workspaceId), eq(hosts.id, hostId)));
@@ -712,6 +722,16 @@ class DrizzlePairingChallengeRepository implements PairingChallengeRepository {
     return row ? this.toEntity(row) : null;
   }
 
+  async lockInHost(workspaceId: string, hostId: string, challengeId: string): Promise<PairingChallenge | null> {
+    const [row] = await this.db
+      .select()
+      .from(pairingChallenges)
+      .where(and(eq(pairingChallenges.workspaceId, workspaceId), eq(pairingChallenges.hostId, hostId), eq(pairingChallenges.id, challengeId)))
+      .limit(1)
+      .for('update');
+    return row ? this.toEntity(row) : null;
+  }
+
   async countCreatedSince(workspaceId: string, hostId: string, since: Date): Promise<number> {
     const [totals] = await this.db
       .select({ total: count() })
@@ -729,9 +749,13 @@ class DrizzlePairingChallengeRepository implements PairingChallengeRepository {
     return result.affectedRows === 1;
   }
 
-  async markRevoked(challenge: PairingChallenge): Promise<void> {
+  async markRevoked(challenge: PairingChallenge): Promise<boolean> {
     const { revokedAt } = challenge.toSnapshot();
-    await this.db.update(pairingChallenges).set({ revokedAt }).where(eq(pairingChallenges.id, challenge.id));
+    const [result] = await this.db
+      .update(pairingChallenges)
+      .set({ revokedAt })
+      .where(and(eq(pairingChallenges.id, challenge.id), isNull(pairingChallenges.consumedAt), isNull(pairingChallenges.revokedAt)));
+    return result.affectedRows === 1;
   }
 
   private toEntity(row: PairingChallengeRow): PairingChallenge {
@@ -762,6 +786,11 @@ class DrizzleMachineCredentialRepository implements MachineCredentialRepository 
       .where(and(eq(machineCredentials.workspaceId, workspaceId), eq(machineCredentials.hostId, hostId), eq(machineCredentials.id, credentialId)))
       .limit(1)
       .for('update');
+    return row ? this.toEntity(row) : null;
+  }
+
+  async lockForUse(credentialId: string): Promise<MachineCredential | null> {
+    const [row] = await this.db.select().from(machineCredentials).where(eq(machineCredentials.id, credentialId)).limit(1).for('share');
     return row ? this.toEntity(row) : null;
   }
 

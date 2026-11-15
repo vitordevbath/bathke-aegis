@@ -109,7 +109,7 @@ describe('MachineCredential', () => {
     expect(issued.toSnapshot().revokedAt).toEqual(later(1));
   });
 
-  it('rotation revokes the original and links a successor on the same host and workspace', () => {
+  it('rotation revokes the original and links a successor on the same host and workspace, with the current default scopes', () => {
     const original = credential();
     const successor = original.rotate('b'.repeat(64), later(5));
     expect(original.isActive).toBe(false);
@@ -120,7 +120,8 @@ describe('MachineCredential', () => {
       workspaceId: original.workspaceId,
       hostId: original.hostId,
       tokenHash: 'b'.repeat(64),
-      scopes: ['events:ingest'],
+      // A credential from before `host:heartbeat` existed gets it only through this explicit rotation (ADR-044).
+      scopes: ['events:ingest', 'host:heartbeat'],
       rotatedFromCredentialId: original.id,
       pairingChallengeId: null,
       createdAt: later(5),
@@ -154,9 +155,11 @@ describe('Host pairing state', () => {
     expect(registered.isPaired).toBe(false);
   });
 
-  it('leaves a heartbeat-owned state alone when the credential changes', () => {
-    const online = Host.restore({ ...host().toSnapshot(), agentId: 'c1', connectionState: 'ONLINE' });
-    online.markPaired('c2', later(1));
-    expect(online.connectionState).toBe('ONLINE');
+  it('keeps the last heartbeat as history when the credential changes', () => {
+    const seen = later(1);
+    const online = Host.restore({ ...host().toSnapshot(), agentId: 'c1', connectionState: 'PAIRED', lastSeenAt: seen });
+    online.markPaired('c2', later(2));
+    expect(online.toSnapshot()).toMatchObject({ agentId: 'c2', connectionState: 'PAIRED', lastSeenAt: seen });
+    expect(online.connectionStateAt(later(3))).toBe('ONLINE');
   });
 });

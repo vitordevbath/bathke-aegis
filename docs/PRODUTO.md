@@ -35,9 +35,9 @@ TELEMETRIA → EVENTO → REGRA → ALERTA → INCIDENTE → INVESTIGAÇÃO
 
 | Conceito | Definição |
 | --- | --- |
-| Host | Máquina cadastrada em um workspace. Hoje é cadastro manual (nome e descrição), e um OWNER pode autorizar um Collector por código temporário (CURRENT, BF 07). Hostname, SO, arquitetura, online/offline e último contato serão informados pelo Aegis Collector (PLANNED). "Pareado" significa que existe uma credencial ativa; não significa conectado. |
+| Host | Máquina cadastrada em um workspace. Cadastro manual (nome e descrição); um OWNER autoriza um Collector por código temporário (CURRENT, BF 07). O Collector informa atividade por heartbeat e o Aegis deriva **online/offline** e o **último contato** (CURRENT, BF 08). Hostname, SO e arquitetura ainda não são informados (PLANNED). "Pareado" significa que existe uma credencial ativa; não significa conectado. |
 | Telemetria | Dados técnicos produzidos pelo host/collector |
-| Evento | Fato técnico imutável observado em um host autorizado, no formato OS-independente do Event Contract v1 (processo, rede, sistema). Somente metadados. CURRENT desde o BF 06; a ingestão exige credencial de máquina desde o BF 07; Collector PLANNED ([EVENTOS.md](EVENTOS.md)) |
+| Evento | Fato técnico imutável observado em um host autorizado, no formato OS-independente do Event Contract v1 (processo, rede, sistema). Somente metadados. CURRENT desde o BF 06; a ingestão exige credencial de máquina desde o BF 07; o Collector envia eventos SYSTEM reais desde o BF 08 ([EVENTOS.md](EVENTOS.md)) |
 | Regra | Condição declarativa (schema v1: campo da allowlist, operador fechado, valor tipado) para detectar comportamento relevante. Pertence a um workspace e vale para todos os hosts ou para hosts selecionados. Hoje é apenas configuração: o motor de detecção ainda não existe. |
 | Alerta | Resultado de uma regra acionada |
 | Incidente | Caso de segurança que merece acompanhamento humano, no workspace, envolvendo um ou mais hosts e, opcionalmente, regras relacionadas. Tem severidade e ciclo de vida (Aberto → Em investigação → Resolvido → Encerrado, com reabertura antes do encerramento). Hoje é **registrado manualmente** (origem "Manual"); no futuro também agrupará eventos/alertas via correlação (PLANNED). |
@@ -47,9 +47,9 @@ TELEMETRIA → EVENTO → REGRA → ALERTA → INCIDENTE → INVESTIGAÇÃO
 
 | Componente | Responsabilidade | Status |
 | --- | --- | --- |
-| Aegis Web | Interface web | CURRENT (base) |
-| Aegis API | Backend principal | CURRENT (base) |
-| Aegis Collector | Software instalado em hosts autorizados | PLANNED |
+| Aegis Web | Interface web | CURRENT |
+| Aegis API | Backend principal | CURRENT |
+| Aegis Collector | Software executado em hosts Linux autorizados | CURRENT (BF 08): eventos SYSTEM, heartbeat, fila local; eBPF PLANNED |
 | Aegis Detection Engine | Avalia regras sobre eventos | PLANNED |
 | Aegis Correlation Engine | Relaciona eventos e alertas | PLANNED |
 | Aegis Incident Engine | Organiza incidentes | PARTIAL — CRUD manual com ciclo de vida (BF 04); criação automática PLANNED |
@@ -95,7 +95,10 @@ Windows Collector ─┼─► Telemetry Event Contract ─► Aegis API
 macOS Collector   ─┘   (eventual)
 ```
 
-## Telemetria inicial do Collector (planejada)
+## Telemetria do Collector
+
+CURRENT (BF 08): boot e mudanças de estado de serviços systemd (SYSTEM), heartbeat. O restante abaixo é
+planejado.
 
 | Categoria | Dados |
 | --- | --- |
@@ -133,16 +136,17 @@ os dados demo são gerados/curados, nunca copiados de telemetria real.
 
 ### Pareamento de hosts
 
-O mecanismo está **implementado** (BF 07, ADR-037 a ADR-042); o Collector que o usará continua
-**planejado**.
+O mecanismo (BF 07, ADR-037 a ADR-042) e o Collector que o usa (BF 08, ADR-043 a ADR-049) estão
+**implementados**. Roteiro completo em [LINUX_SETUP.md](LINUX_SETUP.md#aegis-collector--demonstração-no-fedora).
 
 ```
 Usuário OWNER
   → Abre o host e escolhe "Parear Collector"
-  → Aegis gera um código temporário, exibido uma única vez        (CURRENT)
-  → Collector troca o código por uma credencial exclusiva do host  (CURRENT: API; agente PLANNED)
-  → Host aparece como "Pareado"                                    (CURRENT)
-  → Telemetria começa a chegar                                     (PLANNED)
+  → Aegis gera um código temporário, exibido uma única vez (cancelável)   (CURRENT)
+  → aegis-collector pair troca o código por uma credencial do host        (CURRENT)
+  → Host aparece como "Pareado, sem comunicação"                          (CURRENT)
+  → aegis-collector run: heartbeat → "Online"; eventos SYSTEM chegam      (CURRENT)
+  → Revogar no painel: o Collector para de transmitir                     (CURRENT)
 ```
 
 A credencial pertence a um único host, só permite enviar eventos dele e pode ser rotacionada ou

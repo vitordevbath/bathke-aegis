@@ -25,6 +25,7 @@ export {
   HOST_ALREADY_PAIRED_MESSAGE,
   CREDENTIAL_REVOKED_MESSAGE,
   PAIRING_CODE_LIMIT_MESSAGE,
+  PAIRING_ATTEMPTS_LIMIT_MESSAGE,
   PairingRejectedError,
   MachineAuthenticationError,
   MachineScopeError,
@@ -52,6 +53,10 @@ export {
   HOST_DESCRIPTION_MESSAGE,
   normalizeHostDisplayName,
   normalizeHostDescription,
+  HOST_CONNECTION_STATES,
+  HOST_PRESENCE_POLICY,
+  hostConnectionStateOf,
+  type HostConnectionState,
 } from './host-rules.js';
 export {
   DETECTION_SEVERITIES,

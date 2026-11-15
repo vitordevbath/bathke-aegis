@@ -50,7 +50,8 @@ export function toMeResponse(account: AccountView): MeResponse {
   return { user: toUserResponse(account.user), workspaces: account.workspaces.map(toWorkspaceSummary) };
 }
 
-export function toHostResponse(host: Host): HostResponse {
+/** `now` derives the connection state; it defaults to the moment the response is built. */
+export function toHostResponse(host: Host, now: Date = new Date()): HostResponse {
   const snapshot = host.toSnapshot();
   return {
     id: snapshot.id,
@@ -62,7 +63,7 @@ export function toHostResponse(host: Host): HostResponse {
     osName: snapshot.osName,
     osVersion: snapshot.osVersion,
     architecture: snapshot.architecture,
-    connectionState: snapshot.connectionState,
+    connectionState: host.connectionStateAt(now),
     lastSeenAt: snapshot.lastSeenAt?.toISOString() ?? null,
     createdAt: snapshot.createdAt.toISOString(),
     updatedAt: snapshot.updatedAt.toISOString(),
@@ -104,7 +105,7 @@ export function toDetectionRuleResponse({ rule, targets }: DetectionRuleView): D
   return {
     ...toDetectionRuleSummary(rule),
     definition: rule.definition,
-    targets: targets.map((host) => ({ hostId: host.id, displayName: host.displayName, connectionState: host.connectionState })),
+    targets: targets.map((host) => ({ hostId: host.id, displayName: host.displayName, connectionState: host.connectionStateAt(new Date()) })),
   };
 }
 
@@ -129,7 +130,7 @@ export function toIncidentResponse({ incident, hosts, detectionRules }: Incident
   return {
     ...toIncidentSummary(incident),
     description: incident.toSnapshot().description,
-    hosts: hosts.map((host) => ({ hostId: host.id, displayName: host.displayName, connectionState: host.connectionState })),
+    hosts: hosts.map((host) => ({ hostId: host.id, displayName: host.displayName, connectionState: host.connectionStateAt(new Date()) })),
     detectionRules: detectionRules.map((rule) => {
       const { id, name, severity, enabled } = rule.toSnapshot();
       return { ruleId: id, name, severity, enabled };
@@ -202,10 +203,10 @@ export function toMachineCredentialResponse(credential: MachineCredential): Mach
   };
 }
 
-export function toHostPairingResponse({ pendingCodeExpiresAt, credentials }: HostPairingView): HostPairingResponse {
+export function toHostPairingResponse({ pendingCode, credentials }: HostPairingView): HostPairingResponse {
   const items = credentials.map(toMachineCredentialResponse);
   return {
-    pendingCode: pendingCodeExpiresAt ? { expiresAt: pendingCodeExpiresAt.toISOString() } : null,
+    pendingCode: pendingCode ? { id: pendingCode.id, expiresAt: pendingCode.expiresAt.toISOString() } : null,
     activeCredential: items.find((credential) => credential.status === 'ACTIVE') ?? null,
     credentials: items,
   };

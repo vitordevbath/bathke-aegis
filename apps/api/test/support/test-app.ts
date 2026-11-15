@@ -7,7 +7,7 @@ import type { AppDependencies } from '../../src/presentation/http/app.js';
 import { NodeMachineSecrets } from '../../src/infrastructure/security/node-machine-secrets.js';
 import { Argon2PasswordHasher } from '../../src/infrastructure/security/argon2-password-hasher.js';
 import { JoseTokenService } from '../../src/infrastructure/security/jose-token-service.js';
-import { createInMemoryPersistence } from './in-memory-persistence.js';
+import { InMemoryRateLimitStore, createInMemoryPersistence } from './in-memory-persistence.js';
 import { TEST_PASSWORD, makeRegistration, testJwtSecret } from './fixtures.js';
 
 /** Generous enough that suites only hit a limit when they set one on purpose. */
@@ -16,6 +16,7 @@ const RELAXED_PAIRING_LIMITS: PairingLimits = { ...DEFAULT_PAIRING_LIMITS, pairR
 export interface BuildTestAppOptions {
   readonly authRateLimitMax?: number;
   readonly ingestRateLimitMax?: number;
+  readonly heartbeatRateLimitMax?: number;
   readonly pairing?: Partial<PairingLimits>;
   /** Replaces wired use cases, for behavior no real credential can reach. */
   readonly overrides?: Partial<AppDependencies>;
@@ -28,16 +29,18 @@ export async function buildTestApp(options: BuildTestAppOptions = {}) {
   const persistence = createInMemoryPersistence();
   const jwtSecret = testJwtSecret();
   const tokens = new JoseTokenService({ secret: jwtSecret, ttlSeconds: 900 });
+  const rateLimits = new InMemoryRateLimitStore();
   const dependencies = createUseCases(
-    { repositories: persistence.repositories, unitOfWork: persistence.unitOfWork, hasher: new Argon2PasswordHasher(), tokens, secrets: new NodeMachineSecrets() },
+    { repositories: persistence.repositories, unitOfWork: persistence.unitOfWork, hasher: new Argon2PasswordHasher(), tokens, secrets: new NodeMachineSecrets(), rateLimits },
     options.authRateLimitMax ?? 1000,
     options.ingestRateLimitMax ?? 1000,
     { ...RELAXED_PAIRING_LIMITS, ...options.pairing },
+    options.heartbeatRateLimitMax ?? 1000,
   );
   const { logLines } = options;
   const stream = logLines && new Writable({ write: (chunk, _encoding, done) => (logLines.push(String(chunk)), done()) });
   const app = await buildApp({ ...dependencies, ...options.overrides }, stream ? { logger: { level: 'trace', stream } } : {});
-  return { app, persistence, jwtSecret };
+  return { app, persistence, jwtSecret, rateLimits };
 }
 
 export const bearer = (token: string) => ({ authorization: `Bearer ${token}` });

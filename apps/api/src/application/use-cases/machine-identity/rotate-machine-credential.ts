@@ -15,7 +15,9 @@ export interface RotatedCredential {
 /**
  * Replaces a credential atomically: when this commits, the old token no longer
  * authenticates and the new one does. There is no transition period. Events,
- * rules and the host's identity are untouched.
+ * rules and the host's identity are untouched. The successor gets the current
+ * default scopes, so rotating is how a credential issued before a scope
+ * existed (e.g. `host:heartbeat`) obtains it (ADR-044).
  */
 export class RotateMachineCredential {
   constructor(
@@ -27,7 +29,6 @@ export class RotateMachineCredential {
 
   async execute(user: User, workspaceId: string, hostId: string, credentialId: string): Promise<RotatedCredential> {
     await this.access.requireManager(user, workspaceId);
-    const now = this.clock();
     const secret = this.secrets.generate();
 
     return this.unitOfWork.run(async (repositories) => {
@@ -35,6 +36,7 @@ export class RotateMachineCredential {
       if (!host) throw new NotFoundError();
       const current = await repositories.machineCredentials.lockInHost(workspaceId, hostId, credentialId);
       if (!current) throw new NotFoundError();
+      const now = this.clock();
 
       const successor = current.rotate(this.secrets.hash(secret), now);
       // Revoked first: the unique index allows one active credential per host at every step.

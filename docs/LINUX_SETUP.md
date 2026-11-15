@@ -48,15 +48,149 @@ Ele constrói e sobe a stack do zero, verifica migrations, Nginx (`/`, `/api/`, 
 portas publicadas, redes, isolamento e persistência do volume, e sempre executa `down -v`
 **somente** no projeto de teste, inclusive em falha.
 
-## Aegis Collector / eBPF — toolchain preparada, componente PLANEJADO
+## Aegis Collector — demonstração no Fedora
+
+Validado no Fedora KDE 44 (x86_64, SELinux Enforcing, systemd 259) contra a stack Docker local.
+Tudo roda como **usuário comum**: sem root, sem `sudo`, sem desativar SELinux, sem mexer no
+firewall, sem instalar serviço e sem eBPF. O Collector só funciona enquanto você o executa.
+
+### 1. Requisitos
 
 | Ferramenta | Instalação (Fedora) | Verificação |
 | --- | --- | --- |
-| rustup + Rust stable | instalador oficial do rustup (escopo do usuário) | `rustup show` |
+| rustup + Rust stable (≥ 1.85) | instalador oficial do rustup (escopo do usuário) | `cargo --version` |
+| GCC (compila o SQLite embutido) | `sudo dnf install gcc` (já presente na maioria das instalações) | `gcc --version` |
+| Aegis Core em execução | seção [Aegis Core](#aegis-core--validado) acima | `curl http://localhost:8080/api/health` |
+
+### 2. Compilar o Collector
+
+```bash
+cd native/aegis-collector
+cargo build --release                 # gera target/release/aegis-collector (binário único, ~5 MB)
+./target/release/aegis-collector --version
+```
+
+Para não digitar o caminho, use `alias aegis-collector="$PWD/target/release/aegis-collector"` na sessão.
+Nada é copiado para diretórios do sistema.
+
+### 3. Subir a stack
+
+```bash
+cd ../..                              # raiz do repositório
+docker compose up -d --build          # constrói as imagens e aplica as migrations (0000–0011) antes da API
+docker compose ps                     # nginx, web, api e mysql "Up"; migrate "Exited (0)"
+curl http://localhost:8080/api/health # {"status":"ok","service":"aegis-api"}
+```
+
+Nunca use `docker compose down -v` na stack de desenvolvimento: `-v` apaga o volume do MySQL.
+
+### 4. Acessar o painel
+
+Abra `http://localhost:8080`, crie uma conta em **Cadastro** e entre. O workspace pessoal é criado
+automaticamente.
+
+### 5. Criar o host
+
+**Hosts → Adicionar host**, informe um nome (ex.: `fedora-estacao`). O host nasce **Não pareado**.
+
+### 6. Gerar o código de pareamento
+
+No detalhe do host, em **Pareamento do Collector**, clique em **Parear Collector**. O código
+(`aegis_pair_…`) aparece **uma única vez**, vale 10 minutos e o painel mostra o comando exato. Para
+desistir, **Cancelar código** invalida-o na hora (uma credencial já emitida não é afetada).
+
+### 7. Parear
+
+```bash
+aegis-collector pair --server http://localhost:8080
+# Código de pareamento (não será exibido):   ← cole o código e tecle Enter
+```
+
+O código é lido do terminal **sem eco** e nunca é aceito como argumento (ficaria no histórico do
+shell). O servidor devolve a credencial de máquina do host, gravada em
+`~/.config/aegis-collector/config.json` com permissão `0600` (diretório `0700`). Confira sem expor
+o segredo:
+
+```bash
+aegis-collector status                # servidor, host, aegis_agent_<8 hex>, escopos, arquivos e fila
+stat -c '%a %n' ~/.config/aegis-collector ~/.config/aegis-collector/config.json   # 700 e 600
+```
+
+Servidores remotos exigem `https://` com certificado válido para o sistema; `http://` só é aceito
+para `localhost`, `127.0.0.0/8` e `::1`.
+
+### 8. Executar o Collector
+
+```bash
+aegis-collector run -v                # primeiro plano; Ctrl+C encerra preservando a fila
+```
+
+Ao iniciar ele registra o **boot atual** (uma vez por boot), lê a **linha de base** dos serviços
+systemd e passa a enviar **heartbeat** a cada 30 s. `aegis-collector run --once` faz um único ciclo e
+sai (útil para testar).
+
+### 9. Ver o heartbeat
+
+No detalhe do host, **Collector e telemetria** passa de "Pareado, sem comunicação" para **Online** sem
+recarregar a página (atualização a cada 15 s) e mostra o **último heartbeat**. Sem heartbeat por 90 s o
+host aparece como **Offline**.
+
+### 10. Receber eventos
+
+O `SYSTEM_BOOT` chega no primeiro ciclo. Para provocar uma mudança real de serviço sem privilégios,
+consulte um serviço ativado sob demanda — a consulta só lê informações:
+
+```bash
+hostnamectl status > /dev/null       # ativa systemd-hostnamed.service (inactive → RUNNING)
+```
+
+Em até 15 s o log do Collector mostra `serviço systemd-hostnamed.service → RUNNING`; cerca de 30 s
+depois o serviço encerra sozinho por inatividade e chega `→ STOPPED`.
+
+### 11. Consultar no painel
+
+**Eventos** lista `Inicialização do sistema` e `systemd-hostnamed.service → RUNNING/STOPPED`; o link
+**Ver eventos deste host** no detalhe filtra pelo host. Eventos são somente leitura.
+
+### 12. Revogar
+
+Em **Pareamento do Collector → Revogar credencial**, confirme. A credencial vai para **Credenciais
+anteriores** com a data de revogação e o host volta a **Não pareado**.
+
+### 13. Depois da revogação
+
+No próximo heartbeat (até 30 s) o Collector recebe 401, registra
+`o servidor recusou a credencial deste host…`, para de transmitir e encerra com **código 3**. Nada
+enviado com a credencial depois da revogação é aceito (ADR-045). Eventos pendentes ficam na fila
+local. Para voltar a operar, gere um novo código e execute:
+
+```bash
+aegis-collector unpair                # remove a configuração local (pede confirmação); não revoga nada no servidor
+aegis-collector pair --server http://localhost:8080
+```
+
+Após uma **rotação** (em vez de revogação), o painel exibe a nova credencial uma vez; instale-a com
+`aegis-collector replace-credential` (validada com um heartbeat antes de ser gravada).
+
+### Teste automatizado do mesmo fluxo
+
+```bash
+(cd native/aegis-collector && cargo build --release)
+npm run test:collector-e2e            # stack isolada `aegis-collector-e2e` na porta 18081 + binário real + Chrome headless
+```
+
+Ele percorre autenticação → host → código → `pair` → `run --once` → ONLINE → `SYSTEM_BOOT` em `/events`
+→ revogação → Collector recusado (exit 3), heartbeat e ingestão 401 → nada gravado depois, e verifica o
+layout em 320–1280 px. Remove só o projeto de teste. Também roda no CI (job `collector-e2e`).
+
+## eBPF — toolchain preparada, componente PLANEJADO
+
+| Ferramenta | Instalação (Fedora) | Verificação |
+| --- | --- | --- |
 | clang / LLVM | `sudo dnf install clang llvm llvm-devel` | `clang --version && llvm-config --version` |
 | bpftool | `sudo dnf install bpftool` | `bpftool version` |
 | BTF do kernel em uso | fornecido pelo kernel Fedora | `ls /sys/kernel/btf/vmlinux` |
-| Rust nightly + `rust-src`, bpf-linker, Aya | **PLANEJADO** — instalar quando o Collector começar | `cargo install bpf-linker` |
+| Rust nightly + `rust-src`, bpf-linker, Aya | **PLANEJADO** — instalar quando a camada eBPF começar | `cargo install bpf-linker` |
 
 Notas:
 
@@ -67,7 +201,7 @@ Notas:
   `kernel-devel` juntos e reinicie. Nunca instale um `kernel-devel` de outra versão.
 - `kernel-headers` (headers de userspace) segue numeração própria e não precisa coincidir
   com o kernel em execução.
-- Nenhum programa eBPF é carregado fora da fase do Collector.
+- Nenhum programa eBPF é carregado: o Collector atual não usa eBPF.
 
 ## Aegis Verified Core — toolchain validada, componente PLANEJADO
 
@@ -100,7 +234,7 @@ projeto existe ainda.
 
 | Ambiente | Papel |
 | --- | --- |
-| Fedora KDE 44 (estação do desenvolvedor) | referência principal |
+| Fedora KDE 44 (estação do desenvolvedor) | referência principal; demonstração real do Collector (BF 08) |
 | VM Linux / VPS Linux / servidor controlado | validação completa |
 | WSL2 | **opcional**, desenvolvimento e demonstração |
 

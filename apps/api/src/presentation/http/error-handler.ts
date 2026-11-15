@@ -42,7 +42,10 @@ export function errorHandler(error: FastifyError | Error, request: FastifyReques
   }
   if (error instanceof ForbiddenError) return send(reply, 403, 'FORBIDDEN', error.message);
   if (error instanceof NotFoundError) return send(reply, 404, 'NOT_FOUND', error.message);
-  if (error instanceof TooManyRequestsError) return send(reply, 429, 'RATE_LIMITED', error.message);
+  if (error instanceof TooManyRequestsError) {
+    if (error.retryAfterSeconds !== undefined) reply.header('Retry-After', String(Math.max(1, Math.ceil(error.retryAfterSeconds))));
+    return send(reply, 429, 'RATE_LIMITED', error.message);
+  }
 
   const status = 'statusCode' in error ? error.statusCode : undefined;
   if (status === 429) return send(reply, 429, 'RATE_LIMITED', 'Muitas tentativas. Aguarde um minuto e tente novamente.');

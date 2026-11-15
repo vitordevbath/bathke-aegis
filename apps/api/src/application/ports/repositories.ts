@@ -76,6 +76,8 @@ export interface HostRepository {
   update(host: Host): Promise<void>;
   /** Persists only `agentId`, `connectionState` and `updatedAt`, set by the pairing flow. */
   updatePairing(host: Host): Promise<void>;
+  /** Persists only `lastSeenAt`, and never moves it backwards. Must run inside the `UnitOfWork` that locked the host. */
+  updatePresence(host: Host): Promise<void>;
   /** Returns false when no such host exists in that workspace. */
   deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean>;
 }
@@ -194,11 +196,14 @@ export interface PairingChallengeRepository {
   lockById(challengeId: string): Promise<PairingChallenge | null>;
   /** The code that was neither used nor revoked, expired or not; at most one per host. */
   findOpenForHost(workspaceId: string, hostId: string): Promise<PairingChallenge | null>;
+  /** A code of that host, under a row lock. Must run inside a `UnitOfWork`, after locking the host. */
+  lockInHost(workspaceId: string, hostId: string, challengeId: string): Promise<PairingChallenge | null>;
   /** Codes requested for the host since `since`, whatever became of them. */
   countCreatedSince(workspaceId: string, hostId: string, since: Date): Promise<number>;
   /** Writes the consumption only if the row is still open. Returns false when it no longer was. */
   markConsumed(challenge: PairingChallenge): Promise<boolean>;
-  markRevoked(challenge: PairingChallenge): Promise<void>;
+  /** Writes the revocation only if the row is still open. Returns false when it no longer was. */
+  markRevoked(challenge: PairingChallenge): Promise<boolean>;
 }
 
 export interface MachineCredentialRepository {
@@ -207,6 +212,13 @@ export interface MachineCredentialRepository {
   findForAuthentication(credentialId: string): Promise<MachineCredential | null>;
   /** Holds a row lock. Must run inside a `UnitOfWork`, after locking the host. */
   lockInHost(workspaceId: string, hostId: string, credentialId: string): Promise<MachineCredential | null>;
+  /**
+   * Re-reads a credential with a shared lock, inside the `UnitOfWork` that
+   * already locked its host: a locking read sees the latest committed
+   * revocation, never an older snapshot, and holds back a later one until the
+   * transaction ends (ADR-045).
+   */
+  lockForUse(credentialId: string): Promise<MachineCredential | null>;
   /** Most recent first. */
   listForHost(workspaceId: string, hostId: string, limit: number): Promise<MachineCredential[]>;
   markRevoked(credential: MachineCredential): Promise<void>;
