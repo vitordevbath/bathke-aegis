@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { formatMachineToken } from '@aegis/domain';
+import { TooManyRequestsError, formatMachineToken } from '@aegis/domain';
 import type { ApiErrorResponse, HostPairingResponse, HostResponse, IngestEventsResponse, PairAgentResponse, PairingCodeResponse, RotateCredentialResponse } from '@aegis/contracts';
 import { MachineAuthContext } from '../../src/application/machine-auth-context.js';
 import type { AuthenticateMachine } from '../../src/application/use-cases/machine-identity/authenticate-machine.js';
-import { AttemptWindow } from '../../src/presentation/http/attempt-window.js';
+import { PairingThrottle } from '../../src/application/pairing-throttle.js';
+import { InMemoryRateLimitStore } from '../support/in-memory-persistence.js';
 import { Membership } from '../../src/domain/membership.js';
 import { bearer, buildTestApp, pairHost, redeemCode, requestPairingCode, signedInUser } from '../support/test-app.js';
 import type { InMemoryStore } from '../support/in-memory-persistence.js';
@@ -197,7 +198,10 @@ describe('POST /agent/pair', () => {
     const limited = await buildTestApp({ authRateLimitMax: 1000, ingestRateLimitMax: 1000, pairing: { pairRateLimitMax: 2 } });
     try {
       const send = () => redeemCode(limited.app, `aegis_pair_${'Z'.repeat(43)}`);
-      expect([(await send()).statusCode, (await send()).statusCode, (await send()).statusCode]).toEqual([401, 401, 429]);
+      const answers = [await send(), await send(), await send()];
+      expect(answers.map((response) => response.statusCode)).toEqual([401, 401, 429]);
+      expect(Number(answers[2]?.headers['retry-after'])).toBeGreaterThan(0);
+      expect(answers[2]?.json()).toEqual({ error: { code: 'RATE_LIMITED', message: 'Muitas tentativas de pareamento. Aguarde e tente novamente.' } });
       expect((await signedInUser(limited.app)).token).toBeTruthy();
     } finally {
       await limited.app.close();
@@ -235,27 +239,33 @@ describe('POST /agent/pair', () => {
   });
 });
 
-describe('AttemptWindow', () => {
-  it('counts per key, expires by itself and never blocks for good', () => {
-    let now = 0;
-    const window = new AttemptWindow(2, 1000, 100, () => now);
-    expect(window.isExhausted('a')).toBe(false);
-    expect([window.record('a'), window.record('a')]).toEqual([1, 2]);
-    expect(window.isExhausted('a')).toBe(true);
-    expect(window.isExhausted('b')).toBe(false);
-    now = 1000;
-    expect(window.isExhausted('a')).toBe(false);
-    expect(window.record('a')).toBe(1);
+describe('PairingThrottle', () => {
+  const limits = { requestsPerMinute: 3, invalidAttemptsMax: 2, invalidAttemptsWindowMs: 10 * 60_000 };
+  const throttleAt = () => {
+    let now = new Date('2026-11-15T10:00:00.000Z');
+    const throttle = new PairingThrottle(new InMemoryRateLimitStore(), limits, () => now);
+    return { throttle, advance: (ms: number) => (now = new Date(now.getTime() + ms)) };
+  };
+  const retryAfterOf = (promise: Promise<unknown>) => promise.then(() => undefined, (error: unknown) => (error instanceof TooManyRequestsError ? error.retryAfterSeconds : 'other'));
+
+  it('limits requests per client per minute and says when to come back', async () => {
+    const { throttle, advance } = throttleAt();
+    for (let i = 0; i < 3; i += 1) await throttle.admit('198.51.100.7');
+    advance(15_000);
+    expect(await retryAfterOf(throttle.admit('198.51.100.7'))).toBe(45);
+    await expect(throttle.admit('198.51.100.8')).resolves.toBeUndefined();
+    advance(45_000);
+    await expect(throttle.admit('198.51.100.7')).resolves.toBeUndefined();
   });
 
-  it('bounds memory by evicting the oldest key', () => {
-    const window = new AttemptWindow(1, 1000, 2, () => 0);
-    window.record('a');
-    window.record('b');
-    window.record('c');
-    expect(window.isExhausted('a')).toBe(false);
-    expect(window.isExhausted('b')).toBe(true);
-    expect(window.isExhausted('c')).toBe(true);
+  it('pauses a client after refused codes, only until its window ends', async () => {
+    const { throttle, advance } = throttleAt();
+    expect([await throttle.recordRejection('a'), await throttle.recordRejection('a')]).toEqual([1, 2]);
+    expect(await retryAfterOf(throttle.admit('a'))).toBe(600);
+    await expect(throttle.admit('b')).resolves.toBeUndefined();
+    advance(10 * 60_000);
+    await expect(throttle.admit('a')).resolves.toBeUndefined();
+    expect(await throttle.recordRejection('a')).toBe(1);
   });
 });
 

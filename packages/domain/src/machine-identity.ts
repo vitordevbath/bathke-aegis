@@ -98,6 +98,7 @@ export const MACHINE_SCOPE_MISSING_MESSAGE = 'Esta credencial não permite esta 
 export const HOST_ALREADY_PAIRED_MESSAGE = 'Este host já possui uma credencial ativa. Rotacione ou revogue essa credencial antes de gerar um novo código.';
 export const CREDENTIAL_REVOKED_MESSAGE = 'Esta credencial já foi revogada e não pode ser rotacionada. Pareie o host novamente.';
 export const PAIRING_CODE_LIMIT_MESSAGE = 'Muitos códigos solicitados para este host. Aguarde e tente novamente.';
+export const PAIRING_ATTEMPTS_LIMIT_MESSAGE = 'Muitas tentativas de pareamento. Aguarde e tente novamente.';
 
 export type PairingRejectionReason = 'MALFORMED' | 'UNKNOWN_CODE' | 'EXPIRED' | 'CONSUMED' | 'REVOKED' | 'HOST_UNAVAILABLE' | 'HOST_ALREADY_PAIRED';
 

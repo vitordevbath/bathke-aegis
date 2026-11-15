@@ -25,6 +25,7 @@ export {
   HOST_ALREADY_PAIRED_MESSAGE,
   CREDENTIAL_REVOKED_MESSAGE,
   PAIRING_CODE_LIMIT_MESSAGE,
+  PAIRING_ATTEMPTS_LIMIT_MESSAGE,
   PairingRejectedError,
   MachineAuthenticationError,
   MachineScopeError,

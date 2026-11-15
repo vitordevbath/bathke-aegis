@@ -78,6 +78,13 @@
       "when": 1794266198441,
       "tag": "0010_machine_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1794766148816,
+      "tag": "0011_rate_limit_counters",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,8 @@ import type { PasswordHasher } from './application/ports/password-hasher.js';
 import type { Repositories, UnitOfWork } from './application/ports/repositories.js';
 import type { TokenService } from './application/ports/token-service.js';
 import type { MachineSecrets } from './application/ports/machine-secrets.js';
+import type { RateLimitStore } from './application/ports/rate-limit-store.js';
+import { PairingThrottle } from './application/pairing-throttle.js';
 import { RegisterUser } from './application/use-cases/register-user.js';
 import { AuthenticateUser } from './application/use-cases/authenticate-user.js';
 import { ResolveAuthenticatedUser } from './application/use-cases/resolve-authenticated-user.js';
@@ -42,6 +44,7 @@ import { RevokeMachineCredential } from './application/use-cases/machine-identit
 import { GetHostPairing } from './application/use-cases/machine-identity/get-host-pairing.js';
 import { CancelPairingCode } from './application/use-cases/machine-identity/cancel-pairing-code.js';
 import { RecordHeartbeat } from './application/use-cases/machine-identity/record-heartbeat.js';
+import { DrizzleRateLimitStore, rateLimitSubjectKey } from './infrastructure/db/drizzle-rate-limit-store.js';
 import { createDatabase } from './infrastructure/db/client.js';
 import { DrizzleUnitOfWork, createDrizzleRepositories } from './infrastructure/db/drizzle-repositories.js';
 import { Argon2PasswordHasher } from './infrastructure/security/argon2-password-hasher.js';
@@ -54,9 +57,13 @@ export interface Adapters {
   readonly hasher: PasswordHasher;
   readonly tokens: TokenService;
   readonly secrets: MachineSecrets;
+  readonly rateLimits: RateLimitStore;
 }
 
-/** Abuse limits of the machine pairing flow (ADR-038). All are per time window; none is permanent. */
+/**
+ * Abuse limits of the machine pairing flow (ADR-038, ADR-046). All are per
+ * time window; none is permanent. The per-IP counters are persisted in MySQL.
+ */
 export interface PairingLimits {
   /** Requests per client IP per minute on `POST /agent/pair`. */
   readonly pairRateLimitMax: number;
@@ -82,7 +89,7 @@ export function createUseCases(
   pairing: PairingLimits = DEFAULT_PAIRING_LIMITS,
   heartbeatRateLimitMax = 120,
 ): AppDependencies {
-  const { repositories, unitOfWork, hasher, tokens, secrets } = adapters;
+  const { repositories, unitOfWork, hasher, tokens, secrets, rateLimits } = adapters;
   const access = new WorkspaceAccess(repositories.memberships);
   return {
     registerUser: new RegisterUser(repositories, unitOfWork, hasher),
@@ -121,12 +128,15 @@ export function createUseCases(
     getHostPairing: new GetHostPairing(access, repositories.hosts, repositories.pairingChallenges, repositories.machineCredentials),
     cancelPairingCode: new CancelPairingCode(access, unitOfWork),
     recordHeartbeat: new RecordHeartbeat(unitOfWork),
+    pairingThrottle: new PairingThrottle(rateLimits, {
+      requestsPerMinute: pairing.pairRateLimitMax,
+      invalidAttemptsMax: pairing.invalidAttemptsMax,
+      invalidAttemptsWindowMs: pairing.invalidAttemptsWindowMs,
+    }),
+    rateLimits,
     authRateLimitMax,
     ingestRateLimitMax,
     heartbeatRateLimitMax,
-    pairRateLimitMax: pairing.pairRateLimitMax,
-    pairInvalidAttemptsMax: pairing.invalidAttemptsMax,
-    pairInvalidAttemptsWindowMs: pairing.invalidAttemptsWindowMs,
   };
 }
 
@@ -139,6 +149,7 @@ export function createProductionDependencies(env: Env): { dependencies: AppDepen
     hasher: new Argon2PasswordHasher(),
     tokens: new JoseTokenService({ secret: env.JWT_SECRET, ttlSeconds: env.JWT_TTL_SECONDS }),
     secrets: new NodeMachineSecrets(),
+    rateLimits: new DrizzleRateLimitStore(db, rateLimitSubjectKey(env.JWT_SECRET)),
   };
   const pairing: PairingLimits = {
     pairRateLimitMax: env.PAIR_RATE_LIMIT_MAX,

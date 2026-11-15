@@ -36,6 +36,8 @@ import type { RevokeMachineCredential } from '../../application/use-cases/machin
 import type { GetHostPairing } from '../../application/use-cases/machine-identity/get-host-pairing.js';
 import type { CancelPairingCode } from '../../application/use-cases/machine-identity/cancel-pairing-code.js';
 import type { RecordHeartbeat } from '../../application/use-cases/machine-identity/record-heartbeat.js';
+import type { PairingThrottle } from '../../application/pairing-throttle.js';
+import type { RateLimitStore } from '../../application/ports/rate-limit-store.js';
 import { errorHandler } from './error-handler.js';
 import { healthRoute } from './routes/health.route.js';
 import { authRoute } from './routes/auth.route.js';
@@ -87,17 +89,16 @@ export interface AppDependencies {
   readonly getHostPairing: GetHostPairing;
   readonly cancelPairingCode: CancelPairingCode;
   readonly recordHeartbeat: RecordHeartbeat;
+  /** Persistent per-IP limits of `POST /agent/pair` (ADR-046). */
+  readonly pairingThrottle: PairingThrottle;
+  /** The store behind persistent limits; `main.ts` purges its expired counters. */
+  readonly rateLimits: RateLimitStore;
   /** Requests per client IP per minute on each auth route. */
   readonly authRateLimitMax: number;
   /** Event ingestion batches per client IP per minute (machine credentials). */
   readonly ingestRateLimitMax: number;
   /** Heartbeats per client IP per minute (machine credentials). */
   readonly heartbeatRateLimitMax: number;
-  /** Requests per client IP per minute on `POST /agent/pair`. */
-  readonly pairRateLimitMax: number;
-  /** Refused pairing codes per client IP per window before that IP is paused. */
-  readonly pairInvalidAttemptsMax: number;
-  readonly pairInvalidAttemptsWindowMs: number;
 }
 
 /** Builds the HTTP application without binding a port, so tests can use `inject`. */
@@ -109,7 +110,8 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
   app.decorateRequest('currentUser', null);
   app.decorateRequest('machineAuth', null);
 
-  // In-memory, per-route limits only (opt-in via route config). Enough for a single API instance.
+  // In-memory, per-route limits only (opt-in via route config) for login, register, ingestion and
+  // heartbeat. The unauthenticated pairing endpoint uses persistent counters instead (ADR-046).
   await app.register(rateLimit, { global: false });
 
   await app.register(healthRoute);
@@ -172,9 +174,7 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
   });
   await app.register(agentRoute, {
     redeemPairingCode: dependencies.redeemPairingCode,
-    rateLimitMax: dependencies.pairRateLimitMax,
-    invalidAttemptsMax: dependencies.pairInvalidAttemptsMax,
-    invalidAttemptsWindowMs: dependencies.pairInvalidAttemptsWindowMs,
+    pairingThrottle: dependencies.pairingThrottle,
   });
   await app.register(hostPairingRoute, {
     resolveAuthenticatedUser: dependencies.resolveAuthenticatedUser,

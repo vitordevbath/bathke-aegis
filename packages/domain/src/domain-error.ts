@@ -78,7 +78,11 @@ export class NotFoundError extends DomainError {
 export class TooManyRequestsError extends DomainError {
   override readonly code = 'RATE_LIMITED';
 
-  constructor(message: string) {
+  /** `retryAfterSeconds`, when known, becomes the `Retry-After` header. */
+  constructor(
+    message: string,
+    readonly retryAfterSeconds?: number,
+  ) {
     super(message);
   }
 }
