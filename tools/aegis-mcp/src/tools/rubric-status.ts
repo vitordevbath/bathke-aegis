@@ -344,7 +344,7 @@ const CHECKS: readonly RubricCheck[] = [
       { file: `${API}/application/ports/repositories.ts`, pattern: /interface UserRepository/ },
       { file: `${API}/infrastructure/db/drizzle-repositories.ts`, pattern: /class DrizzleUserRepository implements UserRepository/ },
       { file: `${API_TEST}/support/in-memory-persistence.ts`, pattern: /class InMemoryUserRepository implements UserRepository/ },
-      { file: `${API}/composition-root.ts`, pattern: /createUseCases\(adapters: Adapters/ },
+      { file: `${API}/composition-root.ts`, pattern: /createUseCases\(\s*adapters: Adapters/ },
       { file: `${API_TEST}/support/test-app.ts`, pattern: /createUseCases\(/ },
     ]),
   },
