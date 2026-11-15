@@ -55,9 +55,9 @@ export function HostCollectorSummary({ workspaceId, host }: { readonly workspace
           <dd>{host.architecture ?? NOT_REPORTED}</dd>
         </div>
       </dl>
-      <p className="muted small">{CONNECTION_STATE_HINTS[host.connectionState]}</p>
+      <p className="muted small facts-note">{CONNECTION_STATE_HINTS[host.connectionState]}</p>
       {events.data && events.data.pagination.total > 0 && (
-        <p className="small">
+        <p className="small facts-note">
           <Link className="inline-link" to={`/eventos?hostId=${encodeURIComponent(host.id)}`}>
             Ver eventos deste host
           </Link>
