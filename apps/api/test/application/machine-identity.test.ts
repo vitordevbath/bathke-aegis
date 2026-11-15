@@ -177,7 +177,7 @@ describe('machine identity use cases', () => {
 
       expect(token).toMatch(/^aegis_agent_[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$/);
       const stored = persistence.store.machineCredentials.get(credential.id);
-      expect(stored).toMatchObject({ workspaceId: t.workspaceId, hostId: t.hostId, scopes: ['events:ingest'], pairingChallengeId: challengeId });
+      expect(stored).toMatchObject({ workspaceId: t.workspaceId, hostId: t.hostId, scopes: ['events:ingest', 'host:heartbeat'], pairingChallengeId: challengeId });
       const secret = token.split('.')[1] ?? '';
       expect(stored?.tokenHash).toBe(secrets.hash(secret));
       expect(JSON.stringify(stored)).not.toContain(secret);
@@ -239,6 +239,7 @@ describe('machine identity use cases', () => {
           insert: (c) => repositories.pairingChallenges.insert(c),
           findByCodeHash: (h) => repositories.pairingChallenges.findByCodeHash(h),
           lockById: (i) => repositories.pairingChallenges.lockById(i),
+          lockInHost: (w, h, i) => repositories.pairingChallenges.lockInHost(w, h, i),
           findOpenForHost: (w, h) => repositories.pairingChallenges.findOpenForHost(w, h),
           countCreatedSince: (w, h, s) => repositories.pairingChallenges.countCreatedSince(w, h, s),
           markRevoked: (c) => repositories.pairingChallenges.markRevoked(c),
@@ -314,6 +315,7 @@ describe('machine identity use cases', () => {
           insert: async () => Promise.reject(new Error('simulated failure')),
           findForAuthentication: (i) => repositories.machineCredentials.findForAuthentication(i),
           lockInHost: (w, h, i) => repositories.machineCredentials.lockInHost(w, h, i),
+          lockForUse: (i) => repositories.machineCredentials.lockForUse(i),
           listForHost: (w, h, l) => repositories.machineCredentials.listForHost(w, h, l),
           markRevoked: (c) => repositories.machineCredentials.markRevoked(c),
           touchLastUsed: (i, u, o) => repositories.machineCredentials.touchLastUsed(i, u, o),
@@ -375,9 +377,9 @@ describe('machine identity use cases', () => {
     it('reports a pending code by expiry only, and drops it once expired', async () => {
       const t = await tenant();
       const issued = await request().execute(t.user, t.workspaceId, t.hostId);
-      await expect(pairingOf().execute(t.user, t.workspaceId, t.hostId)).resolves.toEqual({ pendingCodeExpiresAt: issued.expiresAt, credentials: [] });
+      await expect(pairingOf().execute(t.user, t.workspaceId, t.hostId)).resolves.toEqual({ pendingCode: { id: issued.challengeId, expiresAt: issued.expiresAt }, credentials: [] });
       advance(PAIRING_POLICY.codeTtlMs);
-      await expect(pairingOf().execute(t.user, t.workspaceId, t.hostId)).resolves.toEqual({ pendingCodeExpiresAt: null, credentials: [] });
+      await expect(pairingOf().execute(t.user, t.workspaceId, t.hostId)).resolves.toEqual({ pendingCode: null, credentials: [] });
     });
 
     it('is scoped to the workspace', async () => {

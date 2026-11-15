@@ -8,14 +8,19 @@ import { AuthenticationError, ForbiddenError, InvalidStateError, ValidationError
  */
 
 /** Closed list of what a machine may do. A new capability is a new entry here, used by the operation that needs it. */
-export const MACHINE_SCOPES = ['events:ingest'] as const;
+export const MACHINE_SCOPES = ['events:ingest', 'host:heartbeat'] as const;
 export type MachineScope = (typeof MACHINE_SCOPES)[number];
 
-/** Scopes granted when a host is paired: the minimum a Collector needs today. */
-export const DEFAULT_MACHINE_SCOPES: readonly MachineScope[] = ['events:ingest'];
+/**
+ * Scopes granted by a pairing or a rotation: the minimum a Collector needs
+ * today (ADR-044). Credentials issued before a scope existed keep the set they
+ * were issued with; only an explicit rotation by an OWNER issues this set.
+ */
+export const DEFAULT_MACHINE_SCOPES: readonly MachineScope[] = ['events:ingest', 'host:heartbeat'];
 
 export const MACHINE_SCOPE_LABELS: Readonly<Record<MachineScope, string>> = {
   'events:ingest': 'Enviar eventos deste host',
+  'host:heartbeat': 'Informar que o Collector deste host está ativo',
 };
 
 export function isMachineScope(value: unknown): value is MachineScope {
@@ -116,7 +121,12 @@ export class PairingRejectedError extends AuthenticationError {
   }
 }
 
-export type MachineAuthFailureReason = 'MALFORMED' | 'UNKNOWN_CREDENTIAL' | 'BAD_SECRET' | 'REVOKED';
+/**
+ * `REVOKED_IN_FLIGHT`: the credential was valid when the request was
+ * authenticated, but a revocation committed before the request's own
+ * transaction could (ADR-045).
+ */
+export type MachineAuthFailureReason = 'MALFORMED' | 'UNKNOWN_CREDENTIAL' | 'BAD_SECRET' | 'REVOKED' | 'REVOKED_IN_FLIGHT';
 
 /**
  * A machine token was refused, with the same generic message as any other 401.

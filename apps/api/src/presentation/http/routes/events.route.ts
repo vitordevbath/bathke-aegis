@@ -12,7 +12,7 @@ import type { AuthenticateMachine } from '../../../application/use-cases/machine
 import type { IngestEventsAsMachine } from '../../../application/use-cases/events/ingest-events.js';
 import type { ListEvents } from '../../../application/use-cases/events/list-events.js';
 import type { GetEvent } from '../../../application/use-cases/events/get-event.js';
-import { authenticate, authenticateMachine, currentUserOf, machineAuthOf } from '../authenticate.js';
+import { auditRevokedInFlight, authenticate, authenticateMachine, currentUserOf, machineAuthOf } from '../authenticate.js';
 import { toEventResponse, toEventSummary, toPaginatedResponse } from '../mappers.js';
 import { WorkspaceParamsSchema, paramsOf, resourceParamsSchema } from '../route-params.js';
 
@@ -43,6 +43,7 @@ const EventParamsSchema = resourceParamsSchema('eventId');
  */
 export const eventIngestionRoute: FastifyPluginAsync<EventIngestionRouteOptions> = async (app, options) => {
   app.addHook('preHandler', authenticateMachine(options.authenticateMachine));
+  app.addHook('onError', auditRevokedInFlight);
 
   app.post(
     '/workspaces/:workspaceId/hosts/:hostId/events/ingest',

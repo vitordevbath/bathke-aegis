@@ -41,6 +41,7 @@ export {
 } from './pagination.js';
 export {
   HOST_CONNECTION_STATES,
+  HOST_PRESENCE_POLICY,
   CreateHostRequestSchema,
   UpdateHostRequestSchema,
   HostListQuerySchema,
@@ -56,6 +57,8 @@ export {
   MACHINE_SCOPE_LABELS,
   MACHINE_CREDENTIAL_STATUSES,
   PairAgentRequestSchema,
+  HeartbeatRequestSchema,
+  type HeartbeatResponse,
   type MachineScope,
   type MachineCredentialStatus,
   type PairAgentRequest,

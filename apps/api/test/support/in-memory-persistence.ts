@@ -209,6 +209,14 @@ class InMemoryHostRepository implements HostRepository {
     const { agentId, connectionState, updatedAt } = host.toSnapshot();
     this.store.hosts.set(host.id, { ...current, agentId, connectionState, updatedAt });
   }
+  async updatePresence(host: Host): Promise<void> {
+    const current = this.store.hosts.get(host.id);
+    const { lastSeenAt } = host.toSnapshot();
+    if (!current || current.workspaceId !== host.workspaceId || !lastSeenAt) return;
+    if (current.lastSeenAt && current.lastSeenAt.getTime() >= lastSeenAt.getTime()) return;
+    this.store.hosts.set(host.id, { ...current, lastSeenAt });
+  }
+
 
   async deleteInWorkspace(workspaceId: string, hostId: string): Promise<boolean> {
     const current = this.store.hosts.get(hostId);
@@ -531,9 +539,16 @@ class InMemoryPairingChallengeRepository implements PairingChallengeRepository {
     return true;
   }
 
-  async markRevoked(challenge: PairingChallenge): Promise<void> {
+  async lockInHost(workspaceId: string, hostId: string, challengeId: string): Promise<PairingChallenge | null> {
+    const snapshot = this.store.pairingChallenges.get(challengeId);
+    return snapshot && snapshot.workspaceId === workspaceId && snapshot.hostId === hostId ? PairingChallenge.restore(snapshot) : null;
+  }
+
+  async markRevoked(challenge: PairingChallenge): Promise<boolean> {
     const current = this.store.pairingChallenges.get(challenge.id);
-    if (current) this.store.pairingChallenges.set(challenge.id, { ...current, revokedAt: challenge.toSnapshot().revokedAt });
+    if (!current || !isOpen(current)) return false;
+    this.store.pairingChallenges.set(challenge.id, { ...current, revokedAt: challenge.toSnapshot().revokedAt });
+    return true;
   }
 }
 
@@ -559,6 +574,11 @@ class InMemoryMachineCredentialRepository implements MachineCredentialRepository
   async lockInHost(workspaceId: string, hostId: string, credentialId: string): Promise<MachineCredential | null> {
     const snapshot = this.store.machineCredentials.get(credentialId);
     return snapshot && snapshot.workspaceId === workspaceId && snapshot.hostId === hostId ? MachineCredential.restore(snapshot) : null;
+  }
+
+  async lockForUse(credentialId: string): Promise<MachineCredential | null> {
+    const snapshot = this.store.machineCredentials.get(credentialId);
+    return snapshot ? MachineCredential.restore(snapshot) : null;
   }
 
   async listForHost(workspaceId: string, hostId: string, limit: number): Promise<MachineCredential[]> {
@@ -616,3 +636,4 @@ export function createInMemoryPersistence() {
   const store = new InMemoryStore();
   return { store, repositories: repositoriesFor(store), unitOfWork: new InMemoryUnitOfWork(store) };
 }
+

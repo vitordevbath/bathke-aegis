@@ -16,6 +16,7 @@ const RELAXED_PAIRING_LIMITS: PairingLimits = { ...DEFAULT_PAIRING_LIMITS, pairR
 export interface BuildTestAppOptions {
   readonly authRateLimitMax?: number;
   readonly ingestRateLimitMax?: number;
+  readonly heartbeatRateLimitMax?: number;
   readonly pairing?: Partial<PairingLimits>;
   /** Replaces wired use cases, for behavior no real credential can reach. */
   readonly overrides?: Partial<AppDependencies>;
@@ -33,6 +34,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}) {
     options.authRateLimitMax ?? 1000,
     options.ingestRateLimitMax ?? 1000,
     { ...RELAXED_PAIRING_LIMITS, ...options.pairing },
+    options.heartbeatRateLimitMax ?? 1000,
   );
   const { logLines } = options;
   const stream = logLines && new Writable({ write: (chunk, _encoding, done) => (logLines.push(String(chunk)), done()) });

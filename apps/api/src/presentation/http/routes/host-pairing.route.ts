@@ -6,6 +6,7 @@ import type { RequestPairingCode } from '../../../application/use-cases/machine-
 import type { GetHostPairing } from '../../../application/use-cases/machine-identity/get-host-pairing.js';
 import type { RotateMachineCredential } from '../../../application/use-cases/machine-identity/rotate-machine-credential.js';
 import type { RevokeMachineCredential } from '../../../application/use-cases/machine-identity/revoke-machine-credential.js';
+import type { CancelPairingCode } from '../../../application/use-cases/machine-identity/cancel-pairing-code.js';
 import { authenticate, currentUserOf } from '../authenticate.js';
 import { toHostPairingResponse, toMachineCredentialResponse } from '../mappers.js';
 import { paramsOf, resourceParamsSchema } from '../route-params.js';
@@ -16,10 +17,12 @@ export interface HostPairingRouteOptions {
   readonly getHostPairing: GetHostPairing;
   readonly rotateMachineCredential: RotateMachineCredential;
   readonly revokeMachineCredential: RevokeMachineCredential;
+  readonly cancelPairingCode: CancelPairingCode;
 }
 
 const HostParamsSchema = resourceParamsSchema('hostId');
 const CredentialParamsSchema = HostParamsSchema.extend({ credentialId: z.string().uuid() });
+const ChallengeParamsSchema = HostParamsSchema.extend({ challengeId: z.string().uuid() });
 
 /**
  * Administration of machine identities: user session only, through the same
@@ -40,6 +43,15 @@ export const hostPairingRoute: FastifyPluginAsync<HostPairingRouteOptions> = asy
     request.log.info({ audit: 'pairing.code_requested', challengeId, workspaceId, hostId, userId: user.id }, 'pairing code requested');
     const body: PairingCodeResponse = { code, expiresAt: expiresAt.toISOString() };
     return reply.status(201).send(body);
+  });
+
+  // Idempotent: 204 whether the code was open, already cancelled, expired or used. A credential is never touched.
+  app.delete('/workspaces/:workspaceId/hosts/:hostId/pairing-codes/:challengeId', async (request, reply) => {
+    const { workspaceId, hostId, challengeId } = paramsOf(ChallengeParamsSchema, request);
+    const user = currentUserOf(request);
+    const { cancelled } = await options.cancelPairingCode.execute(user, workspaceId, hostId, challengeId);
+    if (cancelled) request.log.info({ audit: 'pairing.code_cancelled', challengeId, workspaceId, hostId, userId: user.id }, 'pairing code cancelled');
+    return reply.status(204).send();
   });
 
   app.get('/workspaces/:workspaceId/hosts/:hostId/pairing', async (request): Promise<HostPairingResponse> => {

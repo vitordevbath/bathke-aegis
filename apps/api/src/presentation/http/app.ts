@@ -34,6 +34,8 @@ import type { AuthenticateMachine } from '../../application/use-cases/machine-id
 import type { RotateMachineCredential } from '../../application/use-cases/machine-identity/rotate-machine-credential.js';
 import type { RevokeMachineCredential } from '../../application/use-cases/machine-identity/revoke-machine-credential.js';
 import type { GetHostPairing } from '../../application/use-cases/machine-identity/get-host-pairing.js';
+import type { CancelPairingCode } from '../../application/use-cases/machine-identity/cancel-pairing-code.js';
+import type { RecordHeartbeat } from '../../application/use-cases/machine-identity/record-heartbeat.js';
 import { errorHandler } from './error-handler.js';
 import { healthRoute } from './routes/health.route.js';
 import { authRoute } from './routes/auth.route.js';
@@ -43,6 +45,7 @@ import { detectionRulesRoute } from './routes/detection-rules.route.js';
 import { incidentsRoute } from './routes/incidents.route.js';
 import { investigationsRoute } from './routes/investigations.route.js';
 import { eventIngestionRoute, eventsRoute } from './routes/events.route.js';
+import { heartbeatRoute } from './routes/heartbeat.route.js';
 import { agentRoute } from './routes/agent.route.js';
 import { hostPairingRoute } from './routes/host-pairing.route.js';
 
@@ -82,10 +85,14 @@ export interface AppDependencies {
   readonly rotateMachineCredential: RotateMachineCredential;
   readonly revokeMachineCredential: RevokeMachineCredential;
   readonly getHostPairing: GetHostPairing;
+  readonly cancelPairingCode: CancelPairingCode;
+  readonly recordHeartbeat: RecordHeartbeat;
   /** Requests per client IP per minute on each auth route. */
   readonly authRateLimitMax: number;
   /** Event ingestion batches per client IP per minute (machine credentials). */
   readonly ingestRateLimitMax: number;
+  /** Heartbeats per client IP per minute (machine credentials). */
+  readonly heartbeatRateLimitMax: number;
   /** Requests per client IP per minute on `POST /agent/pair`. */
   readonly pairRateLimitMax: number;
   /** Refused pairing codes per client IP per window before that IP is paused. */
@@ -158,6 +165,11 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
     ingestEvents: dependencies.ingestEvents,
     ingestRateLimitMax: dependencies.ingestRateLimitMax,
   });
+  await app.register(heartbeatRoute, {
+    authenticateMachine: dependencies.authenticateMachine,
+    recordHeartbeat: dependencies.recordHeartbeat,
+    rateLimitMax: dependencies.heartbeatRateLimitMax,
+  });
   await app.register(agentRoute, {
     redeemPairingCode: dependencies.redeemPairingCode,
     rateLimitMax: dependencies.pairRateLimitMax,
@@ -170,6 +182,7 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
     getHostPairing: dependencies.getHostPairing,
     rotateMachineCredential: dependencies.rotateMachineCredential,
     revokeMachineCredential: dependencies.revokeMachineCredential,
+    cancelPairingCode: dependencies.cancelPairingCode,
   });
 
   return app;

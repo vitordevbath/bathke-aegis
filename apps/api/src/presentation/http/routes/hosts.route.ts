@@ -51,7 +51,8 @@ export const hostsRoute: FastifyPluginAsync<HostsRouteOptions> = async (app, opt
       pageSize: query.pageSize,
       search: query.q,
     });
-    return toPaginatedResponse(page, toHostResponse);
+    const now = new Date();
+    return toPaginatedResponse(page, (host) => toHostResponse(host, now));
   });
 
   app.get('/workspaces/:workspaceId/hosts/:hostId', async (request): Promise<HostResponse> => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@aegis/domain';
+import { InvalidStateError, ValidationError } from '@aegis/domain';
 import { Host } from '../../src/domain/host.js';
 
 const WORKSPACE = '0b6c2f1e-0000-4000-8000-0000000000aa';
@@ -49,12 +49,12 @@ describe('Host', () => {
     expect(host.displayName).toBe('Servidor de banco');
     expect(host.description).toBeNull();
     expect(host.updatedAt).toEqual(later);
-    expect(host.connectionState).toBe('UNPAIRED');
+    expect(host.connectionStateAt(later)).toBe('UNPAIRED');
     expect(host.workspaceId).toBe(WORKSPACE);
   });
 
   it('exposes no setters for workspace or collector-controlled fields', () => {
-    for (const field of ['workspaceId', 'connectionState', 'isPaired', 'displayName', 'description']) {
+    for (const field of ['workspaceId', 'lastSeenAt', 'isPaired', 'displayName', 'description']) {
       expect(Object.getOwnPropertyDescriptor(Host.prototype, field)?.set).toBeUndefined();
     }
     // Only the identity is a public own property; everything else is runtime-private.
@@ -71,5 +71,42 @@ describe('Host', () => {
     const restored = Host.restore(snapshot);
     expect(restored.toSnapshot()).toEqual(snapshot);
     expect(restored.isPaired).toBe(true);
+  });
+});
+
+describe('Host heartbeat', () => {
+  const paired = () => {
+    const host = Host.register({ workspaceId: WORKSPACE, displayName: 'Servidor' }, new Date('2026-11-15T10:00:00.000Z'));
+    host.markPaired('c1', new Date('2026-11-15T10:00:01.000Z'));
+    return host;
+  };
+
+  it('records the last contact without touching updatedAt, and derives ONLINE/OFFLINE from it', () => {
+    const host = paired();
+    const updatedAt = host.updatedAt;
+    const seen = new Date('2026-11-15T10:05:00.000Z');
+    expect(host.connectionStateAt(seen)).toBe('PAIRED');
+    host.recordHeartbeat(seen);
+    expect(host.lastSeenAt).toEqual(seen);
+    expect(host.updatedAt).toEqual(updatedAt);
+    expect(host.toSnapshot().connectionState).toBe('PAIRED');
+    expect(host.connectionStateAt(new Date(seen.getTime() + 89_999))).toBe('ONLINE');
+    expect(host.connectionStateAt(new Date(seen.getTime() + 90_000))).toBe('OFFLINE');
+  });
+
+  it('never moves the last contact backwards', () => {
+    const host = paired();
+    const later = new Date('2026-11-15T10:05:00.000Z');
+    host.recordHeartbeat(later);
+    host.recordHeartbeat(new Date('2026-11-15T10:04:00.000Z'));
+    expect(host.lastSeenAt).toEqual(later);
+  });
+
+  it('refuses a heartbeat for a host without an active credential', () => {
+    const host = Host.register({ workspaceId: WORKSPACE, displayName: 'Servidor' });
+    expect(() => host.recordHeartbeat(new Date())).toThrow(InvalidStateError);
+    const unpaired = paired();
+    unpaired.markUnpaired();
+    expect(() => unpaired.recordHeartbeat(new Date())).toThrow(InvalidStateError);
   });
 });

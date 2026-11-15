@@ -5,7 +5,7 @@ import type { HostRepository, MachineCredentialRepository, PairingChallengeRepos
 import type { WorkspaceAccess } from '../../workspace-access.js';
 
 export interface HostPairingView {
-  readonly pendingCodeExpiresAt: Date | null;
+  readonly pendingCode: { readonly id: string; readonly expiresAt: Date } | null;
   readonly credentials: readonly MachineCredential[];
 }
 
@@ -27,6 +27,6 @@ export class GetHostPairing {
       this.challenges.findOpenForHost(workspaceId, hostId),
       this.credentials.listForHost(workspaceId, hostId, CREDENTIAL_HISTORY_LIMIT),
     ]);
-    return { pendingCodeExpiresAt: open?.statusAt(this.clock()) === 'PENDING' ? open.expiresAt : null, credentials };
+    return { pendingCode: open?.statusAt(this.clock()) === 'PENDING' ? { id: open.id, expiresAt: open.expiresAt } : null, credentials };
   }
 }

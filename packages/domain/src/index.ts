@@ -52,6 +52,10 @@ export {
   HOST_DESCRIPTION_MESSAGE,
   normalizeHostDisplayName,
   normalizeHostDescription,
+  HOST_CONNECTION_STATES,
+  HOST_PRESENCE_POLICY,
+  hostConnectionStateOf,
+  type HostConnectionState,
 } from './host-rules.js';
 export {
   DETECTION_SEVERITIES,

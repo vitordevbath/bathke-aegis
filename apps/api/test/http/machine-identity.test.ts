@@ -62,6 +62,7 @@ describe('pairing codes (administration)', () => {
       ['GET', `/hosts/${host.id}/pairing`],
       ['POST', `/hosts/${host.id}/credentials/${credentialId}/rotate`],
       ['DELETE', `/hosts/${host.id}/credentials/${credentialId}`],
+      ['DELETE', `/hosts/${host.id}/pairing-codes/${randomUUID()}`],
     ] as const) {
       const response = await app.inject({ method, url: `${t.base}${url}` });
       expect(response.statusCode).toBe(401);
@@ -82,7 +83,7 @@ describe('pairing codes (administration)', () => {
 
     expect((await t.call('GET', `/hosts/${host.id}`)).json<HostResponse>()).toMatchObject({ connectionState: 'UNPAIRED', agentId: null, lastSeenAt: null });
     const pairing = await pairingOf(t, host.id);
-    expect(pairing).toEqual({ pendingCode: { expiresAt: body.expiresAt }, activeCredential: null, credentials: [] });
+    expect(pairing).toEqual({ pendingCode: { id: expect.any(String), expiresAt: body.expiresAt }, activeCredential: null, credentials: [] });
     expect(JSON.stringify(pairing)).not.toContain(body.code);
   });
 
@@ -148,7 +149,7 @@ describe('POST /agent/pair', () => {
     expect(response.statusCode).toBe(201);
     expect(response.headers['cache-control']).toBe('no-store');
     const body = response.json<PairAgentResponse>();
-    expect(body).toMatchObject({ tokenType: 'Bearer', workspaceId: t.workspaceId, hostId: host.id, scopes: ['events:ingest'] });
+    expect(body).toMatchObject({ tokenType: 'Bearer', workspaceId: t.workspaceId, hostId: host.id, scopes: ['events:ingest', 'host:heartbeat'] });
     expect(body.token).toMatch(/^aegis_agent_[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$/);
     expect(body.token.split('.')).toHaveLength(2);
     expect((await t.call('GET', `/hosts/${host.id}`)).json<HostResponse>()).toMatchObject({ connectionState: 'PAIRED', agentId: body.credentialId, lastSeenAt: null });
@@ -303,6 +304,7 @@ describe('machine authentication on ingestion', () => {
       ['POST', `${t.base}/hosts/${host.id}/pairing-codes`],
       ['POST', `${t.base}/hosts/${host.id}/credentials/${credentialId}/rotate`],
       ['DELETE', `${t.base}/hosts/${host.id}/credentials/${credentialId}`],
+      ['DELETE', `${t.base}/hosts/${host.id}/pairing-codes/${randomUUID()}`],
     ] as const) {
       const response = await app.inject({ method, url, headers, payload: method === 'POST' || method === 'PUT' ? {} : undefined });
       expect(response.statusCode, `${method} ${url}`).toBe(401);
@@ -400,7 +402,7 @@ describe('rotation and revocation', () => {
     expect(response.headers['cache-control']).toBe('no-store');
     const rotated = response.json<RotateCredentialResponse>();
     expect(rotated.token).toMatch(/^aegis_agent_/);
-    expect(rotated.credential).toMatchObject({ status: 'ACTIVE', rotatedFromCredentialId: first.credentialId, scopes: ['events:ingest'], lastUsedAt: null, revokedAt: null });
+    expect(rotated.credential).toMatchObject({ status: 'ACTIVE', rotatedFromCredentialId: first.credentialId, scopes: ['events:ingest', 'host:heartbeat'], lastUsedAt: null, revokedAt: null });
 
     expect((await ingest(t.base, host.id, bearer(first.token))).statusCode).toBe(401);
     expect((await ingest(t.base, host.id, bearer(rotated.token))).statusCode).toBe(200);

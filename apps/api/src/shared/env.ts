@@ -27,6 +27,8 @@ const EnvSchema = DatabaseEnvSchema.extend({
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   /** Event ingestion batches per client IP per minute (machine credentials). */
   INGEST_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
+  /** Heartbeats per client IP per minute (machine credentials); one host sends two per minute. */
+  HEARTBEAT_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   /** Requests per client IP per minute on `POST /agent/pair`. */
   PAIR_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   /** Refused pairing codes per client IP per window before that IP is paused. */

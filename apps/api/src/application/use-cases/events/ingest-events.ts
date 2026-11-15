@@ -4,7 +4,8 @@ import type { EventIngestionService, IngestionResult } from '../../event-ingesti
 /**
  * Event ingestion on behalf of a paired machine. The credential decides which
  * host the events belong to; the address must agree with it. Credentials and
- * persistence stay apart: the service below only ever sees an origin.
+ * persistence stay apart: the service below only ever sees an origin and a
+ * confirmation step it runs after locking the host.
  */
 export class IngestEventsAsMachine {
   constructor(private readonly ingestion: EventIngestionService) {}
@@ -12,6 +13,6 @@ export class IngestEventsAsMachine {
   async execute(machine: MachineAuthContext, workspaceId: string, hostId: string, events: readonly unknown[]): Promise<IngestionResult> {
     machine.requireScope('events:ingest');
     machine.requireHost(workspaceId, hostId);
-    return this.ingestion.ingest({ workspaceId: machine.workspaceId, hostId: machine.hostId }, events);
+    return this.ingestion.ingest({ workspaceId: machine.workspaceId, hostId: machine.hostId }, events, (repositories) => machine.confirmStillActive(repositories));
   }
 }

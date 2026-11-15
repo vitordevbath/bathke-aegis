@@ -44,9 +44,12 @@ export interface MachineCredentialResponse {
   readonly rotatedFromCredentialId: string | null;
 }
 
-/** `GET /workspaces/:workspaceId/hosts/:hostId/pairing`. A pending code is reported by its expiry alone. */
+/**
+ * `GET /workspaces/:workspaceId/hosts/:hostId/pairing`. A pending code is
+ * reported by its internal id (to cancel it) and expiry, never by its value.
+ */
 export interface HostPairingResponse {
-  readonly pendingCode: { readonly expiresAt: string } | null;
+  readonly pendingCode: { readonly id: string; readonly expiresAt: string } | null;
   readonly activeCredential: MachineCredentialResponse | null;
   /** Most recent first, bounded; includes the active credential. */
   readonly credentials: readonly MachineCredentialResponse[];
@@ -57,4 +60,17 @@ export interface RotateCredentialResponse {
   readonly token: string;
   readonly tokenType: 'Bearer';
   readonly credential: MachineCredentialResponse;
+}
+
+/**
+ * Body of `POST /workspaces/:workspaceId/hosts/:hostId/heartbeat`: nothing.
+ * The server's clock is the only time source and the credential names the
+ * host, so the client has nothing to choose. Any property is refused.
+ */
+export const HeartbeatRequestSchema = z.object({}).strict(UNKNOWN_FIELD_MESSAGE);
+
+/** Small and fixed. `heartbeatIntervalSeconds` tells the Collector when to call again. */
+export interface HeartbeatResponse {
+  readonly lastSeenAt: string;
+  readonly heartbeatIntervalSeconds: number;
 }
