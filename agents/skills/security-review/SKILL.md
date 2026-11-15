@@ -22,7 +22,7 @@ security product: its own repository must meet the bar it claims.
 ## Scope
 
 All changes. Primary files: `compose.yaml`, `infra/**`, `apps/api/src/**`, `tools/aegis-mcp/src/policy/**`,
-`.gitignore`, `.dockerignore`, `.env.example`, future `native/**`.
+`.gitignore`, `.dockerignore`, `.env.example`, `native/**` (Collector: local credential storage, TLS, no secrets in arguments or logs).
 
 ## Relevant Files
 

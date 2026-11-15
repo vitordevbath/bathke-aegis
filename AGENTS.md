@@ -15,11 +15,11 @@ Quality over quantity: no fake features, no fake architecture, no TODO marked as
 
 | | CURRENT | PLANNED |
 | --- | --- | --- |
-| Web | auth pages, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes` and `/investigacoes` (list/create/detail/edit), `/eventos` (read-only list/detail), Collector pairing panel on the host detail; AuthContext, WorkspaceContext | timeline, graph |
-| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts, Detection Rules, Incidents and Investigations CRUD per workspace (rules are configuration only; incidents are manual; investigations group incidents and close only with a human conclusion); Event Contract v1 ingestion (machine credentials, idempotent batches), event list/detail; Collector pairing, machine credentials, rotation and revocation | alerts, detection and correlation engines |
-| Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents`, `events` (append-only), `pairing_challenges`, `machine_credentials` (versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
-| Tooling | Aegis MCP, CI (typecheck/build/test + `npm run test:infra` on the real Compose stack) | rubric engine expansion |
-| Native | READMEs only | collector, eBPF, SPARK, NASM |
+| Web | auth pages, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes` and `/investigacoes` (list/create/detail/edit), `/eventos` (read-only list/detail), host detail with Collector communication state, pairing (generate/cancel code), credential rotation/revocation and history; AuthContext, WorkspaceContext | timeline, graph |
+| API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts, Detection Rules, Incidents and Investigations CRUD per workspace (rules are configuration only; incidents are manual; investigations group incidents and close only with a human conclusion); Event Contract v1 ingestion (machine credentials, idempotent batches, revocation re-checked in the transaction), event list/detail; Collector pairing (code cancel, persistent per-IP limits), machine credentials, rotation and revocation; machine heartbeat with derived ONLINE/OFFLINE | alerts, detection and correlation engines |
+| Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents`, `events` (append-only), `pairing_challenges`, `machine_credentials`, `rate_limit_counters` (12 versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
+| Tooling | Aegis MCP, CI (typecheck/build/test, `npm run test:infra` on the real Compose stack, Rust fmt/clippy/test/build, `npm run test:collector-e2e` with the real Collector binary) | rubric engine expansion |
+| Native | `native/aegis-collector`: Rust CLI run in the foreground by the user (pair, run, status, replace-credential, unpair), SYSTEM events, heartbeat, SQLite queue | eBPF (PROCESS/NETWORK), SPARK, NASM |
 
 Details: `docs/ARCHITECTURE.md`; event contract: `docs/EVENTOS.md` (events are immutable — never add update/delete paths, command lines, environment or payload capture). Check `aegis_architecture_info` (Aegis MCP) before claiming something exists.
 
@@ -29,9 +29,9 @@ Details: `docs/ARCHITECTURE.md`; event contract: `docs/EVENTOS.md` (events are i
 apps/web            React + TS + Vite (src/app, pages, features, components, lib, styles, types)
 apps/api            Fastify + TS (src/presentation, application, domain, infrastructure, shared; drizzle/ migrations)
 packages/contracts  transport DTOs shared by web and api — never domain entities
-packages/domain     Entity, DomainError hierarchy, Email, Cpf, PasswordPolicy, host rules, shared severity, detection rule schema v1, incident and investigation lifecycles, Event Contract v1 (event registry + field catalog shared with rules)
+packages/domain     Entity, DomainError hierarchy, Email, Cpf, PasswordPolicy, host rules and presence policy, shared severity, detection rule schema v1, incident and investigation lifecycles, Event Contract v1 (event registry + field catalog shared with rules), machine scopes
 tools/aegis-mcp     restricted MCP server
-native/             planned low-level components (README only)
+native/             aegis-collector (Rust, CURRENT); planned low-level components (README only)
 agents/skills/      backend-engineering, frontend-engineering, security-review
 infra/              Dockerfiles, Nginx
 docs/               architecture, roadmap, rubric, security, decisions
@@ -41,7 +41,7 @@ docs/               architecture, roadmap, rubric, security, decisions
 
 1. Read the relevant skill in `agents/skills/` for the area you touch.
 2. Make the smallest change that delivers real behavior.
-3. Run `npm run typecheck && npm run build && npm test` from the root.
+3. Run `npm run typecheck && npm run build && npm test` from the root; for the Collector, `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` in `native/aegis-collector`.
 4. Update `docs/RUBRICA.md` only with real evidence (file, endpoint, test).
 5. Commit one logical change.
 
@@ -105,9 +105,9 @@ Aegis MCP enforces this in `tools/aegis-mcp/src/policy/protected-paths.ts`.
 
 | Path | Component | Status | Toolchain |
 | --- | --- | --- | --- |
-| `native/aegis-collector` | Aegis Collector | PLANNED | Rust |
+| `native/aegis-collector` | Aegis Collector | CURRENT (BF 08): SYSTEM events, heartbeat, queue; own CI jobs (ADR-049) | Rust stable |
 | `native/ebpf` | eBPF telemetry | PLANNED | Rust + Aya |
 | `native/spark-core` | Aegis Verified Core | PLANNED | Ada/SPARK, GNATprove |
 | `native/asm64` | x86-64 experiments | PLANNED | NASM, System V AMD64 ABI |
 
-Setup: `docs/LINUX_SETUP.md`. These are developed on the Linux workstation only.
+Setup: `docs/LINUX_SETUP.md`. The Collector never becomes a dependency of the Core builds or Docker images (`.dockerignore` excludes `native/`); the planned components are developed on the Linux workstation only.
