@@ -12,3 +12,5 @@ credentials
 **/*.p12
 **/*.pfx
 *.zip
+# Native components (Rust build output and sources) are never part of the Core images (ADR-006).
+native

@@ -17,7 +17,7 @@ credentials/
 *.p12
 *.pfx
 
-# native build output (future)
+# native build output (Rust: native/aegis-collector)
 target/
 obj/
 gnatprove/

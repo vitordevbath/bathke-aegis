@@ -1,0 +1,31 @@
+[package]
+name = "aegis-collector"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Aegis Collector: explicit, user-run Linux agent that reports SYSTEM events and heartbeats to Bathke Aegis"
+license = "UNLICENSED"
+publish = false
+
+[dependencies]
+# HTTP client with rustls; the platform verifier uses the operating system's trust store.
+ureq = { version = "3", default-features = false, features = ["rustls", "platform-verifier", "json"] }
+# Local persistent queue; bundled SQLite so the binary does not depend on a system library version.
+rusqlite = { version = "0.43", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# v4: ids of new facts; v5: the stable id of a boot.
+uuid = { version = "1", features = ["v4", "v5"] }
+# Reads the pairing code from the terminal without echoing it.
+rpassword = "7"
+# O_NOFOLLOW, geteuid, sigaction.
+libc = "0.2"
+# Backoff jitter.
+getrandom = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+strip = true
+lto = "thin"
