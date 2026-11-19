@@ -5,7 +5,6 @@ import { GuestRoute, ProtectedRoute } from '../features/auth/route-guards';
 import { AppShell } from '../components/AppShell';
 import { PageLoader } from '../components/PageLoader';
 import { WorkspaceProvider } from '../features/workspaces/WorkspaceContext';
-import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { RegisterPage } from '../pages/RegisterPage';
 import { DashboardPage } from '../pages/DashboardPage';
@@ -28,7 +27,8 @@ export const routes: RouteObject[] = [
       </AuthProvider>
     ),
     children: [
-      { path: '/', element: <HomePage /> },
+      // The public site (WebGL field, landing.css) is its own chunk, out of the panel bundle (ADR-015).
+      { path: '/', lazy: page(() => import('../pages/HomePage'), 'HomePage') },
       {
         element: <GuestRoute />,
         children: [
