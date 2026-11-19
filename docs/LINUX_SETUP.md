@@ -172,6 +172,25 @@ aegis-collector pair --server http://localhost:8080
 Após uma **rotação** (em vez de revogação), o painel exibe a nova credencial uma vez; instale-a com
 `aegis-collector replace-credential` (validada com um heartbeat antes de ser gravada).
 
+### O próprio servidor como host real do AEGIS DEMO (opcional)
+
+O demo (ADR-052) já tem três hosts simulados. O host `aegis-server` é reservado para a máquina que
+executa a stack, e só recebe dados se você parear o Collector nela. Na mesma máquina da stack:
+
+```bash
+docker compose exec api node apps/api/dist/cli/demo-pairing-code.js   # imprime o código uma vez (10 min)
+aegis-collector pair --server http://localhost:8080                   # cole o código
+aegis-collector run
+```
+
+Todas as contas veem o boot e o estado dos serviços desta máquina enquanto ela estiver pareada.
+Para parar na hora:
+
+```bash
+docker compose exec api node apps/api/dist/cli/demo-revoke-server.js
+aegis-collector unpair --yes
+```
+
 ### Teste automatizado do mesmo fluxo
 
 ```bash

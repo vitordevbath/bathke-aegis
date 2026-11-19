@@ -126,13 +126,14 @@ Uso normal: acesso completo aos recursos do próprio workspace.
 Permite que professor, avaliador ou visitante autorizado conheça o produto **sem
 instalar o Collector e sem acessar máquinas reais** (ADR-012).
 
-- dados seguros, hosts simulados ou previamente preparados;
-- eventos e incidentes demonstrativos;
-- navegação completa;
-- preferencialmente somente leitura.
+**Implementado (ADR-052):** toda conta recebe acesso somente leitura ao AEGIS DEMO e alterna
+pelo seletor de workspace. Três hosts simulados enviam heartbeat e eventos de sistema sintéticos
+pelos mesmos caminhos de um Collector; há regras, incidentes em vários estados e uma investigação
+em andamento. O painel avisa, sempre, que os dados são de exemplo e simulados.
 
-O workspace de demonstração **jamais** revela dados de hosts reais do desenvolvedor:
-os dados demo são gerados/curados, nunca copiados de telemetria real.
+O demo **não** copia telemetria real. A única exceção é opcional e explícita: o host
+`aegis-server`, que só recebe dados se o operador do servidor parear o Collector nele
+(`npm run demo:pairing-code`) e pode ser revogado a qualquer momento (`demo:revoke-server`).
 
 ### Pareamento de hosts
 

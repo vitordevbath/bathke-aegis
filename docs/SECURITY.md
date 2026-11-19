@@ -112,6 +112,13 @@ configurável e removível.
 - **Fila local:** SQLite `0600`, sem credenciais, limitada (10 000 eventos / 16 MiB); cheia, recusa e conta o que não coube (ADR-047).
 - **Revogação:** 401 encerra a transmissão (exit 3) sem laço de tentativas.
 
+### AEGIS DEMO (ADR-052)
+
+- Toda conta é `VIEWER` no demo: a API recusa qualquer escrita (403) e o painel não oferece ações de escrita.
+- O dono do demo é uma conta de sistema sem senha conhecida (256 bits aleatórios, descartados após o hash); o endereço usa o domínio reservado `.invalid`.
+- O simulador usa credenciais de máquina reais, com o mesmo escopo mínimo, guardadas só em memória; a cada reinício a anterior é revogada (auditável no histórico).
+- O host real `aegis-server` é opcional: o código de pareamento só é emitido por quem executa comandos no servidor, aparece uma vez no terminal e nunca em log. Enquanto pareado, boot e estado de serviços dessa máquina ficam visíveis a todas as contas. `DEMO_WORKSPACE=off` desliga o demo inteiro.
+
 ### Limitações conhecidas
 
 - Login, cadastro, ingestão e heartbeat têm rate limit em memória: zera quando a API reinicia e não é compartilhado entre instâncias (o do pareamento é persistente, ADR-046).
