@@ -2,6 +2,8 @@
 
 Estados: `PASS` · `IN_PROGRESS` · `TODO` · `BLOCKED`.
 **PASS exige implementação e evidência**, nunca apenas documentação.
+
+Auditoria ao vivo do back-end contra a stack em execução: `npm run audit:rubrica` (cadastro, login, edição de usuário e os 4 CRUDs com paginação, autenticação, 404 e relacionamentos; 35 verificações).
 A ferramenta `aegis_rubric_status` do Aegis MCP avalia parte destes itens automaticamente.
 
 ## Usuário e autenticação
