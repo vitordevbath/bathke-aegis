@@ -55,7 +55,8 @@ export const eventIngestionRoute: FastifyPluginAsync<EventIngestionRouteOptions>
       const result = await options.ingestEvents.execute(machineAuthOf(request), workspaceId, hostId, events);
       // Counts and timing only: never payloads, addresses, process data or source ids.
       request.log.info({ ...result, durationMs: Math.round(performance.now() - started) }, 'events ingested');
-      return result;
+      // The response contract is unchanged (ADR-053): alert counts stay server-side.
+      return { received: result.received, inserted: result.inserted, deduplicated: result.deduplicated };
     },
   );
 };

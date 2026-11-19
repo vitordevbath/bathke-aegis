@@ -48,7 +48,7 @@ describe('EventIngestionService (transport-independent core)', () => {
   it('ingests for an origin given by the caller, with no user, token or HTTP involved', async () => {
     const t = await tenant();
     const service = new EventIngestionService(persistence.unitOfWork, () => NOW);
-    expect(await service.ingest({ workspaceId: t.workspaceId, hostId: t.hostId }, [boot()])).toEqual({ received: 1, inserted: 1, deduplicated: 0 });
+    expect(await service.ingest({ workspaceId: t.workspaceId, hostId: t.hostId }, [boot()])).toEqual({ received: 1, inserted: 1, deduplicated: 0, alertsRaised: 0 });
     const [stored] = [...persistence.store.events.values()];
     expect(stored).toMatchObject({ workspaceId: t.workspaceId, hostId: t.hostId, ingestedAt: NOW });
   });

@@ -1,3 +1,4 @@
+import { GetAlert, ListAlerts } from './application/use-cases/alerts/list-alerts.js';
 import type { Env } from './shared/env.js';
 import type { AppDependencies } from './presentation/http/app.js';
 import type { PasswordHasher } from './application/ports/password-hasher.js';
@@ -106,7 +107,7 @@ export function createUseCases(
     listDetectionRules: new ListDetectionRules(access, repositories.detectionRules),
     getDetectionRule: new GetDetectionRule(access, repositories.detectionRules, repositories.hosts),
     updateDetectionRule: new UpdateDetectionRule(access, unitOfWork),
-    deleteDetectionRule: new DeleteDetectionRule(access, repositories.detectionRules, repositories.incidents),
+    deleteDetectionRule: new DeleteDetectionRule(access, repositories.detectionRules, repositories.incidents, repositories.alerts),
     createIncident: new CreateIncident(access, unitOfWork),
     listIncidents: new ListIncidents(access, repositories.incidents),
     getIncident: new GetIncident(access, repositories),
@@ -120,6 +121,8 @@ export function createUseCases(
     ingestEvents: new IngestEventsAsMachine(new EventIngestionService(unitOfWork)),
     listEvents: new ListEvents(access, repositories.events),
     getEvent: new GetEvent(access, repositories.events),
+    listAlerts: new ListAlerts(access, repositories.alerts),
+    getAlert: new GetAlert(access, repositories.alerts),
     requestPairingCode: new RequestPairingCode(access, unitOfWork, secrets, pairing.codesPerHostPerHour),
     redeemPairingCode: new RedeemPairingCode(unitOfWork, secrets),
     authenticateMachine: new AuthenticateMachine(repositories.machineCredentials, secrets),

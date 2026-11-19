@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import type { ApiErrorResponse, EventResponse, EventSummary, HostResponse, IngestEventsResponse, PaginatedResponse } from '@aegis/contracts';
+import type { AlertResponse, ApiErrorResponse, EventResponse, EventSummary, HostResponse, IngestEventsResponse, PaginatedResponse } from '@aegis/contracts';
 import { bearer, buildTestApp, pairHost, signedInUser } from '../support/test-app.js';
 import type { InMemoryStore } from '../support/in-memory-persistence.js';
 
@@ -209,7 +209,7 @@ describe('events: ingestion', () => {
     expect((await a.ingest(host.id, [processStarted({ occurredAt: '2025-01-01T00:00:00Z' })])).statusCode).toBe(200);
   });
 
-  it('never runs rules, raises alerts, creates incidents or marks the paired host online', async () => {
+  it('runs enabled rules on new events (alert + incident, ADR-053) but never marks the paired host online', async () => {
     const a = await tenant();
     const host = await a.host();
     await a.call('POST', `${a.base}/detection-rules`, {
@@ -221,9 +221,11 @@ describe('events: ingestion', () => {
     });
     const incidentsBefore = store.incidents.size;
     await a.ingest(host.id, [processStarted()]);
-    expect(store.incidents.size).toBe(incidentsBefore);
+    expect(store.incidents.size).toBe(incidentsBefore + 1);
+    const alerts = (await a.call('GET', `${a.base}/alerts`)).json<PaginatedResponse<AlertResponse>>();
+    expect(alerts.items).toHaveLength(1);
+    expect(alerts.items[0]).toMatchObject({ severity: 'HIGH', rule: { name: 'Shell iniciado por servidor web' }, host: { id: host.id } });
     expect((await a.call('GET', `${a.base}/hosts/${host.id}`)).json<HostResponse>()).toMatchObject({ connectionState: 'PAIRED', lastSeenAt: null });
-    expect((await a.call('GET', `${a.base}/alerts`)).statusCode).toBe(404);
   });
 });
 

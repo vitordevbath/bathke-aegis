@@ -142,3 +142,4 @@ export {
   type EventSummary,
   type EventResponse,
 } from './events.js';
+export { AlertListQuerySchema, type AlertListQuery, type AlertResponse } from './alerts.js';

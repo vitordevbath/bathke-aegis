@@ -1,3 +1,5 @@
+import type { GetAlert, ListAlerts } from '../../application/use-cases/alerts/list-alerts.js';
+import { alertsRoute } from './routes/alerts.route.js';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import type { RegisterUser } from '../../application/use-cases/register-user.js';
@@ -81,6 +83,8 @@ export interface AppDependencies {
   readonly ingestEvents: IngestEventsAsMachine;
   readonly listEvents: ListEvents;
   readonly getEvent: GetEvent;
+  readonly listAlerts: ListAlerts;
+  readonly getAlert: GetAlert;
   readonly requestPairingCode: RequestPairingCode;
   readonly redeemPairingCode: RedeemPairingCode;
   readonly authenticateMachine: AuthenticateMachine;
@@ -161,6 +165,11 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
     resolveAuthenticatedUser: dependencies.resolveAuthenticatedUser,
     listEvents: dependencies.listEvents,
     getEvent: dependencies.getEvent,
+  });
+  await app.register(alertsRoute, {
+    resolveAuthenticatedUser: dependencies.resolveAuthenticatedUser,
+    listAlerts: dependencies.listAlerts,
+    getAlert: dependencies.getAlert,
   });
   await app.register(eventIngestionRoute, {
     authenticateMachine: dependencies.authenticateMachine,
