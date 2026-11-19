@@ -2,20 +2,24 @@
 // Automated infrastructure test: builds and starts the real Compose stack as an
 // isolated project (own name, volume, networks and host port), checks what the
 // architecture promises through the public entry point and `docker inspect`,
+// then switches nginx to the HTTPS entry point (compose.tls.yaml) and checks TLS,
 // and always tears it down. Never reads the developer's .env and never prints
 // configuration or credentials: the generated test values live in a temporary
 // env file (mode 600) that is deleted on exit. They are NOT production secrets.
 import { spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkTls } from './lib/tls-checks.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PROJECT = process.env.AEGIS_INFRA_PROJECT ?? 'aegis-infra-test';
 const PORT = process.env.AEGIS_INFRA_HTTP_PORT ?? '18080';
 const BASE = `http://127.0.0.1:${PORT}`;
+const HTTPS_PORT = process.env.AEGIS_INFRA_HTTPS_PORT ?? '18443';
+const TLS_FILES = ['-f', 'compose.yaml', '-f', 'compose.tls.yaml'];
 const MIGRATIONS = JSON.parse(readFileSync(join(ROOT, 'apps/api/drizzle/meta/_journal.json'), 'utf8')).entries.length;
 const SERVICES = ['nginx', 'web', 'api', 'mysql', 'migrate'];
 /** Which Compose networks each service must join — and nothing else. */
@@ -49,8 +53,8 @@ const fail = (message) => {
 };
 
 /** Runs a command; output is captured (never echoed) unless `inherit` is set. */
-function run(command, args, { inherit = false, allowFailure = false } = {}) {
-  const result = spawnSync(command, args, { cwd: ROOT, encoding: 'utf8', stdio: inherit ? ['ignore', 'inherit', 'inherit'] : 'pipe' });
+function run(command, args, { inherit = false, allowFailure = false, env } = {}) {
+  const result = spawnSync(command, args, { cwd: ROOT, encoding: 'utf8', stdio: inherit ? ['ignore', 'inherit', 'inherit'] : 'pipe', env: env ? { ...process.env, ...env } : process.env });
   if (result.status !== 0 && !allowFailure) {
     fail(`${command} ${args.slice(0, 6).join(' ')} … exited ${result.status}${result.stderr ? `\n${result.stderr.trim().split('\n').slice(-15).join('\n')}` : ''}`);
   }
@@ -135,6 +139,7 @@ try {
 
   await check('compose config', async () => {
     compose(['config', '--quiet']);
+    compose([...TLS_FILES, 'config', '--quiet']);
     return 'valid (not printed)';
   });
 
@@ -251,8 +256,8 @@ try {
   });
 
   await check('security headers and CSP', async () => {
-    const config = readFileSync(join(ROOT, 'infra/nginx/nginx.conf'), 'utf8');
-    const promisedCsp = config.match(/Content-Security-Policy "([^"]+)"/)?.[1] ?? fail('CSP not found in nginx.conf');
+    const config = readFileSync(join(ROOT, 'infra/nginx/snippets/security-headers.conf'), 'utf8');
+    const promisedCsp = config.match(/Content-Security-Policy "([^"]+)"/)?.[1] ?? fail('CSP not found in the shared nginx snippet');
     const expected = {
       'content-security-policy': promisedCsp,
       'x-content-type-options': 'nosniff',
@@ -345,6 +350,26 @@ try {
     if (migrate.ExitCode !== 0) fail(`migrate rerun exited ${migrate.ExitCode}`);
     await poll('/api/health after restart', async () => ({ ok: (await http('/api/health')).status === 200 }));
     return 'data and schema survive `docker compose down`; migrate rerun is idempotent; API back up';
+  });
+
+  await check('HTTPS entry point (compose.tls.yaml)', async () => {
+    // A self-signed certificate made by the project's own script, in the temporary directory.
+    const tlsDir = join(secretDir, 'tls');
+    run('node', ['scripts/tls-self-signed.mjs'], { allowFailure: false, env: { AEGIS_TLS_DIR: tlsDir } });
+    appendFileSync(envFile, `AEGIS_TLS_DIR=${tlsDir}\nAEGIS_HTTPS_PORT=${HTTPS_PORT}\n`);
+    // Only nginx changes: the same stack, now behind TLS.
+    compose([...TLS_FILES, 'up', '-d', '--no-deps', 'nginx']);
+    const bindings = Object.entries(inspect(containerOf('nginx')).HostConfig.PortBindings ?? {}).flatMap(([port, hosts]) => (hosts ?? []).map((host) => `${host.HostPort}->${port}`));
+    if (bindings.sort().join(',') !== [`${PORT}->80/tcp`, `${HTTPS_PORT}->443/tcp`].sort().join(',')) fail(`nginx publishes ${JSON.stringify(bindings)}`);
+    await poll('HTTP redirect after the TLS switch', async () => ({ ok: (await http('/')).status === 301 }));
+    const lines = await checkTls({
+      httpBase: BASE,
+      host: '127.0.0.1',
+      httpsPort: Number(HTTPS_PORT),
+      certFile: join(tlsDir, 'fullchain.pem'),
+      cspSource: join(ROOT, 'infra/nginx/snippets/security-headers.conf'),
+    });
+    return lines.join('; ');
   });
 } catch {
   showLogs();
