@@ -1,6 +1,6 @@
 # Bathke Aegis
 
-Plataforma experimental de XDR/SIEM assistida por inteligência artificial.
+Plataforma experimental de segurança defensiva, inspirada em conceitos de SIEM, XDR e EDR.
 
 > **Status:** Projeto acadêmico e plataforma experimental em desenvolvimento.
 
@@ -52,9 +52,9 @@ Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 
 | Componente | Status |
 | --- | --- |
-| Aegis Web (React + TS + Vite): `/`, `/login`, `/cadastro`, `/dashboard`, `/perfil` | **IMPLEMENTADO** |
-| Aegis API (Fastify + TS): health, cadastro, login (JWT), `GET/PUT /users/me` | **IMPLEMENTADO** |
-| `@aegis/contracts` (schemas Zod), `@aegis/domain` (Email, CPF, política de senha, erros) | **IMPLEMENTADO** |
+| Aegis Web (React + TS + Vite): site público, `/login`, `/cadastro`, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes`, `/investigacoes`, `/eventos` | **IMPLEMENTADO** |
+| Aegis API (Fastify + TS): health, autenticação, `/users/me`, CRUDs por workspace, eventos, pareamento (`/agent/pair`), credenciais, heartbeat e ingestão por máquina | **IMPLEMENTADO** |
+| `@aegis/contracts` (schemas Zod), `@aegis/domain` (Email, CPF, política de senha, severidade, regras de host/incidente/investigação, Event Contract, identidade de máquina, erros) | **IMPLEMENTADO** |
 | Aegis MCP (7 ferramentas, secret guard) | **IMPLEMENTADO** (base) |
 | Docker Compose + Nginx (somente Nginx exposto, redes internas) | **IMPLEMENTADO** (teste automatizado `npm run test:infra` no CI) |
 | MySQL + Drizzle: usuários, workspaces, hosts, regras, incidentes, investigações, eventos, identidade de máquina e relações com migrations versionadas | **IMPLEMENTADO** |
@@ -65,7 +65,7 @@ Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 | Investigations CRUD — caso humano que agrupa incidentes; encerrar exige conclusão e torna a investigação somente leitura | **IMPLEMENTADO** |
 | Event Contract v1 + Event Store: ingestão em lote idempotente (credencial de máquina) e navegador `/eventos` somente leitura | **IMPLEMENTADO** |
 | Pareamento por código de uso único (cancelável), credenciais de máquina com escopo, rotação, revogação confirmada na transação e histórico; painel no detalhe do host | **IMPLEMENTADO** |
-| Aegis Collector (Rust): pareamento, heartbeat (Online/Offline derivado), eventos SYSTEM (boot, serviços systemd), fila SQLite persistente com reenvio idempotente | **IMPLEMENTADO** (BF 08; validado no Fedora 44 e no CI) |
+| Aegis Collector (Rust): pareamento, heartbeat (Online/Offline derivado), eventos SYSTEM (boot, serviços systemd), fila SQLite persistente com reenvio idempotente | **IMPLEMENTADO** (BF 08; validado no Fedora 44; E2E com o binário real no CI) |
 | Detection Engine (execução das regras), alertas, correlação automática, IA, workspaces compartilhados | **PLANEJADO** |
 | Camada de telemetria eBPF, eventos PROCESS e NETWORK | **PLANEJADO** |
 | Aegis Verified Core (Ada/SPARK), experimentos x86-64 | **PLANEJADO** |
@@ -74,9 +74,14 @@ Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 ## Arquitetura atual
 
 ```
-browser ──► Nginx :8080 ──┬── /      ──► web (Nginx estático, SPA)
-                          └── /api/  ──► api (Fastify) ──► mysql
+browser ─────────┐
+                 ├──► Nginx :8080 ──┬── /      ──► web (Nginx estático, SPA)
+Aegis Collector ─┘                  └── /api/  ──► api (Fastify) ──► mysql
+(Rust, host Linux)
 ```
+
+O navegador usa JWT de usuário; o Collector usa credencial de máquina com escopo
+(`events:ingest`, `host:heartbeat`). Os dois contextos de autenticação são separados.
 
 Redes: `aegis_edge` (nginx), `aegis_application` (nginx, web, api — interna),
 `aegis_data` (api, mysql — interna). Detalhes em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -99,7 +104,7 @@ Linux host ─► eBPF (planejado) ─► Aegis Collector (atual: SYSTEM + heart
 apps/web            Aegis Web
 apps/api            Aegis API
 packages/contracts  contratos de transporte compartilhados
-packages/domain     primitivas de domínio (Entity, DomainError)
+packages/domain     regras e primitivas de domínio (Entity, DomainError, Event Contract, identidade de máquina)
 tools/aegis-mcp     Aegis MCP
 native/             Aegis Collector (Rust, atual) e componentes low-level planejados
 agents/skills/      skills para agentes
@@ -109,7 +114,7 @@ docs/               documentação
 
 ## Desenvolvimento
 
-Requisitos: Node.js ≥ 22, npm, Docker (opcional).
+Requisitos: Node.js ≥ 22, npm, Docker (opcional), Rust stable (somente para o Collector).
 
 ```bash
 npm ci
@@ -153,4 +158,4 @@ Visão de produto em [docs/PRODUTO.md](docs/PRODUTO.md). Fases 00–14 em [docs/
 
 ## Licença / Status
 
-Projeto acadêmico privado, sem licença de uso definida. Todos os direitos reservados.
+Projeto acadêmico com repositório público, sem licença de uso definida. Todos os direitos reservados.
