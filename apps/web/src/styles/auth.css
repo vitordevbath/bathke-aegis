@@ -1,0 +1,64 @@
+/* Sign-in and sign-up. Loaded only with those pages; values from tokens.css (public site palette). */
+
+.auth2 {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  background: var(--lp-abyss);
+  color: var(--lp-bone);
+}
+
+.auth2__form {
+  display: flex; flex-direction: column; gap: var(--space-10);
+  padding: var(--space-8) clamp(1.5rem, 6vw, 6rem) var(--space-6);
+  min-height: 100svh;
+}
+.auth2__brand { align-self: flex-start; display: inline-flex; border-radius: var(--radius-sm); }
+.auth2__card { width: min(26rem, 100%); margin: auto 0; display: flex; flex-direction: column; gap: var(--space-8); animation: lp-fade 700ms var(--lp-ease) both; }
+.auth2__header { display: flex; flex-direction: column; gap: var(--space-2); }
+.auth2__title { margin: 0; font-size: clamp(2rem, 3.4vw, 2.75rem); font-weight: 500; letter-spacing: -0.035em; line-height: 1.05; }
+.auth2__subtitle { margin: 0; color: var(--lp-fog); }
+.auth2__footer { margin: 0; color: var(--lp-fog); font-size: var(--text-sm); }
+.auth2__footer a { color: var(--lp-bone); text-decoration: underline; text-decoration-color: var(--lp-hairline-strong); text-underline-offset: 3px; transition: text-decoration-color var(--duration-fast) var(--ease-out); }
+.auth2__footer a:hover { text-decoration-color: var(--lp-signal); }
+.auth2__legal { margin: 0; color: var(--lp-fog); font-size: var(--text-xs); }
+
+/* Form controls in this context: larger, softer, same validation states as the panel. */
+.auth2 .form { width: 100%; gap: var(--space-4); }
+.auth2 .field label { color: var(--lp-fog); }
+.auth2 .field input {
+  min-height: 2.875rem; padding-inline: var(--space-4); border-radius: var(--radius-md);
+  background: var(--lp-graphite); border-color: var(--lp-hairline-strong); color: var(--lp-bone);
+}
+.auth2 .field input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--lp-bone) 30%, transparent); }
+.auth2 .field input:focus { outline: 2px solid var(--lp-signal); outline-offset: 1px; border-color: transparent; }
+.auth2 .field input[aria-invalid="true"] { border-color: var(--color-danger); }
+.auth2 .button--primary {
+  min-height: 2.875rem; border-radius: 999px; border: 0; font-weight: 500;
+  background: var(--lp-bone); color: var(--lp-abyss);
+  transition: box-shadow var(--duration-base) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+.auth2 .button--primary:hover:not(:disabled) { background: var(--lp-bone); box-shadow: 0 0 0 4px var(--lp-signal-soft), 0 8px 30px -10px var(--lp-signal); }
+.auth2 .button--primary:active:not(:disabled) { transform: scale(0.99); }
+.auth2 .checklist { gap: var(--space-1) var(--space-3); }
+
+/* The art side: the same contour field as the public site, with one quiet line. */
+.auth2__art {
+  position: relative; isolation: isolate; overflow: hidden;
+  border-left: 1px solid var(--lp-hairline);
+  background: radial-gradient(40rem 30rem at 60% 45%, var(--lp-signal-soft), transparent 70%), var(--lp-graphite);
+  display: flex; align-items: flex-end;
+  padding: clamp(2rem, 5vw, 4rem);
+}
+.auth2__art .signal-field { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; opacity: 0; transition: opacity 1.6s var(--lp-ease); }
+.auth2__art .signal-field--ready { opacity: 1; }
+.auth2__quote { margin: 0; display: flex; flex-direction: column; font-size: clamp(1.5rem, 2.4vw, 2.25rem); font-weight: 500; letter-spacing: -0.03em; line-height: 1.15; max-width: 22ch; }
+.auth2__quote span { color: var(--lp-fog); }
+
+@keyframes lp-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 900px) {
+  .auth2 { grid-template-columns: minmax(0, 1fr); }
+  .auth2__art { display: none; }
+  .auth2__form { min-height: 100svh; background: radial-gradient(36rem 22rem at 80% -10%, var(--lp-signal-soft), transparent 70%); }
+}

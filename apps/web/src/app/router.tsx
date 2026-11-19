@@ -5,8 +5,6 @@ import { GuestRoute, ProtectedRoute } from '../features/auth/route-guards';
 import { AppShell } from '../components/AppShell';
 import { PageLoader } from '../components/PageLoader';
 import { WorkspaceProvider } from '../features/workspaces/WorkspaceContext';
-import { LoginPage } from '../pages/LoginPage';
-import { RegisterPage } from '../pages/RegisterPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
@@ -32,8 +30,9 @@ export const routes: RouteObject[] = [
       {
         element: <GuestRoute />,
         children: [
-          { path: '/login', element: <LoginPage /> },
-          { path: '/cadastro', element: <RegisterPage /> },
+          // Sign-in and sign-up share the site's WebGL field: their own chunk, like `/` (ADR-050).
+          { path: '/login', lazy: page(() => import('../pages/LoginPage'), 'LoginPage') },
+          { path: '/cadastro', lazy: page(() => import('../pages/RegisterPage'), 'RegisterPage') },
         ],
       },
       {
