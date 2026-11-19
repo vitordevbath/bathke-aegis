@@ -105,3 +105,20 @@ describe('formatRelative', () => {
     expect(formatRelative('não é data', now)).toBe('—');
   });
 });
+
+describe('account button', () => {
+  it('shows up to two initials and links to the profile instead of a navigation item', async () => {
+    const { initialsOf } = await import('../src/components/AppShell');
+    expect(initialsOf('Ana Teste')).toBe('AT');
+    expect(initialsOf('  vitor custódio bathke ')).toBe('VB');
+    expect(initialsOf('Ana')).toBe('A');
+    expect(initialsOf(undefined)).toBe('?');
+
+    mockApi(signedIn());
+    renderApp('/dashboard');
+    const account = await screen.findByRole('link', { name: `Perfil de ${ME.user.name}` });
+    expect(account.getAttribute('href')).toBe('/perfil');
+    const nav = screen.getByRole('navigation', { name: 'Principal' });
+    expect(within(nav).queryByRole('link', { name: 'Perfil' })).toBeNull();
+  });
+});

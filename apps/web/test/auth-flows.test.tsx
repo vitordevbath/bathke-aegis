@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { AUTH_TOKEN_KEY } from '../src/lib/auth-storage';
 import { FAKE_TOKEN, ME, mockApi, renderApp, requestBody } from './render-app';
 
@@ -178,7 +178,8 @@ describe('profile', () => {
     const body = requestBody(fetchMock, 'PUT', '/api/users/me') as Record<string, unknown>;
     expect(body).not.toHaveProperty('email');
     expect(body).toMatchObject({ name: 'Ana Atualizada', cpf: '123.456.789-09' });
-    await waitFor(() => expect(screen.getAllByText('Ana Atualizada').length).toBeGreaterThan(0));
+    // The header reflects the new name (account button label) without a reload.
+    expect(await screen.findByRole('link', { name: 'Perfil de Ana Atualizada' })).toBeTruthy();
   });
 
   it('requires the current password and a matching confirmation to change the password', async () => {

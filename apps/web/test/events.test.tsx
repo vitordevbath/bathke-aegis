@@ -220,7 +220,7 @@ describe('events elsewhere in the app', () => {
     renderApp('/dashboard');
 
     const nav = await screen.findByRole('navigation', { name: 'Principal' });
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Painel', 'Hosts', 'Eventos', 'Regras', 'Incidentes', 'Investigações', 'Perfil']);
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Painel', 'Hosts', 'Eventos', 'Regras', 'Incidentes', 'Investigações']);
     const card = screen.getByText('Eventos armazenados').closest('.metric');
     await waitFor(() => expect(card?.textContent).toContain('1234'));
     expect(screen.queryByText(/por minuto/i)).toBeNull();
