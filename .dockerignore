@@ -7,6 +7,8 @@
 !.env.example
 secrets
 credentials
+# TLS keys and Let's Encrypt state (ADR-055)
+certs
 **/*.pem
 **/*.key
 **/*.p12

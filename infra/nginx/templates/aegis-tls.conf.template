@@ -1,0 +1,38 @@
+# Rendered by the nginx image entrypoint (envsubst): only ${AEGIS_*} variables defined in the
+# container environment are replaced; nginx variables such as $host are left untouched.
+
+# Port 80: ACME HTTP-01 challenges for Let's Encrypt, everything else moves to HTTPS.
+server {
+  listen 80;
+  server_name ${AEGIS_SERVER_NAME};
+
+  location /.well-known/acme-challenge/ {
+    root /etc/nginx/tls/acme;
+  }
+
+  location / {
+    return 301 https://$host:${AEGIS_HTTPS_PORT}$request_uri;
+  }
+}
+
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name ${AEGIS_SERVER_NAME};
+
+  ssl_certificate     ${AEGIS_TLS_CERT};
+  ssl_certificate_key ${AEGIS_TLS_KEY};
+
+  # Mozilla "intermediate": TLS 1.2 and 1.3 only, forward-secret AEAD suites.
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+  ssl_prefer_server_ciphers off;
+  ssl_session_cache shared:aegis_tls:10m;
+  ssl_session_timeout 1d;
+  ssl_session_tickets off;
+
+  # One year, this host only. includeSubDomains and preload are a decision for the domain owner.
+  add_header Strict-Transport-Security "max-age=31536000" always;
+  include /etc/nginx/snippets/security-headers.conf;
+  include /etc/nginx/snippets/aegis-routes.conf;
+}

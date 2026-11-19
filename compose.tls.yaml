@@ -1,0 +1,39 @@
+# HTTPS for Bathke Aegis (ADR-055). Use on top of compose.yaml:
+#   docker compose -f compose.yaml -f compose.tls.yaml up -d
+# Port 80 keeps answering, only to redirect to HTTPS and to serve Let's Encrypt challenges.
+# Certificates are read from AEGIS_TLS_DIR (default ./certs, ignored by Git):
+#   self-signed: npm run tls:self-signed  → fullchain.pem + privkey.pem
+#   Let's Encrypt: see docs/HOSPEDAGEM.md (profile "letsencrypt" below)
+services:
+  nginx:
+    ports:
+      - "${AEGIS_HTTPS_PORT:-8443}:443"
+    environment:
+      # Rendered into the server blocks by the image entrypoint (envsubst), never into nginx.conf.
+      AEGIS_SERVER_NAME: ${AEGIS_SERVER_NAME:-_}
+      AEGIS_HTTPS_PORT: ${AEGIS_HTTPS_PORT:-8443}
+      AEGIS_TLS_CERT: ${AEGIS_TLS_CERT:-/etc/nginx/tls/fullchain.pem}
+      AEGIS_TLS_KEY: ${AEGIS_TLS_KEY:-/etc/nginx/tls/privkey.pem}
+      NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/aegis-templates
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx/aegis
+      # Only AEGIS_* are substituted, so no other variable of the container can leak into the config.
+      NGINX_ENVSUBST_FILTER: ^AEGIS_
+    # The entrypoint skips rendering when the output directory is not writable: give it an empty one.
+    tmpfs:
+      - /etc/nginx/aegis
+    volumes:
+      - ./infra/nginx/nginx.tls.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/templates:/etc/nginx/aegis-templates:ro
+      - ${AEGIS_TLS_DIR:-./certs}:/etc/nginx/tls:ro
+
+  # One-shot, only with --profile letsencrypt: issues or renews certificates through the
+  # HTTP-01 webroot served by nginx above. Never part of a plain `up`.
+  certbot:
+    image: certbot/certbot:v5.10.0
+    profiles: ["letsencrypt"]
+    volumes:
+      - ${AEGIS_TLS_DIR:-./certs}/acme:/var/www/acme
+      - ${AEGIS_TLS_DIR:-./certs}/letsencrypt:/etc/letsencrypt
+    networks:
+      - aegis_edge
+    restart: "no"
