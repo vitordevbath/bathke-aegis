@@ -28,7 +28,8 @@ requirement (auth flows, distinct CRUD screens, pagination) and later telemetry 
 - `apps/web/src/pages/*`
 - `apps/web/src/features/health/use-api-health.ts` — reference pattern for queries
 - `apps/web/src/lib/api-client.ts`
-- `apps/web/src/styles/tokens.css`, `global.css`
+- `apps/web/src/styles/tokens.css`, `global.css` (panel), `landing.css` (public site only)
+- `apps/web/src/features/landing/` — public site: WebGL field, scroll motion hooks (ADR-050)
 - `apps/web/vite.config.ts` — dev proxy `/api` → `localhost:3000`
 
 ## Allowed Actions
@@ -37,6 +38,10 @@ requirement (auth flows, distinct CRUD screens, pagination) and later telemetry 
 - Add a library when a screen being built needs it (e.g. Cytoscape.js for the relationship graph).
 
 ## Forbidden Actions
+
+- WebGL, scroll-driven or ambient motion in the authenticated panel (ADR-015); it belongs to the lazily loaded public site.
+- Inline `<style>` or `style=""` in HTML (CSP `style-src 'self'`); set dynamic values through CSSOM (`element.style.setProperty`).
+- Fonts or assets from external origins (CSP); bundle them.
 
 - `.js`/`.jsx` files in `src`; `any`.
 - Hard-coded colors/spacings outside tokens.
