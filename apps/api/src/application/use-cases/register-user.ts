@@ -19,7 +19,8 @@ export const CPF_TAKEN_MESSAGE = 'Este CPF já está cadastrado.';
 /**
  * Creates a user, their personal workspace and the OWNER membership in a
  * single transaction. A user never exists without a workspace, and a personal
- * workspace never exists without its owner membership.
+ * workspace never exists without its owner membership. When the AEGIS DEMO
+ * workspace exists, the same transaction grants read-only access to it (ADR-052).
  */
 export class RegisterUser {
   constructor(
@@ -42,12 +43,17 @@ export class RegisterUser {
     const workspace = Workspace.createPersonal(user);
     const membership = Membership.grantOwner(user, workspace);
 
-    await this.unitOfWork.run(async ({ users, workspaces, memberships }) => {
+    const demoAccess = await this.unitOfWork.run(async ({ users, workspaces, memberships }) => {
       await users.insert(user);
       await workspaces.insert(workspace);
       await memberships.insert(membership);
+      const demo = await workspaces.findFirstOfKind('demo');
+      if (!demo) return [];
+      const viewer = Membership.grantViewer(user, demo);
+      await memberships.insert(viewer);
+      return [{ workspace: demo, membership: viewer }];
     });
 
-    return { user, workspaces: [{ workspace, membership }] };
+    return { user, workspaces: [{ workspace, membership }, ...demoAccess] };
   }
 }

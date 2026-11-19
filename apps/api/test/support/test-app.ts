@@ -30,8 +30,9 @@ export async function buildTestApp(options: BuildTestAppOptions = {}) {
   const jwtSecret = testJwtSecret();
   const tokens = new JoseTokenService({ secret: jwtSecret, ttlSeconds: 900 });
   const rateLimits = new InMemoryRateLimitStore();
+  const hasher = new Argon2PasswordHasher();
   const dependencies = createUseCases(
-    { repositories: persistence.repositories, unitOfWork: persistence.unitOfWork, hasher: new Argon2PasswordHasher(), tokens, secrets: new NodeMachineSecrets(), rateLimits },
+    { repositories: persistence.repositories, unitOfWork: persistence.unitOfWork, hasher, tokens, secrets: new NodeMachineSecrets(), rateLimits },
     options.authRateLimitMax ?? 1000,
     options.ingestRateLimitMax ?? 1000,
     { ...RELAXED_PAIRING_LIMITS, ...options.pairing },
@@ -40,7 +41,7 @@ export async function buildTestApp(options: BuildTestAppOptions = {}) {
   const { logLines } = options;
   const stream = logLines && new Writable({ write: (chunk, _encoding, done) => (logLines.push(String(chunk)), done()) });
   const app = await buildApp({ ...dependencies, ...options.overrides }, stream ? { logger: { level: 'trace', stream } } : {});
-  return { app, persistence, jwtSecret, rateLimits };
+  return { app, persistence, jwtSecret, rateLimits, dependencies, hasher };
 }
 
 export const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
