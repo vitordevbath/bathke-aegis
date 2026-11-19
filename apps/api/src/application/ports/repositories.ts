@@ -1,3 +1,4 @@
+import type { Alert } from '../../domain/alert.js';
 import type { Cpf, Email } from '@aegis/domain';
 import type { User } from '../../domain/user.js';
 import type { Workspace, WorkspaceKind } from '../../domain/workspace.js';
@@ -111,6 +112,8 @@ export interface DetectionRuleRepository {
   /** Targets are removed by cascade. Returns false when no such rule exists in that workspace. */
   deleteInWorkspace(workspaceId: string, ruleId: string): Promise<boolean>;
   isHostTargeted(hostId: string): Promise<boolean>;
+  /** Enabled rules of the workspace for one event category, with their targets (detection engine, ADR-053). */
+  listEnabledFor(workspaceId: string, category: DetectionEventCategory): Promise<DetectionRule[]>;
 }
 
 export interface IncidentListFilter extends PageRequest {
@@ -232,6 +235,38 @@ export interface MachineCredentialRepository {
   existsForHost(hostId: string): Promise<boolean>;
 }
 
+export interface AlertListFilter extends PageRequest {
+  readonly severity?: Severity | undefined;
+  readonly ruleId?: string | undefined;
+  readonly hostId?: string | undefined;
+  readonly incidentId?: string | undefined;
+}
+
+/** An alert plus the names it is shown with, read in the same query (no N+1). */
+export interface StoredAlert {
+  readonly alert: Alert;
+  readonly ruleName: string;
+  readonly hostDisplayName: string;
+  readonly incidentTitle: string | null;
+  readonly eventType: EventType;
+  readonly eventSummary: string;
+}
+
+/** Append-only like events (ADR-053): alerts are inserted, read and listed, never updated or deleted on their own. */
+export interface AlertRepository {
+  insertMany(alerts: readonly Alert[]): Promise<void>;
+  /**
+   * The incident of the most recent alert of `ruleId` on `hostId` raised at or after `since`, when that
+   * incident still exists and is OPEN or INVESTIGATING; otherwise null. Must run inside the ingestion
+   * transaction that locked the host.
+   */
+  findCorrelatedIncident(workspaceId: string, ruleId: string, hostId: string, since: Date): Promise<string | null>;
+  /** Newest first: `createdAt` DESC, then `id` DESC. */
+  listInWorkspace(workspaceId: string, filter: AlertListFilter): Promise<Page<StoredAlert>>;
+  findInWorkspace(workspaceId: string, alertId: string): Promise<StoredAlert | null>;
+  existsForRule(ruleId: string): Promise<boolean>;
+}
+
 export interface Repositories {
   readonly users: UserRepository;
   readonly workspaces: WorkspaceRepository;
@@ -243,6 +278,7 @@ export interface Repositories {
   readonly events: EventRepository;
   readonly pairingChallenges: PairingChallengeRepository;
   readonly machineCredentials: MachineCredentialRepository;
+  readonly alerts: AlertRepository;
 }
 
 /**

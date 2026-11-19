@@ -404,3 +404,37 @@ export const rateLimitCounters = mysqlTable(
   },
   (table) => [primaryKey({ name: 'rate_limit_counters_pk', columns: [table.scope, table.subjectHash] }), index('rate_limit_counters_expiry_idx').on(table.windowExpiresAt)],
 );
+
+/**
+ * Alerts (ADR-053): the immutable fact that an enabled rule matched an ingested event. One per
+ * (rule, event); never updated or deleted on its own. Human work happens on the incident the alert
+ * was correlated into. FK names start with `alerts_` so that, when a workspace is deleted, InnoDB
+ * cascades this table before the rules and events it restricts (same reason as ADR-041).
+ */
+export const alerts = mysqlTable(
+  'alerts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    workspaceId: char('workspace_id', { length: 36 }).notNull(),
+    ruleId: char('rule_id', { length: 36 }).notNull(),
+    eventId: char('event_id', { length: 36 }).notNull(),
+    hostId: char('host_id', { length: 36 }).notNull(),
+    incidentId: char('incident_id', { length: 36 }),
+    severity: mysqlEnum('severity', ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).notNull(),
+    occurredAt: datetime('occurred_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    foreignKey({ name: 'alerts_workspace_fk', columns: [table.workspaceId], foreignColumns: [workspaces.id] }).onDelete('cascade'),
+    foreignKey({ name: 'alerts_rule_fk', columns: [table.ruleId], foreignColumns: [detectionRules.id] }).onDelete('restrict'),
+    foreignKey({ name: 'alerts_event_fk', columns: [table.eventId], foreignColumns: [events.id] }).onDelete('restrict'),
+    foreignKey({ name: 'alerts_host_fk', columns: [table.hostId], foreignColumns: [hosts.id] }).onDelete('restrict'),
+    foreignKey({ name: 'alerts_incident_fk', columns: [table.incidentId], foreignColumns: [incidents.id] }).onDelete('set null'),
+    // One alert per rule and event: re-evaluating the same event never duplicates it.
+    uniqueIndex('alerts_rule_event_unique').on(table.ruleId, table.eventId),
+    index('alerts_workspace_created_idx').on(table.workspaceId, table.createdAt, table.id),
+    // Correlation: latest alert of a rule on a host.
+    index('alerts_rule_host_created_idx').on(table.ruleId, table.hostId, table.createdAt),
+    index('alerts_incident_idx').on(table.incidentId),
+  ],
+);

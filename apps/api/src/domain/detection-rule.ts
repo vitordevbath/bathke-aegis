@@ -95,9 +95,9 @@ function validate(details: DetectionRuleDetails): ValidDetails {
 }
 
 /**
- * Declarative detection rule owned by a workspace. This is configuration
- * only: nothing evaluates rules yet (no event ingestion exists). `enabled`
- * means "ready to be used once the detection engine runs".
+ * Declarative detection rule owned by a workspace. Enabled rules are evaluated
+ * by the detection engine on every newly ingested event of their category and
+ * hosts (ADR-053); disabled rules are kept as configuration only.
  */
 export class DetectionRule extends Entity<string> {
   readonly #workspaceId: string;
@@ -133,6 +133,19 @@ export class DetectionRule extends Entity<string> {
 
   get enabled(): boolean {
     return this.#details.enabled;
+  }
+
+  get severity(): DetectionSeverity {
+    return this.#details.severity;
+  }
+
+  get eventCategory(): DetectionEventCategory {
+    return this.#details.eventCategory;
+  }
+
+  /** Whether this rule watches the host: every host, or one of the selected targets. */
+  appliesTo(hostId: string): boolean {
+    return this.#details.scope === 'ALL_HOSTS' || this.#details.targetHostIds.includes(hostId);
   }
 
   get scope(): DetectionScope {

@@ -124,6 +124,12 @@ export class Incident extends Entity<string> {
     return new Incident({ id: randomUUID(), workspaceId, ...lifecycle, createdAt: now, updatedAt: now }, validate(details));
   }
 
+  /** Opened by the detection engine for a rule matching on a host (ADR-053): OPEN, origin DETECTION_ENGINE. */
+  static openFromDetection(workspaceId: string, details: IncidentDetails, now: Date = new Date()): Incident {
+    const lifecycle = { status: 'OPEN', origin: 'DETECTION_ENGINE', resolvedAt: null } as const;
+    return new Incident({ id: randomUUID(), workspaceId, ...lifecycle, createdAt: now, updatedAt: now }, validate(details));
+  }
+
   static restore(snapshot: IncidentSnapshot): Incident {
     const { title, description, severity, hostIds, detectionRuleIds, ...record } = snapshot;
     assertLifecycle(record.status, record.origin, record.resolvedAt);

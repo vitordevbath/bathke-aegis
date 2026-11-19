@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { MySql2PreparedQueryHKT, MySql2QueryResultHKT } from 'drizzle-orm/mysql2';
-import { ConflictError, type Cpf, type Email } from '@aegis/domain';
+import { ConflictError, type Cpf, type DetectionEventCategory, type Email } from '@aegis/domain';
 import { User } from '../../domain/user.js';
 import { Workspace, type WorkspaceKind } from '../../domain/workspace.js';
 import { Membership, type MembershipRole } from '../../domain/membership.js';
@@ -12,8 +12,12 @@ import { Investigation } from '../../domain/investigation.js';
 import { TelemetryEvent } from '../../domain/telemetry-event.js';
 import { PairingChallenge } from '../../domain/pairing-challenge.js';
 import { MachineCredential } from '../../domain/machine-credential.js';
+import { Alert } from '../../domain/alert.js';
 import { offsetOf, type Page } from '../../application/pagination.js';
 import type {
+  AlertListFilter,
+  AlertRepository,
+  StoredAlert,
   DetectionRuleListFilter,
   DetectionRuleRepository,
   EventListFilter,
@@ -41,6 +45,7 @@ import { INCIDENT_IN_INVESTIGATION_MESSAGE } from '../../application/use-cases/i
 import type { Database } from './client.js';
 import * as schema from './schema.js';
 import {
+  alerts,
   detectionRuleTargets,
   detectionRules,
   events,
@@ -383,6 +388,16 @@ class DrizzleDetectionRuleRepository implements DetectionRuleRepository {
     return rows.length > 0;
   }
 
+  async listEnabledFor(workspaceId: string, category: DetectionEventCategory): Promise<DetectionRule[]> {
+    const rows = await this.db
+      .select()
+      .from(detectionRules)
+      .where(and(eq(detectionRules.workspaceId, workspaceId), eq(detectionRules.eventCategory, category), eq(detectionRules.enabled, true)))
+      .orderBy(asc(detectionRules.createdAt), asc(detectionRules.id));
+    const targets = await this.targetsOf(rows.map((row) => row.id));
+    return rows.map((row) => this.toEntity(row, targets));
+  }
+
   private async insertTargets(ruleId: string, hostIds: readonly string[], createdAt: Date): Promise<void> {
     if (hostIds.length === 0) return;
     await this.db.insert(detectionRuleTargets).values(hostIds.map((hostId) => ({ detectionRuleId: ruleId, hostId, createdAt })));
@@ -710,6 +725,86 @@ class DrizzleEventRepository implements EventRepository {
   }
 }
 
+type AlertRow = typeof alerts.$inferSelect;
+
+/** Alerts joined with the names they are shown with: rule, host, incident (left join) and event. */
+class DrizzleAlertRepository implements AlertRepository {
+  constructor(private readonly db: Executor) {}
+
+  async insertMany(items: readonly Alert[]): Promise<void> {
+    if (items.length === 0) return;
+    await this.db.insert(alerts).values(items.map((alert) => alert.toSnapshot()));
+  }
+
+  async findCorrelatedIncident(workspaceId: string, ruleId: string, hostId: string, since: Date): Promise<string | null> {
+    const [row] = await this.db
+      .select({ incidentId: alerts.incidentId })
+      .from(alerts)
+      .innerJoin(incidents, eq(alerts.incidentId, incidents.id))
+      .where(
+        and(
+          eq(alerts.workspaceId, workspaceId),
+          eq(alerts.ruleId, ruleId),
+          eq(alerts.hostId, hostId),
+          gte(alerts.createdAt, since),
+          inArray(incidents.status, ['OPEN', 'INVESTIGATING']),
+        ),
+      )
+      .orderBy(desc(alerts.createdAt), desc(alerts.id))
+      .limit(1);
+    return row?.incidentId ?? null;
+  }
+
+  async listInWorkspace(workspaceId: string, filter: AlertListFilter): Promise<Page<StoredAlert>> {
+    const conditions: (SQL | undefined)[] = [eq(alerts.workspaceId, workspaceId)];
+    if (filter.severity) conditions.push(eq(alerts.severity, filter.severity));
+    if (filter.ruleId) conditions.push(eq(alerts.ruleId, filter.ruleId));
+    if (filter.hostId) conditions.push(eq(alerts.hostId, filter.hostId));
+    if (filter.incidentId) conditions.push(eq(alerts.incidentId, filter.incidentId));
+    const where = and(...conditions);
+    const [rows, [totals]] = await Promise.all([
+      this.joined().where(where).orderBy(desc(alerts.createdAt), desc(alerts.id)).limit(filter.pageSize).offset(offsetOf(filter)),
+      this.db.select({ total: count() }).from(alerts).where(where),
+    ]);
+    return { items: rows.map((row) => this.toStored(row)), total: totals?.total ?? 0, page: filter.page, pageSize: filter.pageSize };
+  }
+
+  async findInWorkspace(workspaceId: string, alertId: string): Promise<StoredAlert | null> {
+    const [row] = await this.joined()
+      .where(and(eq(alerts.workspaceId, workspaceId), eq(alerts.id, alertId)))
+      .limit(1);
+    return row ? this.toStored(row) : null;
+  }
+
+  async existsForRule(ruleId: string): Promise<boolean> {
+    const rows = await this.db.select({ id: alerts.id }).from(alerts).where(eq(alerts.ruleId, ruleId)).limit(1);
+    return rows.length > 0;
+  }
+
+  private joined() {
+    return this.db
+      .select({ alert: alerts, ruleName: detectionRules.name, hostDisplayName: hosts.displayName, incidentTitle: incidents.title, event: events })
+      .from(alerts)
+      .innerJoin(detectionRules, eq(alerts.ruleId, detectionRules.id))
+      .innerJoin(hosts, eq(alerts.hostId, hosts.id))
+      .innerJoin(events, eq(alerts.eventId, events.id))
+      .leftJoin(incidents, eq(alerts.incidentId, incidents.id));
+  }
+
+  private toStored(row: { alert: AlertRow; ruleName: string; hostDisplayName: string; incidentTitle: string | null; event: EventRow }): StoredAlert {
+    const { eventType, payload, ...rest } = row.event;
+    const event = TelemetryEvent.restore({ ...rest, type: eventType, data: payload });
+    return {
+      alert: Alert.restore(row.alert),
+      ruleName: row.ruleName,
+      hostDisplayName: row.hostDisplayName,
+      incidentTitle: row.incidentTitle,
+      eventType: event.event.type,
+      eventSummary: event.summary,
+    };
+  }
+}
+
 type PairingChallengeRow = typeof pairingChallenges.$inferSelect;
 
 class DrizzlePairingChallengeRepository implements PairingChallengeRepository {
@@ -861,6 +956,7 @@ export function createDrizzleRepositories(db: Executor): Repositories {
     events: new DrizzleEventRepository(db),
     pairingChallenges: new DrizzlePairingChallengeRepository(db),
     machineCredentials: new DrizzleMachineCredentialRepository(db),
+    alerts: new DrizzleAlertRepository(db),
   };
 }
 
