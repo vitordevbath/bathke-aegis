@@ -20,6 +20,30 @@ OBSERVAR → DETECTAR → INVESTIGAR
 Resposta remota ativa (matar processo, alterar firewall, bloquear conexão,
 isolar host) fica explicitamente para fases futuras.
 
+## Persona
+
+**Rafael, 31 anos, responsável por TI de uma empresa de 40 pessoas no interior do Paraná.** Cuida
+sozinho de uma dúzia de máquinas Linux (servidores de arquivos e de sistema interno, algumas estações)
+além do suporte do dia a dia. Não tem orçamento nem equipe para um SIEM comercial, e as ferramentas que
+encontra pedem agentes com root, coletam mais do que ele consegue justificar à diretoria ou exigem dias
+de configuração.
+
+O que ele precisa, e onde o Aegis responde (estado atual entre parênteses):
+
+| Dor do Rafael | Resposta do Aegis |
+| --- | --- |
+| "Quando um servidor reinicia ou um serviço cai, eu só descubro quando alguém reclama." | Collector com heartbeat e eventos de sistema; host Online/Offline e último contato no Painel (CURRENT) |
+| "Não posso instalar algo que leia arquivos e senhas dos usuários." | Coleta só metadados do Event Contract v1, sem argumentos, conteúdo ou pacotes; o site diz o que **não** é coletado (CURRENT) |
+| "Preciso autorizar e desautorizar máquinas sem dor de cabeça." | Pareamento por código de uso único, credencial por máquina, rotação e revogação imediatas (CURRENT) |
+| "Não tenho tempo de olhar evento por evento." | Regras declarativas, motor de detecção e alertas agrupados em incidentes automaticamente (CURRENT) |
+| "Quando algo acontece, preciso explicar para a diretoria o que houve e em que ordem." | Reconstrução do incidente: histórico imutável, linha do tempo e grafo de relações; investigação que só fecha com conclusão escrita (CURRENT) |
+| "Quero ver funcionando antes de instalar em produção." | AEGIS DEMO somente leitura para toda conta, com hosts simulados e uma máquina real (CURRENT) |
+| "Não tenho como rodar uma infraestrutura pesada." | Uma stack Docker Compose com Nginx, API, web e MySQL; só o Nginx exposto (CURRENT) |
+
+**Persona secundária: estudante ou professor de segurança** que precisa de um laboratório defensivo,
+auditável e reproduzível, sem nenhuma capacidade ofensiva. O modelo de ameaças, os ADRs e os testes de
+infraestrutura existem também para que esse público consiga verificar cada afirmação do produto.
+
 ## Princípio de produto
 
 > Bathke Aegis deve primeiro enxergar e explicar muito bem o que acontece nos hosts
