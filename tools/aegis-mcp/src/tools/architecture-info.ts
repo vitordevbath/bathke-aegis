@@ -19,21 +19,21 @@ export const ARCHITECTURE: readonly ArchitectureComponent[] = [
     path: 'apps/web',
     status: 'CURRENT',
     summary:
-      'React + TypeScript + Vite SPA: public site at / (own WebGL 2 contour field, lazily loaded chunk, ADR-050), login/cadastro, attention-first /dashboard (active incidents by severity, hosts without communication, recent events, Collector state derived from heartbeats), /perfil via the account button, CRUD screens for /hosts, /regras, /incidentes, /investigacoes, read-only /eventos; host detail shows Collector communication state, last heartbeat, events received, pairing code (generate/cancel), credential rotation/revocation and credential history',
+      'React + TypeScript + Vite SPA: public site at / (own WebGL 2 contour field, lazily loaded chunk, ADR-050), login/cadastro, attention-first /dashboard (active incidents by severity, hosts without communication, recent events, Collector state derived from heartbeats), /perfil via the account button, CRUD screens for /hosts, /regras, /incidentes, /investigacoes, read-only /eventos and /alertas; incident detail with a reconstruction (timeline of history, alerts and nearby events; relation graph in plain SVG, ADR-054); host detail shows Collector communication state, last heartbeat, events received, pairing code (generate/cancel), credential rotation/revocation and credential history',
   },
   {
     name: 'Aegis API',
     path: 'apps/api',
     status: 'CURRENT',
     summary:
-      'Fastify + TypeScript, layered (presentation/application/domain/infrastructure). Auth: Argon2id + JWT HS256, GET/PUT /users/me. Per-workspace CRUD for hosts, detection rules, incidents and investigations. Detection engine (ADR-053): enabled rules evaluated on every newly ingested event inside the ingestion transaction; immutable alerts (read-only API) correlated into DETECTION_ENGINE incidents per rule and host within 30 minutes. Events: machine-authenticated ingestion (Event Contract v1, idempotent batches) and read-only queries. Machine identity: POST /agent/pair, pairing codes (create/cancel), credential rotation/revocation, POST …/hosts/:hostId/heartbeat (scope host:heartbeat); ONLINE/OFFLINE derived from last_seen_at; revocation re-checked inside the ingestion/heartbeat transaction. AEGIS DEMO (ADR-052): read-only demo workspace (VIEWER for every account) provisioned at startup, simulated hosts driven through the machine use cases, optional real host aegis-server paired by the operator (demo:pairing-code / demo:revoke-server)',
+      'Fastify + TypeScript, layered (presentation/application/domain/infrastructure). Auth: Argon2id + JWT HS256, GET/PUT /users/me. Per-workspace CRUD for hosts, detection rules, incidents and investigations. Detection engine (ADR-053): enabled rules evaluated on every newly ingested event inside the ingestion transaction; immutable alerts (read-only API) correlated into DETECTION_ENGINE incidents per rule and host within 30 minutes. Incident reconstruction (ADR-054): immutable incident activity log written in the transaction of each change, and GET …/incidents/:incidentId/timeline (history, alerts, nearby events of the involved hosts, investigations). Events: machine-authenticated ingestion (Event Contract v1, idempotent batches) and read-only queries. Machine identity: POST /agent/pair, pairing codes (create/cancel), credential rotation/revocation, POST …/hosts/:hostId/heartbeat (scope host:heartbeat); ONLINE/OFFLINE derived from last_seen_at; revocation re-checked inside the ingestion/heartbeat transaction. AEGIS DEMO (ADR-052): read-only demo workspace (VIEWER for every account) provisioned at startup, simulated hosts driven through the machine use cases, optional real host aegis-server paired by the operator (demo:pairing-code / demo:revoke-server)',
   },
-  { name: 'Contracts', path: 'packages/contracts', status: 'CURRENT', summary: 'Zod schemas and transport DTOs shared by web and api (auth, users, hosts, rules, incidents, investigations, events, machine identity, heartbeat)' },
+  { name: 'Contracts', path: 'packages/contracts', status: 'CURRENT', summary: 'Zod schemas and transport DTOs shared by web and api (auth, users, hosts, rules, incidents, investigations, events, alerts, incident timeline, machine identity, heartbeat)' },
   {
     name: 'Domain package',
     path: 'packages/domain',
     status: 'CURRENT',
-    summary: 'Entity, DomainError hierarchy, Email/Cpf/PasswordPolicy, host rules and presence policy (heartbeat 30 s, online window 90 s), detection rule schema v1, incident and investigation lifecycles, Event Contract v1, machine scopes (events:ingest, host:heartbeat)',
+    summary: 'Entity, DomainError hierarchy, Email/Cpf/PasswordPolicy, host rules and presence policy (heartbeat 30 s, online window 90 s), detection rule schema v1, detection evaluator, incident and investigation lifecycles, incident activity kinds and diff, Event Contract v1, machine scopes (events:ingest, host:heartbeat)',
   },
   { name: 'Aegis MCP', path: 'tools/aegis-mcp', status: 'CURRENT', summary: 'Restricted stdio MCP server: 7 fixed tools, path allowlist, secret guard and output redaction' },
   {
@@ -41,7 +41,7 @@ export const ARCHITECTURE: readonly ArchitectureComponent[] = [
     path: 'apps/api/drizzle',
     status: 'CURRENT',
     summary:
-      'MySQL 8.4 (Compose service on internal network aegis_data), 13 versioned migrations (0000–0012) applied by the one-shot migrate service. Tables: users, workspaces, memberships, hosts, detection_rules, detection_rule_targets, incidents, incident_hosts, incident_detection_rules, investigations, investigation_incidents, events (append-only), pairing_challenges, machine_credentials, rate_limit_counters (persistent pairing limits, HMAC-hashed client addresses), alerts (immutable, one per rule and event, ADR-053)',
+      'MySQL 8.4 (Compose service on internal network aegis_data), 14 versioned migrations (0000–0013) applied by the one-shot migrate service. Tables: users, workspaces, memberships, hosts, detection_rules, detection_rule_targets, incidents, incident_hosts, incident_detection_rules, investigations, investigation_incidents, events (append-only), pairing_challenges, machine_credentials, rate_limit_counters (persistent pairing limits, HMAC-hashed client addresses), alerts (immutable, one per rule and event, ADR-053), incident_activities (immutable incident history, ADR-054)',
   },
   { name: 'Nginx', path: 'infra/nginx', status: 'CURRENT', summary: 'Single published port; / to web, /api/ to api; strict CSP and security headers; the API trusts exactly this one proxy hop' },
   {
