@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { Brand } from './Brand';
+import { StudioMark } from './StudioMark';
 import { useAuth } from '../features/auth/AuthContext';
 import { WorkspaceSelector } from '../features/workspaces/WorkspaceSelector';
 import { DemoBanner } from '../features/workspaces/DemoBanner';
@@ -59,6 +60,9 @@ export function AppShell() {
       </header>
       <DemoBanner />
       <Outlet />
+      <footer className="shell__credit">
+        <StudioMark />
+      </footer>
     </div>
   );
 }

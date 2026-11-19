@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Brand } from '../components/Brand';
+import { StudioMark } from '../components/StudioMark';
 import { useAuth } from '../features/auth/AuthContext';
 import { LandingNav } from '../features/landing/LandingNav';
 import { NotCollected } from '../features/landing/NotCollected';
@@ -165,7 +166,9 @@ export function HomePage() {
       <footer className="lp-footer">
         <Brand />
         <p>Plataforma experimental de segurança defensiva. Use apenas em máquinas próprias ou explicitamente autorizadas.</p>
+        <StudioMark />
       </footer>
+      <StudioMark floating />
     </div>
   );
 }

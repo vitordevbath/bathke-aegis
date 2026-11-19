@@ -63,3 +63,16 @@ describe('public site', () => {
     expect(within(how).getByText(/lotes de até 100/)).toBeTruthy();
   });
 });
+
+describe('Bathke Studio mark', () => {
+  it('credits Bathke Studio with a safe external link on the site and in the panel', async () => {
+    mockApi({});
+    renderApp('/');
+    const marks = await screen.findAllByRole('link', { name: /feito por Bathke Studio/ });
+    expect(marks.length).toBeGreaterThan(0);
+    for (const mark of marks) {
+      expect(mark.getAttribute('href')).toBe('https://bathkestudio.com.br/');
+      expect(mark.getAttribute('rel')).toContain('noopener');
+    }
+  });
+});

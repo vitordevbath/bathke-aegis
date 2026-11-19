@@ -524,3 +524,20 @@ a { color: inherit; text-decoration: none; }
 .demo-banner strong { color: var(--color-warn); font-weight: 600; }
 .demo-banner .button { min-height: 2rem; }
 @media (max-width: 640px) { .demo-banner { padding: var(--space-2) var(--space-4); } }
+
+/* ── Bathke Studio mark ─────────────────────────────────────────────── */
+.studio-mark {
+  display: inline-flex; align-items: baseline; gap: var(--space-2);
+  font-size: var(--text-xs); color: var(--color-text-muted); opacity: 0.55; letter-spacing: 0.02em;
+  transition: opacity var(--duration-base) var(--ease-out), color var(--duration-base) var(--ease-out);
+}
+.studio-mark:hover, .studio-mark:focus-visible { opacity: 1; color: var(--color-text); }
+.studio-mark__name { font-family: var(--font-mono); font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+.studio-mark--floating {
+  position: fixed; right: var(--space-4); bottom: var(--space-3); z-index: 5;
+  padding: var(--space-1) var(--space-3); border-radius: 999px;
+  background: color-mix(in srgb, var(--color-bg) 60%, transparent); backdrop-filter: blur(8px);
+  opacity: 0.4;
+}
+.shell__credit { display: flex; justify-content: center; padding: var(--space-8) var(--space-6) var(--space-6); margin-top: auto; }
+@media (max-width: 640px) { .studio-mark--floating { right: var(--space-2); bottom: var(--space-2); } }
