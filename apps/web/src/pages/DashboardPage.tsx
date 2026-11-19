@@ -63,7 +63,7 @@ export function DashboardPage() {
         <MetricCard
           label="Hosts cadastrados"
           value={hosts.data ? hosts.data.pagination.total : '—'}
-          hint="Nenhum Collector pareado ainda"
+          hint="Cadastrados no workspace"
         />
         <MetricCard
           label="Regras configuradas"
@@ -83,7 +83,7 @@ export function DashboardPage() {
         <MetricCard
           label="Eventos armazenados"
           value={events.data ? events.data.pagination.total : '—'}
-          hint="Ingestão de laboratório; nenhum Collector pareado"
+          hint="Recebidos dos Collectors pareados"
         />
       </section>
 

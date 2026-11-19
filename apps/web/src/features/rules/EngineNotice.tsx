@@ -3,7 +3,8 @@ export function EngineNotice() {
   return (
     <p className="engine-notice" role="note">
       <span className="engine-notice__dot" aria-hidden="true" />
-      Motor de detecção ainda não conectado. As regras ficam configuradas e serão usadas quando a ingestão de eventos estiver ativa.
+      Motor de detecção ainda não conectado. Os eventos já chegam pelo Collector, mas as regras ficam apenas configuradas: nenhuma é avaliada sobre
+      eles ainda.
     </p>
   );
 }
