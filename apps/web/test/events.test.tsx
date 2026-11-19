@@ -76,8 +76,7 @@ describe('events list (read-only)', () => {
     renderApp('/eventos');
 
     expect(await screen.findByText('Nenhum evento recebido.')).toBeTruthy();
-    expect(screen.getByText(/Eventos aparecerão aqui quando telemetria for enviada ao Aegis/)).toBeTruthy();
-    expect(screen.getByText(/Nenhum Collector está pareado ainda/)).toBeTruthy();
+    expect(screen.getByText(/quando um Collector pareado envia telemetria/)).toBeTruthy();
     expect(screen.queryByRole('link', { name: /Novo/ })).toBeNull();
     expect(screen.queryByText(/ativo|online/i)).toBeNull();
   });
