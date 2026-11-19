@@ -14,6 +14,7 @@ configurável e removível.
 | Tokens JWT | roubo, forja | CURRENT: HS256 com segredo validado no startup, `alg` fixo, `iss`/`aud`/`exp` verificados, TTL 1 h; token em localStorage mitigado por CSP (ADR-017). PLANNED: revogação |
 | Banco MySQL | acesso direto | CURRENT: porta 3306 não publicada; rede `aegis_data` interna |
 | API | exposição direta | CURRENT: somente Nginx publica porta |
+| Tráfego na rede | interceptação, rebaixamento de protocolo | CURRENT (opcional, `compose.tls.yaml`, ADR-055): TLS 1.2/1.3 com suítes AEAD de sigilo futuro, HSTS de um ano, HTTP só redireciona; verificado no CI, incluindo a recusa de TLS 1.1 pelo servidor. O modo HTTP padrão é para desenvolvimento local. PLANNED: hospedagem pública ([HOSPEDAGEM.md](HOSPEDAGEM.md)) |
 | Telemetria de hosts | coleta excessiva/privada | CURRENT: Event Contract v1 (só metadados), propriedades desconhecidas rejeitadas; Collector coleta só SYSTEM (boot e estado de serviços), sem conteúdo |
 | Credenciais de máquina | roubo, reuso, escalada, troca de host | CURRENT: segredos de 256 bits só como hash, código de uso único e curta duração (cancelável), escopos mínimos por host, rotação e revogação imediatas e confirmadas dentro da transação, limites persistentes por IP e por host |
 | Credencial no host Linux | leitura por outro usuário, vazamento em logs/argumentos | CURRENT: arquivo `0600` em diretório `0700`, sem seguir links, nunca em argumentos, logs ou na fila; não criptografado (ver Aegis Collector) |

@@ -24,7 +24,7 @@ nginx (única porta publicada: ${AEGIS_HTTP_PORT:-8080} → 80)     redes: aegis
 | Contracts | `packages/contracts` | DTOs + schemas Zod de auth, usuário, hosts, detection rules, incidents, investigations, events e identidade de máquina; `PaginationQuerySchema` + `PaginatedResponse<T>`; envelope de erro |
 | Domain | `packages/domain` | `Entity<TId>`, hierarquia `DomainError`, value objects `Email`, `Cpf`, `PasswordPolicy`, regras do Host, escala de severidade compartilhada, schema v1 de regras de detecção, ciclos de vida de incidentes e investigações e regras de identidade de máquina (ADR-018, ADR-022, ADR-026, ADR-029, ADR-037–041) |
 | MySQL | `compose.yaml` | MySQL 8.4; tabelas `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents`, `events`, `pairing_challenges`, `machine_credentials`, `rate_limit_counters` via 12 migrations versionadas (0000–0011) aplicadas pelo serviço `migrate` (ADR-019) |
-| Nginx | `infra/nginx` | Reverse proxy, headers de segurança e CSP estrita |
+| Nginx | `infra/nginx` | Reverse proxy, headers de segurança e CSP estrita (um snippet compartilhado); HTTPS opcional via `compose.tls.yaml` (ADR-055) |
 | Aegis MCP | `tools/aegis-mcp` | Servidor MCP stdio, 7 ferramentas, allowlist e secret guard; `aegis_architecture_info` testado contra o repositório |
 | Aegis Collector | `native/aegis-collector` | CLI Rust executada em primeiro plano pelo usuário (sem root, sem serviço, sem eBPF): `pair`, `run`, `status`, `replace-credential`, `unpair`; eventos SYSTEM, heartbeat e fila SQLite local ([README](../native/aegis-collector/README.md), ADR-047–049) |
 

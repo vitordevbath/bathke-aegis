@@ -18,7 +18,7 @@ Quality over quantity: no fake features, no fake architecture, no TODO marked as
 | Web | incident reconstruction on the incident detail (timeline with history, alerts and nearby events; relation graph in plain SVG, ADR-054); `/alertas` (read-only list/detail, alerts on incident and rule detail, ADR-053); AEGIS DEMO read-only for viewers (banner, write actions hidden, `ManagerOnly` on create/edit routes, ADR-052); public site at `/` (WebGL contour field, lazy chunk, ADR-050), auth pages, `/dashboard` (attention-first: active incidents, silent hosts, recent events, real Collector state), `/perfil`, `/hosts`, `/regras`, `/incidentes` and `/investigacoes` (list/create/detail/edit), `/eventos` (read-only list/detail), host detail with Collector communication state, pairing (generate/cancel code), credential rotation/revocation and history; AuthContext, WorkspaceContext | investigation-level reconstruction |
 | API | health, register/login (Argon2id + JWT), `GET/PUT /users/me`, Hosts, Detection Rules, Incidents and Investigations CRUD per workspace (enabled rules are evaluated on ingestion by the detection engine; incidents are manual or opened by the engine; investigations group incidents and close only with a human conclusion); alerts read-only, correlated into DETECTION_ENGINE incidents (ADR-053); immutable incident activity log written with each change and `GET …/incidents/:id/timeline` (ADR-054); Event Contract v1 ingestion (machine credentials, idempotent batches, revocation re-checked in the transaction), event list/detail; Collector pairing (code cancel, persistent per-IP limits), machine credentials, rotation and revocation; machine heartbeat with derived ONLINE/OFFLINE; AEGIS DEMO provisioning, VIEWER for every account and a simulator that drives demo hosts through the machine use cases (ADR-052) | investigation-level timeline |
 | Data | `users`, `workspaces`, `memberships`, `hosts`, `detection_rules`, `detection_rule_targets`, `incidents`, `incident_hosts`, `incident_detection_rules`, `investigations`, `investigation_incidents`, `events` (append-only), `pairing_challenges`, `machine_credentials`, `rate_limit_counters`, `alerts`, `incident_activities` (14 versioned migrations, Drizzle repositories) | remaining resource tables per workspace |
-| Tooling | Aegis MCP, CI (typecheck/build/test, `npm run test:infra` on the real Compose stack, Rust fmt/clippy/test/build, `npm run test:collector-e2e` with the real Collector binary) | rubric engine expansion |
+| Tooling | Aegis MCP, CI (typecheck/build/test, `npm run test:infra` on the real Compose stack, HTTP and HTTPS (`compose.tls.yaml`, ADR-055), Rust fmt/clippy/test/build, `npm run test:collector-e2e` with the real Collector binary) | rubric engine expansion |
 | Native | `native/aegis-collector`: Rust CLI run in the foreground by the user (pair, run, status, replace-credential, unpair), SYSTEM events, heartbeat, SQLite queue | eBPF (PROCESS/NETWORK), SPARK, NASM |
 
 Details: `docs/ARCHITECTURE.md`; event contract: `docs/EVENTOS.md` (events are immutable — never add update/delete paths, command lines, environment or payload capture). Check `aegis_architecture_info` (Aegis MCP) before claiming something exists.
@@ -33,7 +33,7 @@ packages/domain     Entity, DomainError hierarchy, Email, Cpf, PasswordPolicy, h
 tools/aegis-mcp     restricted MCP server
 native/             aegis-collector (Rust, CURRENT); planned low-level components (README only)
 agents/skills/      backend-engineering, frontend-engineering, security-review
-infra/              Dockerfiles, Nginx
+infra/              Dockerfiles, Nginx (shared snippets, HTTP and TLS entry points)
 docs/               architecture, roadmap, rubric, security, decisions
 ```
 
@@ -70,6 +70,7 @@ Agents **must not read, open, print or copy**:
 .env.*          (exception: .env.example)
 secrets/**
 credentials/**
+certs/**        (TLS keys and Let's Encrypt state, ADR-055)
 *.pem  *.key  *.p12  *.pfx
 ```
 
