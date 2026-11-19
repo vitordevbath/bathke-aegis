@@ -130,7 +130,9 @@ export function IncidentDetailPage() {
                 ))}
               </ul>
             )}
-            <p className="muted small">Nenhuma regra relacionada a este incidente.</p>
+            <p className="muted small">
+              {data.origin === 'DETECTION_ENGINE' ? 'Regra cujos alertas abriram este incidente.' : 'Relação registrada manualmente.'}
+            </p>
           </section>
           <section className="surface" aria-labelledby="record-title">
             <h2 id="record-title" className="section-title">
