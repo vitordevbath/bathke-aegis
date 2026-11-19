@@ -36,6 +36,8 @@ const EnvSchema = DatabaseEnvSchema.extend({
   PAIR_INVALID_ATTEMPTS_WINDOW_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
   /** Pairing codes an OWNER may request for one host per hour. */
   PAIR_CODES_PER_HOST_PER_HOUR: z.coerce.number().int().positive().default(10),
+  /** AEGIS DEMO (ADR-052): `on` provisions the read-only demo workspace and runs its simulator at startup. */
+  DEMO_WORKSPACE: z.enum(['on', 'off']).default('on'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -141,7 +141,7 @@ export function createUseCases(
 }
 
 /** Production wiring: MySQL via Drizzle, Argon2id, HS256 JWT. */
-export function createProductionDependencies(env: Env): { dependencies: AppDependencies; close: () => Promise<void> } {
+export function createProductionDependencies(env: Env): { dependencies: AppDependencies; adapters: Adapters; close: () => Promise<void> } {
   const { db, close } = createDatabase(env.DATABASE_URL);
   const adapters: Adapters = {
     repositories: createDrizzleRepositories(db),
@@ -157,5 +157,5 @@ export function createProductionDependencies(env: Env): { dependencies: AppDepen
     invalidAttemptsWindowMs: env.PAIR_INVALID_ATTEMPTS_WINDOW_SECONDS * 1000,
     codesPerHostPerHour: env.PAIR_CODES_PER_HOST_PER_HOUR,
   };
-  return { dependencies: createUseCases(adapters, env.AUTH_RATE_LIMIT_MAX, env.INGEST_RATE_LIMIT_MAX, pairing, env.HEARTBEAT_RATE_LIMIT_MAX), close };
+  return { dependencies: createUseCases(adapters, env.AUTH_RATE_LIMIT_MAX, env.INGEST_RATE_LIMIT_MAX, pairing, env.HEARTBEAT_RATE_LIMIT_MAX), adapters, close };
 }
