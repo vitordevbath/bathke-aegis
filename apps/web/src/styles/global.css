@@ -553,3 +553,87 @@ a { color: inherit; text-decoration: none; }
   .alert-row__time, .alert-row__incident { grid-column: 1 / -1; text-align: left; }
   .filters--compact { grid-template-columns: minmax(0, 1fr) auto; }
 }
+
+/* Incident reconstruction (ADR-054): timeline and relation graph */
+.tl-item--low, .graph-node--low { --tone: var(--color-text-muted); }
+.tl-item--medium, .graph-node--medium { --tone: var(--color-accent); }
+.tl-item--high, .graph-node--high { --tone: var(--color-warn); }
+.tl-item--critical, .graph-node--critical { --tone: var(--color-danger); }
+
+.reconstruction { margin-top: var(--space-6); }
+.reconstruction__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.reconstruction__header .section-title { margin: 0; }
+
+.tabs { display: inline-flex; gap: 2px; padding: 3px; border: var(--border); border-radius: var(--radius-md); background: var(--color-bg); }
+.tabs__tab { border: 0; background: transparent; color: var(--color-text-muted); font: inherit; font-size: var(--text-sm); padding: var(--space-1) var(--space-3); border-radius: 6px; cursor: pointer; transition: color var(--duration-fast), background var(--duration-fast); }
+.tabs__tab:hover { color: var(--color-text); }
+.tabs__tab[aria-selected="true"] { background: var(--color-surface-raised); color: var(--color-text); box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+.tabs__tab:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
+.chip-group { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+.chip { display: inline-flex; align-items: center; gap: var(--space-2); border: var(--border); border-radius: 999px; background: transparent; color: var(--color-text-muted); font: inherit; font-size: var(--text-xs); padding: var(--space-1) var(--space-3); cursor: pointer; transition: color var(--duration-fast), border-color var(--duration-fast), background var(--duration-fast); }
+.chip:hover { color: var(--color-text); border-color: var(--color-border-strong); }
+.chip[aria-pressed="true"] { color: var(--color-text); border-color: var(--color-accent); background: var(--color-accent-soft); }
+.chip:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.chip__count { font-family: var(--font-mono); opacity: 0.7; }
+
+.timeline { --tl-time: 5.25rem; --tl-rail: 1.5rem; }
+.tl { list-style: none; margin: 0; padding: 0; }
+.tl-item, .tl-day, .tl-boundary { position: relative; }
+.tl-item::before, .tl-day::before, .tl-boundary::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--tl-time) + var(--tl-rail) / 2); width: 1px; background: var(--color-border); }
+.tl-item { display: grid; grid-template-columns: var(--tl-time) var(--tl-rail) minmax(0, 1fr); align-items: start; padding: var(--space-2) 0; }
+.tl-time { font-size: var(--text-xs); color: var(--color-text-muted); padding-top: 2px; }
+.tl-mark { position: relative; z-index: 1; justify-self: center; margin-top: 5px; width: 9px; height: 9px; border-radius: 50%; }
+.tl-item--alert .tl-mark { background: var(--tone); box-shadow: 0 0 0 3px var(--color-surface); }
+.tl-item--history .tl-mark { background: var(--color-surface); border: 2px solid var(--color-accent); }
+.tl-item--context .tl-mark, .tl-item--run .tl-mark { width: 5px; height: 5px; margin-top: 7px; background: var(--color-border-strong); }
+.tl-body { min-width: 0; }
+.tl-title { display: block; margin: 0; color: var(--color-text); font-size: var(--text-sm); font-weight: 500; overflow-wrap: anywhere; }
+a.tl-title:hover { color: var(--color-accent-hover); }
+.tl-title--quiet { color: var(--color-text-muted); font-weight: 400; }
+.tl-meta { margin: 2px 0 0; font-size: var(--text-xs); color: var(--color-text-muted); }
+.tl-tag { color: var(--tone); font-weight: 600; }
+.tl-day { padding: var(--space-6) 0 var(--space-2) calc(var(--tl-time) + var(--tl-rail)); font-size: var(--text-xs); font-weight: 600; color: var(--color-text); }
+.tl-day::first-letter { text-transform: uppercase; }
+.tl-day:first-child { padding-top: 0; }
+.tl-boundary { padding: var(--space-3) 0 var(--space-2) calc(var(--tl-time) + var(--tl-rail)); }
+.tl-boundary__label { display: block; border-top: 1px dashed var(--color-border-strong); padding-top: var(--space-2); font-size: var(--text-xs); color: var(--color-text-muted); }
+.tl-run { border: 0; background: none; padding: 0; color: var(--color-accent); font: inherit; font-size: var(--text-xs); cursor: pointer; text-align: left; }
+.tl-run:hover { color: var(--color-accent-hover); }
+.tl-run:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 2px; }
+.timeline > .muted:last-child { margin-top: var(--space-4); }
+@media (max-width: 640px) {
+  .timeline { --tl-time: 4.25rem; --tl-rail: 1.25rem; }
+}
+
+.graph__scroll { overflow-x: auto; padding-bottom: var(--space-2); }
+.graph__canvas { display: block; max-width: none; overflow: visible; font-family: var(--font-sans); }
+.graph__column { fill: var(--color-text-muted); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.graph__legend { margin-top: var(--space-3); }
+.graph-edge { fill: none; stroke: var(--color-border-strong); stroke-width: 1.5; stroke-dasharray: 1; stroke-dashoffset: 0; transition: stroke var(--duration-fast), opacity var(--duration-fast); }
+.graph-edge--declared { stroke-dasharray: 0.018 0.014; }
+.graph-edge.is-lit { stroke: var(--color-accent); stroke-width: 2; }
+.graph-edge.is-dim { opacity: 0.2; }
+.graph-node { cursor: pointer; outline: none; transition: opacity var(--duration-fast); }
+.graph-node--incident { cursor: default; }
+.graph-node.is-dim { opacity: 0.32; }
+.graph-node__box { fill: var(--color-surface-raised); stroke: var(--color-border-strong); stroke-width: 1; transition: stroke var(--duration-fast); }
+.graph-node--incident .graph-node__box { fill: var(--color-accent-soft); stroke: var(--color-accent); }
+.graph-node--more-alerts .graph-node__box { fill: transparent; stroke-dasharray: 4 3; }
+.graph-node.is-lit .graph-node__box { stroke: var(--color-accent); }
+.graph-node:focus-visible .graph-node__box { stroke: var(--color-accent-hover); stroke-width: 2; }
+.graph-node__severity { fill: var(--tone); }
+.graph-node__caption { fill: var(--color-text-muted); font-size: 11px; }
+.graph-node__label { fill: var(--color-text); font-size: 13px; font-weight: 500; }
+
+/* One orchestrated moment: the chain draws itself from causes to consequences, once. */
+@media (prefers-reduced-motion: no-preference) {
+  .graph-edge:not(.graph-edge--declared) { animation: graph-draw 640ms var(--ease-out) both; }
+  .graph-edge--c1 { animation-delay: 110ms; }
+  .graph-edge--c2 { animation-delay: 220ms; }
+  .graph-edge--c3 { animation-delay: 330ms; }
+  .graph-edge--c4 { animation-delay: 440ms; }
+  .graph-edge--declared { animation: graph-fade 640ms var(--ease-out) 200ms both; }
+}
+@keyframes graph-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes graph-fade { from { opacity: 0; } to { opacity: 1; } }
