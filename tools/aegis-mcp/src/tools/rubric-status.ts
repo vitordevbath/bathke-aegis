@@ -501,8 +501,9 @@ const CHECKS: readonly RubricCheck[] = [
     evaluate: implementedAndTested('Web and API are separate Compose services behind Nginx routing; infra test validates SPA and API responses through the proxy', [
       { file: 'compose.yaml', pattern: /\n  web:/ },
       { file: 'compose.yaml', pattern: /\n  api:/ },
-      { file: 'infra/nginx/nginx.conf', pattern: /location \/api\/ \{[\s\S]*proxy_pass http:\/\/aegis_api/ },
-      { file: 'infra/nginx/nginx.conf', pattern: /location \/ \{[\s\S]*proxy_pass http:\/\/aegis_web/ },
+      { file: 'infra/nginx/nginx.conf', pattern: /include \/etc\/nginx\/snippets\/aegis-routes\.conf;/ },
+      { file: 'infra/nginx/snippets/aegis-routes.conf', pattern: /location \/api\/ \{[\s\S]*proxy_pass http:\/\/aegis_api/ },
+      { file: 'infra/nginx/snippets/aegis-routes.conf', pattern: /location \/ \{[\s\S]*proxy_pass http:\/\/aegis_web/ },
       ...INFRA_TEST_EVIDENCE,
       { file: INFRA_TEST, pattern: /'\/api\/health via nginx'/ },
       { file: INFRA_TEST, pattern: /'\/ via nginx serves Aegis Web'/ },
@@ -528,13 +529,16 @@ const CHECKS: readonly RubricCheck[] = [
   },
   {
     requirement: 'Nginx',
-    evaluate: implementedAndTested('nginx is the public entry: /api/* → api (prefix stripped), /* → web; security headers and CSP verified over HTTP by the infra test', [
-      { file: 'infra/nginx/nginx.conf', pattern: /location \/api\/ \{\s*proxy_pass http:\/\/aegis_api\/;/ },
-      { file: 'infra/nginx/nginx.conf', pattern: /location \/ \{\s*proxy_pass http:\/\/aegis_web;/ },
-      { file: 'infra/nginx/nginx.conf', pattern: /Content-Security-Policy/ },
+    evaluate: implementedAndTested('nginx is the public entry: /api/* → api (prefix stripped), /* → web; security headers and CSP from one shared snippet, verified over HTTP and HTTPS by the infra test', [
+      { file: 'infra/nginx/nginx.conf', pattern: /include \/etc\/nginx\/snippets\/security-headers\.conf;/ },
+      { file: 'infra/nginx/nginx.conf', pattern: /include \/etc\/nginx\/snippets\/aegis-routes\.conf;/ },
+      { file: 'infra/nginx/snippets/aegis-routes.conf', pattern: /location \/api\/ \{\s*proxy_pass http:\/\/aegis_api\/;/ },
+      { file: 'infra/nginx/snippets/aegis-routes.conf', pattern: /location \/ \{\s*proxy_pass http:\/\/aegis_web;/ },
+      { file: 'infra/nginx/snippets/security-headers.conf', pattern: /Content-Security-Policy/ },
       ...INFRA_TEST_EVIDENCE,
       { file: INFRA_TEST, pattern: /'reverse proxy routing'/ },
       { file: INFRA_TEST, pattern: /'security headers and CSP'/ },
+      { file: INFRA_TEST, pattern: /'HTTPS entry point \(compose\.tls\.yaml\)'/ },
     ]),
   },
   {

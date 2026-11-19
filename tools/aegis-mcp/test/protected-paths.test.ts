@@ -16,6 +16,8 @@ describe('isProtectedPath', () => {
     'deploy/id.key',
     'certs/client.p12',
     'certs/client.PFX',
+    'certs/letsencrypt/accounts/acme-v02.api.letsencrypt.org/directory/abc/private_key.json',
+    'infra/certs/renewal/aegis.conf',
   ])('denies %s', (candidate) => {
     expect(isProtectedPath(candidate)).toBe(true);
   });

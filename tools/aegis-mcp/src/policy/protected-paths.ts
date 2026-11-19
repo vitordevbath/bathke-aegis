@@ -6,7 +6,8 @@ import path from 'node:path';
  * outside the allowlist and paths escaping the repository root.
  */
 
-const PROTECTED_DIRECTORIES = new Set(['secrets', 'credentials']);
+// `certs` holds TLS keys and Let's Encrypt account keys (private_key.json, not caught by extension), ADR-055.
+const PROTECTED_DIRECTORIES = new Set(['secrets', 'credentials', 'certs']);
 const PROTECTED_EXTENSIONS = new Set(['.pem', '.key', '.p12', '.pfx']);
 const ALLOWED_ENV_FILES = new Set(['.env.example']);
 
@@ -30,6 +31,7 @@ export const ALLOWED_ROOT_FILES: readonly string[] = [
   'package.json',
   'tsconfig.base.json',
   'compose.yaml',
+  'compose.tls.yaml',
   '.gitignore',
   '.editorconfig',
   '.env.example',
