@@ -58,10 +58,10 @@ export function HomePage() {
         <div className="lp-hero__inner">
           <h1 id="lp-title" className="lp-display">
             <span className="lp-line">
-              <span>Veja o que suas máquinas fazem.</span>
+              <span>Segurança que você consegue auditar.</span>
             </span>
             <span className="lp-line lp-line--quiet">
-              <span>E nada além disso.</span>
+              <span>Do primeiro evento à investigação.</span>
             </span>
           </h1>
           <p className="lp-lede">

@@ -8,7 +8,7 @@ describe('public site', () => {
     mockApi({});
     renderApp('/');
 
-    expect(await screen.findByRole('heading', { level: 1, name: /Veja o que suas máquinas fazem/ })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: /Segurança que você consegue auditar/ })).toBeTruthy();
     const sections = screen.getByRole('navigation', { name: 'Seções' });
     expect(
       within(sections)
