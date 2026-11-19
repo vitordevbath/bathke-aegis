@@ -21,7 +21,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [selectedId, setSelectedId] = useState<string | null>(() => workspaceStorage.get());
 
   const activeWorkspace = useMemo(
-    () => workspaces.find((workspace) => workspace.id === selectedId) ?? workspaces[0] ?? null,
+    // Without a remembered choice, the personal workspace comes first, never the shared demo (ADR-052).
+    () => workspaces.find((workspace) => workspace.id === selectedId) ?? workspaces.find((workspace) => workspace.kind === 'personal') ?? workspaces[0] ?? null,
     [workspaces, selectedId],
   );
 
@@ -43,3 +44,12 @@ export function useWorkspace(): WorkspaceContextValue {
   if (!context) throw new Error('useWorkspace must be used inside <WorkspaceProvider>');
   return context;
 }
+
+/**
+ * Whether the active workspace lets the user create, edit or delete (OWNER). Viewers, such as every
+ * account in AEGIS DEMO, only read. The API enforces this anyway; the panel just hides what would fail.
+ */
+export function useCanManage(): boolean {
+  return useWorkspace().activeWorkspace?.role === 'OWNER';
+}
+

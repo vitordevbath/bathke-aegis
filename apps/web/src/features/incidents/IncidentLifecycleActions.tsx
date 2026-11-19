@@ -1,3 +1,4 @@
+import { useCanManage } from '../workspaces/WorkspaceContext';
 import type { IncidentStatus } from '@aegis/contracts';
 import { transitionLabel } from './incident-labels';
 
@@ -10,7 +11,7 @@ interface IncidentLifecycleActionsProps {
 }
 
 /** Status buttons for the transitions the server allows from the current status. Renders nothing once CLOSED. */
-export function IncidentLifecycleActions({ status, available, pending, onTransition }: IncidentLifecycleActionsProps) {
+function IncidentLifecycleActionsForm({ status, available, pending, onTransition }: IncidentLifecycleActionsProps) {
   if (available.length === 0) return null;
   return (
     <div className="lifecycle" role="group" aria-label="Alterar status">
@@ -27,4 +28,10 @@ export function IncidentLifecycleActions({ status, available, pending, onTransit
       ))}
     </div>
   );
+}
+
+/** Viewers (e.g. AEGIS DEMO) see the status, not the transitions; the API refuses them anyway. */
+export function IncidentLifecycleActions(props: IncidentLifecycleActionsProps) {
+  if (!useCanManage()) return <p className="muted small">Somente leitura neste workspace.</p>;
+  return <IncidentLifecycleActionsForm {...props} />;
 }

@@ -7,7 +7,7 @@ import { formatDateTime } from '../../features/hosts/host-format';
 import { InvestigationStatusBadge } from '../../features/investigations/InvestigationStatusBadge';
 import { STATUS_LABELS } from '../../features/investigations/investigation-labels';
 import { useInvestigationList } from '../../features/investigations/investigations-api';
-import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
 import {
   INVESTIGATIONS_PAGE_SIZE,
   readInvestigationListParams,
@@ -18,6 +18,7 @@ import {
 const count = (value: number, one: string, many: string) => `${value} ${value === 1 ? one : many}`;
 
 export function InvestigationsPage() {
+  const canManage = useCanManage();
   const { activeWorkspace } = useWorkspace();
   const [searchParams, setSearchParams] = useSearchParams();
   const state = readInvestigationListParams(searchParams);
@@ -53,9 +54,11 @@ export function InvestigationsPage() {
             </p>
           )}
         </div>
-        <Link to="/investigacoes/nova" className="button button--primary">
-          Nova investigação
-        </Link>
+        {canManage && (
+          <Link to="/investigacoes/nova" className="button button--primary">
+            Nova investigação
+          </Link>
+        )}
       </header>
 
       <div className="toolbar">
@@ -117,9 +120,11 @@ export function InvestigationsPage() {
           title="Nenhuma investigação aberta."
           description="Investigações agrupam incidentes relacionados para análise e conclusão humana."
           action={
-            <Link to="/investigacoes/nova" className="button button--primary">
-              Nova investigação
-            </Link>
+            canManage ? (
+              <Link to="/investigacoes/nova" className="button button--primary">
+                Nova investigação
+              </Link>
+            ) : undefined
           }
         />
       )}

@@ -9,10 +9,11 @@ import { SeverityBadge } from '../../components/SeverityBadge';
 import { CATEGORY_LABELS, SCOPE_LABELS } from '../../features/rules/rule-labels';
 import { SEVERITY_LABELS } from '../../lib/severity';
 import { useRuleList } from '../../features/rules/rules-api';
-import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
 import { RULES_PAGE_SIZE, readRuleListParams, writeRuleListParams, type RuleListUrlState } from './rule-route-params';
 
 export function RulesPage() {
+  const canManage = useCanManage();
   const { activeWorkspace } = useWorkspace();
   const [searchParams, setSearchParams] = useSearchParams();
   const state = readRuleListParams(searchParams);
@@ -50,9 +51,11 @@ export function RulesPage() {
             </p>
           )}
         </div>
-        <Link to="/regras/nova" className="button button--primary">
-          Nova regra
-        </Link>
+        {canManage && (
+          <Link to="/regras/nova" className="button button--primary">
+            Nova regra
+          </Link>
+        )}
       </header>
 
       <EngineNotice />
@@ -138,9 +141,11 @@ export function RulesPage() {
           title="Nenhuma regra de detecção configurada."
           description="Crie regras para preparar o Aegis para analisar eventos quando o motor de detecção estiver ativo."
           action={
-            <Link to="/regras/nova" className="button button--primary">
-              Nova regra
-            </Link>
+            canManage ? (
+              <Link to="/regras/nova" className="button button--primary">
+                Nova regra
+              </Link>
+            ) : undefined
           }
         />
       )}

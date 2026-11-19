@@ -5,11 +5,12 @@ import { HostPairingPanel } from '../../features/hosts/HostPairingPanel';
 import { HostStatusBadge } from '../../features/hosts/HostStatusBadge';
 import { formatDateTime } from '../../features/hosts/host-format';
 import { useDeleteHost, useHost } from '../../features/hosts/hosts-api';
-import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
 import { ApiError } from '../../lib/api-client';
 import { HostNotFound } from './HostNotFound';
 
 export function HostDetailPage() {
+  const canManage = useCanManage();
   const { hostId = '' } = useParams();
   const { activeWorkspace } = useWorkspace();
   const navigate = useNavigate();
@@ -78,30 +79,32 @@ export function HostDetailPage() {
           </section>
         </div>
         <div className="detail-grid__side">
-          {activeWorkspace && <HostPairingPanel workspaceId={activeWorkspace.id} hostId={data.id} canManage={activeWorkspace.role === 'OWNER'} />}
+          {activeWorkspace && <HostPairingPanel workspaceId={activeWorkspace.id} hostId={data.id} canManage={canManage} />}
         </div>
       </div>
 
-      <div className="detail-actions">
-        <Link to={`/hosts/${data.id}/editar`} className="button">
-          Editar
-        </Link>
-        <ConfirmAction
-          triggerLabel="Excluir"
-          title="Excluir este host?"
-          description={
-            data.agentId
-              ? 'Este host está pareado com um Collector. Hosts que já foram pareados mantêm o histórico das credenciais para auditoria e não podem ser excluídos; para interromper o Collector, revogue a credencial.'
-              : 'O cadastro será removido deste workspace. Hosts com telemetria, regras, incidentes ou histórico de credenciais não podem ser excluídos.'
-          }
-          confirmLabel="Excluir host"
-          pendingLabel="Excluindo…"
-          onConfirm={async () => {
-            await deleteHost.mutateAsync();
-            navigate('/hosts', { replace: true });
-          }}
-        />
-      </div>
+      {canManage && (
+        <div className="detail-actions">
+          <Link to={`/hosts/${data.id}/editar`} className="button">
+            Editar
+          </Link>
+          <ConfirmAction
+            triggerLabel="Excluir"
+            title="Excluir este host?"
+            description={
+              data.agentId
+                ? 'Este host está pareado com um Collector. Hosts que já foram pareados mantêm o histórico das credenciais para auditoria e não podem ser excluídos; para interromper o Collector, revogue a credencial.'
+                : 'O cadastro será removido deste workspace. Hosts com telemetria, regras, incidentes ou histórico de credenciais não podem ser excluídos.'
+            }
+            confirmLabel="Excluir host"
+            pendingLabel="Excluindo…"
+            onConfirm={async () => {
+              await deleteHost.mutateAsync();
+              navigate('/hosts', { replace: true });
+            }}
+          />
+        </div>
+      )}
       {deleteHost.isError && (
         <p className="notice notice--error" role="alert">
           {/* 409: rules, incidents, events or credentials refer to the host — the API message says what to do. */}

@@ -5,12 +5,13 @@ import { Pagination } from '../../components/Pagination';
 import { HostStatusBadge } from '../../features/hosts/HostStatusBadge';
 import { formatDate, formatDateTime } from '../../features/hosts/host-format';
 import { useHostList } from '../../features/hosts/hosts-api';
-import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
 import { formatRelative } from '../../lib/relative-time';
 import { HOSTS_PAGE_SIZE, readListParams } from './host-route-params';
 
 /** Paginated, searchable list. Page and search live in the URL (refresh, share, back/forward). */
 export function HostsPage() {
+  const canManage = useCanManage();
   const { activeWorkspace } = useWorkspace();
   const [searchParams, setSearchParams] = useSearchParams();
   const { page, q } = readListParams(searchParams);
@@ -46,9 +47,11 @@ export function HostsPage() {
             </p>
           )}
         </div>
-        <Link to="/hosts/novo" className="button button--primary">
-          Adicionar host
-        </Link>
+        {canManage && (
+          <Link to="/hosts/novo" className="button button--primary">
+            Adicionar host
+          </Link>
+        )}
       </header>
 
       <form className="search" role="search" onSubmit={submitSearch}>
@@ -92,9 +95,11 @@ export function HostsPage() {
           title="Nenhum host cadastrado neste workspace."
           description="Adicione uma máquina para preparar o monitoramento pelo Aegis. O pareamento do Collector é feito na página de cada host."
           action={
-            <Link to="/hosts/novo" className="button button--primary">
-              Adicionar host
-            </Link>
+            canManage ? (
+              <Link to="/hosts/novo" className="button button--primary">
+                Adicionar host
+              </Link>
+            ) : undefined
           }
         />
       )}

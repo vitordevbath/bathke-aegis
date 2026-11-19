@@ -17,13 +17,13 @@ const WORKS_TODAY = [
   'Pareamento de máquinas com credenciais rotacionáveis e revogáveis',
   'Collector em Rust com heartbeat, eventos de sistema e fila persistente',
   'Linha do tempo de eventos imutável, com ingestão idempotente',
+  'AEGIS DEMO: workspace somente leitura que toda conta recebe, com hosts simulados e um host real',
 ] as const;
 
 const IN_PROGRESS = [
   'Eventos de processo e de rede via eBPF',
   'Motor que executa as regras sobre os eventos',
   'Alertas e correlação automática de incidentes',
-  'Workspace de demonstração para avaliação sem instalar nada',
 ] as const;
 
 /** Fraction of the hero scrolled away, shared with the WebGL field without re-rendering React. */
@@ -148,7 +148,9 @@ export function HomePage() {
           <h2 id="lp-closing" className="lp-heading">
             Comece por uma máquina de laboratório.
           </h2>
-          <p className="lp-copy">Crie uma conta, cadastre um host e pareie o Collector em poucos minutos. Você pode revogar o acesso quando quiser.</p>
+          <p className="lp-copy">
+            Crie uma conta e explore o AEGIS DEMO sem instalar nada. Quando quiser, cadastre um host seu e pareie o Collector em poucos minutos.
+          </p>
           <div className="lp-cta">
             <Link to={authenticated ? '/dashboard' : '/cadastro'} className="lp-button lp-button--solid lp-button--lg">
               {authenticated ? 'Abrir o painel' : 'Criar conta'}

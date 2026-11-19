@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { Brand } from './Brand';
 import { useAuth } from '../features/auth/AuthContext';
 import { WorkspaceSelector } from '../features/workspaces/WorkspaceSelector';
+import { DemoBanner } from '../features/workspaces/DemoBanner';
 
 const DESTINATIONS = [
   { to: '/dashboard', label: 'Painel' },
@@ -56,6 +57,7 @@ export function AppShell() {
           </button>
         </div>
       </header>
+      <DemoBanner />
       <Outlet />
     </div>
   );
