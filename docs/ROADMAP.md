@@ -15,7 +15,7 @@
 | 10 | x86-64 Experiments | NASM + benchmarks vs referência | TODO (Linux) |
 | 11 | AI Assistance | Resumo/triagem de incidentes via API externa | TODO |
 | 12 | Observability | Métricas, logs estruturados, tracing | TODO |
-| 13 | Hardening | TLS, rate limiting, headers, revisão de segurança | PARTIAL — headers/CSP (BF 00–05), revogação confirmada na transação e rate limit de pareamento persistente (BF 08); TLS no Nginx e limites persistentes nas demais rotas: TODO |
+| 13 | Hardening | TLS, rate limiting, headers, revisão de segurança | PARTIAL — headers/CSP (BF 00–05), revogação confirmada na transação e rate limit de pareamento persistente (BF 08); limites persistentes em login, cadastro, ingestão e heartbeat (ADR-051); TLS no Nginx: TODO |
 | 14 | Presentation / Demo | Workspace AEGIS DEMO, demonstração de pareamento em laboratório, roteiro mapeado à rubrica | PARTIAL — roteiro reproduzível Fedora → Collector → API → Web em [LINUX_SETUP.md](LINUX_SETUP.md#aegis-collector--demonstração-no-fedora) (BF 08); workspace AEGIS DEMO: TODO |
 
 ## Primeiro MVP operacional (BF 08)

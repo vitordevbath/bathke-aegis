@@ -217,6 +217,8 @@
 **Motivo:** o limite não pode zerar ao reiniciar a API nem divergir entre instâncias.
 **Consequência:** cada tentativa de pareamento faz uma transação curta a mais. Trocar o `JWT_SECRET` zera os contadores (as chaves mudam). Login, cadastro, ingestão e heartbeat seguem com limite em memória por instância (limitação documentada).
 
+**Status:** a limitação sobre login, cadastro, ingestão e heartbeat foi resolvida pelo ADR-051.
+
 ## ADR-047 — Fila local persistente do Collector em SQLite
 **Decisão:** cada host pareado tem uma fila `~/.local/state/aegis-collector/hosts/<hostId>/spool.sqlite3` (SQLite embutido via `rusqlite`/`bundled`, WAL, `synchronous=FULL`, arquivo `0600` em diretório `0700`, aberto com `O_NOFOLLOW`). Cada evento é gravado com `sourceEventId` fixo, `occurredAt`, categoria, tipo, `data` validado e data local; sai da fila **somente** após 2xx com `received` igual ao lote. Limites: 10 000 eventos e 16 MiB; cheia, a fila recusa o evento novo, avisa e conta em `dropped_events` (nunca descarta os enfileirados). 409/400 colocam em quarentena só os eventos apontados; 413 reduz o lote; 429 respeita `Retry-After`; 5xx e rede usam backoff exponencial com jitter; 401 encerra a transmissão. A fila é por host: parear outro host nunca envia eventos de um anterior. Uma trava (`flock`) impede dois `run` para o mesmo host.
 **Motivo:** reenvio idempotente após falhas exige que o fato e seu id sobrevivam a queda de energia; SQLite dá transações atômicas (evento + "boot reportado" juntos) sem serviço extra. Um arquivo de log anexado exigiria compactação e recuperação próprias.
@@ -231,3 +233,10 @@
 **Decisão:** refina o ADR-006. `native/aegis-collector` passa a CURRENT e tem jobs próprios no CI: `rust` (`cargo fmt --check`, `clippy -D warnings`, `test`, `build --release`, artefato) e `collector-e2e` (o binário desse job contra a stack Compose isolada, com verificação de layout em Chrome headless). Os jobs `typescript` e `infrastructure` não dependem de Rust; as imagens Docker do Core excluem `native/` (`.dockerignore`). O Collector é executado explicitamente pelo usuário, em primeiro plano; não há instalador, serviço systemd ou persistência automática.
 **Motivo:** o fluxo Fedora → Collector → API → Web é o MVP operacional e precisa de prova contínua com o binário real; o Core continua construível e testável sem toolchain nativa.
 **Consequência:** eBPF, SPARK e NASM seguem como Aegis Labs, fora do CI principal.
+
+## ADR-051 — Limites por rota nos contadores persistentes
+**Decisão:** completa o ADR-046. O `@fastify/rate-limit` passa a usar um store próprio (`persistentRateLimitStore`, em `apps/api/src/presentation/http/persistent-rate-limit.ts`) sobre o mesmo port `RateLimitStore` e a mesma tabela `rate_limit_counters`. Login, cadastro, ingestão e heartbeat mantêm limites, janelas e respostas (429 com `Retry-After`); só o lugar do contador muda. Cada rota tem um escopo `http:` + digest de método e padrão de caminho (cabe no `VARCHAR(32)`), então os contadores continuam separados por rota. O endereço do cliente segue guardado apenas como HMAC (ADR-046), e a limpeza periódica de contadores vencidos já cobre esses escopos. Sem migração, sem dependência nova.
+**Motivo:** os limites de autenticação e de máquina zeravam ao reiniciar a API e divergiam entre instâncias (limitação do ADR-046).
+**Evidência:** `apps/api/test/integration/route-limits.mysql.test.ts` em MySQL real: duas instâncias da API no mesmo banco somam as tentativas de login e a segunda responde 429 com `Retry-After`; cadastro tem contador próprio; só hashes de 64 caracteres são gravados. Sem o store, o teste falha (verificado).
+**Consequência:** cada requisição limitada faz uma transação curta a mais (um upsert e uma leitura indexada). Com o MySQL indisponível, as rotas limitadas falham em vez de passar sem limite (`skipOnError` desligado); o login já dependeria do banco de qualquer forma.
+
