@@ -1,6 +1,6 @@
 import type { IncidentTimelineResponse } from '@aegis/contracts';
 import type { Severity } from '@aegis/domain';
-import { TYPE_LABELS } from '../../events/event-labels';
+import { SEVERITY_LABELS } from '../../../lib/severity';
 
 /**
  * The relation graph of one incident, read left to right as the chain of causes: a host produced an
@@ -48,7 +48,7 @@ export interface IncidentGraph {
 /** More alerts than this fold into one "+N" node: the graph shows shape, the list shows every row. */
 export const GRAPH_MAX_ALERTS = 8;
 
-export const GRAPH_LAYOUT = { nodeWidth: 168, nodeHeight: 48, columnGap: 56, rowGap: 14, top: 40, side: 4 } as const;
+export const GRAPH_LAYOUT = { nodeWidth: 152, nodeHeight: 48, columnGap: 40, rowGap: 12, top: 40, side: 4 } as const;
 
 const COLUMN_ORDER: readonly { readonly kind: GraphNodeKind; readonly title: string }[] = [
   { kind: 'host', title: 'Hosts' },
@@ -87,9 +87,11 @@ export function buildIncidentGraph(timeline: IncidentTimelineResponse): Incident
     const ruleId = `rule:${alert.rule.id}`;
     const alertId = `alert:${alert.id}`;
     add({ id: hostId, kind: 'host', label: alert.host.displayName, caption: 'Host', href: `/hosts/${alert.host.id}` });
-    add({ id: eventId, kind: 'event', label: TYPE_LABELS[alert.event.type], caption: timeFormat.format(new Date(alert.occurredAt)), href: `/eventos/${alert.event.id}` });
+    const time = timeFormat.format(new Date(alert.occurredAt));
+    // The event says what happened; the alert says how serious the match was. The rule has its own column.
+    add({ id: eventId, kind: 'event', label: alert.event.summary, caption: `Evento · ${time}`, href: `/eventos/${alert.event.id}` });
     add({ id: ruleId, kind: 'rule', label: alert.rule.name, caption: 'Regra', href: `/regras/${alert.rule.id}` });
-    add({ id: alertId, kind: 'alert', label: alert.event.summary, caption: `Alerta · ${timeFormat.format(new Date(alert.occurredAt))}`, href: `/alertas/${alert.id}`, severity: alert.severity });
+    add({ id: alertId, kind: 'alert', label: `${SEVERITY_LABELS[alert.severity]} · ${time}`, caption: 'Alerta', href: `/alertas/${alert.id}`, severity: alert.severity });
     link(hostId, eventId);
     link(eventId, alertId);
     link(ruleId, alertId);

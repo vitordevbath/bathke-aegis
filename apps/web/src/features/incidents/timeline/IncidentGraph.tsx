@@ -4,7 +4,7 @@ import type { IncidentTimelineResponse } from '@aegis/contracts';
 import { SEVERITY_LABELS } from '../../../lib/severity';
 import { buildIncidentGraph, GRAPH_LAYOUT, lineageOf, type GraphEdge, type GraphNode } from './graph-model';
 
-const LABEL_CHARS = 21;
+const LABEL_CHARS = 19;
 const clip = (text: string) => (text.length > LABEL_CHARS ? `${text.slice(0, LABEL_CHARS - 1).trimEnd()}…` : text);
 
 function edgePath(edge: GraphEdge, byId: Map<string, GraphNode>): string {
@@ -21,7 +21,8 @@ function edgePath(edge: GraphEdge, byId: Map<string, GraphNode>): string {
 }
 
 function accessibleName(node: GraphNode): string {
-  const severity = node.severity ? `, severidade ${SEVERITY_LABELS[node.severity].toLowerCase()}` : '';
+  // An alert's label already names its severity.
+  const severity = node.severity && node.kind !== 'alert' ? `, severidade ${SEVERITY_LABELS[node.severity].toLowerCase()}` : '';
   return `${node.caption}: ${node.label}${severity}`;
 }
 
@@ -108,6 +109,7 @@ export function IncidentGraph({ timeline }: { readonly timeline: IncidentTimelin
         </svg>
       </div>
       <p className="graph__legend muted small">
+        <span className="graph__swipe">Arraste para o lado para ver todas as colunas. </span>
         Passe o mouse ou use Tab para seguir uma cadeia; Enter abre o registro.
         {declared && ' Linhas tracejadas são relações registradas à mão.'}
       </p>

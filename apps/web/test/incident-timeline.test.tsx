@@ -199,10 +199,10 @@ describe('incident reconstruction on the incident page', () => {
     expect(graphTab.getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(graphTab);
 
-    const alertNode = within(section).getByRole('link', { name: `Alerta · ${hms(at(10))}: sshd parou (1), severidade alta` });
+    const alertNode = within(section).getByRole('link', { name: `Alerta: Alta · ${hms(at(10))}` });
     fireEvent.focus(alertNode);
     expect(alertNode.getAttribute('class')).toContain('is-lit');
-    expect(within(section).getByRole('link', { name: `Alerta · ${hms(at(12))}: sshd parou (2), severidade crítica` }).getAttribute('class')).toContain('is-dim');
+    expect(within(section).getByRole('link', { name: `Alerta: Crítica · ${hms(at(12))}` }).getAttribute('class')).toContain('is-dim');
 
     fireEvent.keyDown(alertNode, { key: 'Enter' });
     await waitFor(() => expect(calledUrls(fetchMock, 'GET', `/api/workspaces/${WS}/alerts/${id(301)}`)).toHaveLength(1));
