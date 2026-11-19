@@ -58,4 +58,19 @@
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --duration-fast: 120ms;
   --duration-base: 240ms;
+
+  /* public site (landing.css): deeper ground, a brighter signal, one warm color for strikes */
+  --lp-abyss: #06080b;
+  --lp-graphite: #0e1217;
+  --lp-graphite-raised: #141a21;
+  --lp-hairline: rgba(236, 238, 242, 0.08);
+  --lp-hairline-strong: rgba(236, 238, 242, 0.16);
+  --lp-signal: #8fa6ff;
+  --lp-signal-soft: rgba(143, 166, 255, 0.14);
+  --lp-bone: #eceef2;
+  --lp-fog: #7c8595;
+  --lp-ember: #e8875a;
+  --lp-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --lp-gutter: clamp(1.25rem, 5vw, 4.5rem);
+  --lp-measure: 34rem;
 }
