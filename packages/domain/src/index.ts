@@ -158,3 +158,4 @@ export {
   type EventBodyV1,
   type NormalizedEventV1,
 } from './event-contract.js';
+export { CORRELATION_WINDOW_MS, eventFieldValue, matchesDetection } from './detection-engine.js';
