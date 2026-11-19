@@ -52,7 +52,7 @@ export const DEMO_RULES: readonly RuleSpec[] = [
   {
     key: 'service',
     name: 'Mudança em serviço crítico',
-    description: 'Configuração de exemplo: mudança de estado em sshd, nginx ou mysqld. O motor de detecção ainda não avalia regras.',
+    description: 'Exemplo: mudança de estado em sshd, nginx ou mysqld. Avaliada em cada evento; os hosts simulados a disparam ao longo do dia.',
     severity: 'HIGH',
     enabled: true,
     eventCategory: 'SYSTEM',
@@ -70,7 +70,7 @@ export const DEMO_RULES: readonly RuleSpec[] = [
   {
     key: 'boot',
     name: 'Reinicialização de servidor de produção',
-    description: 'Configuração de exemplo: qualquer boot nos servidores web e de banco.',
+    description: 'Exemplo: qualquer boot nos servidores web e de banco gera um alerta.',
     severity: 'MEDIUM',
     enabled: true,
     eventCategory: 'SYSTEM',
