@@ -9,8 +9,8 @@
 | 04 | Event Model | Schema de eventos normalizados, ingestão via API | DONE — Event Contract v1 (6 tipos, 3 categorias, OS-independente), Event Store imutável e idempotente, ingestão em lote com autenticação de usuário (laboratório) e navegador de eventos (BF 06). Credenciais de máquina e pareamento: BF 07 (substituiu a ingestão com autenticação de usuário). Collector: fase 05 |
 | 05 | Aegis Collector | Agente Rust: buffering, batching, envio autenticado | DONE (BF 08) — CLI Rust em primeiro plano (pair, run, status, replace-credential, unpair), credencial local `0600`, heartbeat com ONLINE/OFFLINE derivado, eventos SYSTEM (boot e serviços systemd), fila SQLite persistente e limitada, reenvio idempotente; validado no Fedora e no CI (E2E com o binário real). PROCESS/NETWORK dependem da fase 06 |
 | 06 | eBPF Telemetry | Probes Aya: exec/exit, parent/child, arquivo, rede (sem payload) | TODO (Linux) |
-| 07 | Detection Engine | Avaliação de regras sobre eventos | TODO — regras já são cadastradas e validadas (schema v1, BF 03), mas não executadas |
-| 08 | Correlation & Incidents | Agrupamento de alertas em incidentes, timeline | TODO — incidentes já existem como registro manual (origem `MANUAL`, BF 04); correlação automática, alertas e timeline não |
+| 07 | Detection Engine | Avaliação de regras sobre eventos | DONE (BF 10, ADR-053) — regras habilitadas avaliadas na transação de ingestão; alertas imutáveis (`alerts`, migration 0012) |
+| 08 | Correlation & Incidents | Agrupamento de alertas em incidentes, timeline | PARTIAL — correlação automática por regra e host em janela de 30 min, incidentes `DETECTION_ENGINE` (BF 10, ADR-053); timeline e grafo: TODO |
 | 09 | Aegis Verified Core | Ada/SPARK + GNATprove para transições e severidade | TODO (Linux) |
 | 10 | x86-64 Experiments | NASM + benchmarks vs referência | TODO (Linux) |
 | 11 | AI Assistance | Resumo/triagem de incidentes via API externa | TODO |
