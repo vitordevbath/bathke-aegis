@@ -3,12 +3,15 @@ import { boolean, char, datetime, foreignKey, index, int, json, mysqlEnum, mysql
 import {
   EVENT_CATEGORIES,
   EVENT_TYPES,
+  INCIDENT_ACTIVITY_ACTORS,
+  INCIDENT_ACTIVITY_KINDS,
   INCIDENT_ORIGINS,
   INCIDENT_STATUSES,
   INVESTIGATION_STATUSES,
   SEVERITIES,
   type DetectionDefinitionV1,
   type EventBodyV1,
+  type IncidentDetailField,
   type MachineScope,
 } from '@aegis/domain';
 
@@ -436,5 +439,37 @@ export const alerts = mysqlTable(
     // Correlation: latest alert of a rule on a host.
     index('alerts_rule_host_created_idx').on(table.ruleId, table.hostId, table.createdAt),
     index('alerts_incident_idx').on(table.incidentId),
+  ],
+);
+
+/**
+ * Incident activity log (ADR-054): immutable entries written in the transaction that changed the
+ * incident (opening, status, severity, other fields, investigation links and closing). Entries leave
+ * with their incident (cascade). The author and the investigation survive as nullable references,
+ * and the investigation title is kept as written, so the history still reads after either is gone.
+ */
+export const incidentActivities = mysqlTable(
+  'incident_activities',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    workspaceId: char('workspace_id', { length: 36 }).notNull(),
+    incidentId: char('incident_id', { length: 36 }).notNull(),
+    kind: mysqlEnum('kind', INCIDENT_ACTIVITY_KINDS).notNull(),
+    actor: mysqlEnum('actor', INCIDENT_ACTIVITY_ACTORS).notNull(),
+    actorUserId: char('actor_user_id', { length: 36 }),
+    fromValue: varchar('from_value', { length: 32 }),
+    toValue: varchar('to_value', { length: 32 }),
+    investigationId: char('investigation_id', { length: 36 }),
+    investigationTitle: varchar('investigation_title', { length: 160 }),
+    fields: json('fields').$type<IncidentDetailField[]>(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    foreignKey({ name: 'incident_activities_workspace_fk', columns: [table.workspaceId], foreignColumns: [workspaces.id] }).onDelete('cascade'),
+    foreignKey({ name: 'incident_activities_incident_fk', columns: [table.incidentId], foreignColumns: [incidents.id] }).onDelete('cascade'),
+    foreignKey({ name: 'incident_activities_user_fk', columns: [table.actorUserId], foreignColumns: [users.id] }).onDelete('set null'),
+    foreignKey({ name: 'incident_activities_investigation_fk', columns: [table.investigationId], foreignColumns: [investigations.id] }).onDelete('set null'),
+    // The timeline of one incident, oldest first.
+    index('incident_activities_incident_created_idx').on(table.incidentId, table.createdAt, table.id),
   ],
 );

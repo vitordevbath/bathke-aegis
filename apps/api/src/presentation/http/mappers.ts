@@ -6,8 +6,10 @@ import type {
   EventSummary,
   HostPairingResponse,
   HostResponse,
+  IncidentActivityResponse,
   IncidentResponse,
   IncidentSummary,
+  IncidentTimelineResponse,
   InvestigationResponse,
   InvestigationSummary,
   MachineCredentialResponse,
@@ -27,7 +29,8 @@ import type { Incident } from '../../domain/incident.js';
 import type { IncidentView } from '../../application/use-cases/incidents/incident-view.js';
 import type { Investigation } from '../../domain/investigation.js';
 import type { InvestigationView } from '../../application/use-cases/investigations/investigation-view.js';
-import type { StoredAlert, StoredEvent } from '../../application/ports/repositories.js';
+import type { StoredAlert, StoredEvent, StoredIncidentActivity } from '../../application/ports/repositories.js';
+import type { IncidentTimeline } from '../../application/use-cases/incidents/get-incident-timeline.js';
 import type { MachineCredential } from '../../domain/machine-credential.js';
 import type { HostPairingView } from '../../application/use-cases/machine-identity/get-host-pairing.js';
 
@@ -225,5 +228,32 @@ export function toAlertResponse({ alert, ruleName, hostDisplayName, incidentTitl
     host: { id: alert.hostId, displayName: hostDisplayName },
     event: { id: alert.eventId, type: eventType, summary: eventSummary },
     incident: alert.incidentId && incidentTitle !== null ? { id: alert.incidentId, title: incidentTitle } : null,
+  };
+}
+
+export function toIncidentActivityResponse({ activity, actorName }: StoredIncidentActivity): IncidentActivityResponse {
+  const snapshot = activity.toSnapshot();
+  return {
+    id: snapshot.id,
+    kind: snapshot.kind,
+    actor: { kind: snapshot.actor, name: snapshot.actor === 'USER' ? actorName : null },
+    createdAt: snapshot.createdAt.toISOString(),
+    from: snapshot.fromValue,
+    to: snapshot.toValue,
+    fields: snapshot.fields ? [...snapshot.fields] : null,
+    investigation: snapshot.investigationTitle !== null ? { id: snapshot.investigationId, title: snapshot.investigationTitle } : null,
+  };
+}
+
+export function toIncidentTimelineResponse(timeline: IncidentTimeline): IncidentTimelineResponse {
+  return {
+    incident: toIncidentResponse(timeline),
+    activities: timeline.activities.map(toIncidentActivityResponse),
+    alerts: timeline.alerts.map(toAlertResponse),
+    alertsTruncated: timeline.alertsTruncated,
+    context: timeline.context.map(toEventSummary),
+    contextTruncated: timeline.contextTruncated,
+    contextWindow: { from: timeline.contextWindow.from.toISOString(), to: timeline.contextWindow.to.toISOString() },
+    investigations: timeline.investigations.map((investigation) => ({ investigationId: investigation.id, title: investigation.title, status: investigation.status })),
   };
 }

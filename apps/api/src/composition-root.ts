@@ -32,6 +32,7 @@ import { CreateInvestigation } from './application/use-cases/investigations/crea
 import { ListInvestigations } from './application/use-cases/investigations/list-investigations.js';
 import { GetInvestigation } from './application/use-cases/investigations/get-investigation.js';
 import { UpdateInvestigation } from './application/use-cases/investigations/update-investigation.js';
+import { GetIncidentTimeline } from './application/use-cases/incidents/get-incident-timeline.js';
 import { DeleteInvestigation } from './application/use-cases/investigations/delete-investigation.js';
 import { EventIngestionService } from './application/event-ingestion-service.js';
 import { IngestEventsAsMachine } from './application/use-cases/events/ingest-events.js';
@@ -111,13 +112,14 @@ export function createUseCases(
     createIncident: new CreateIncident(access, unitOfWork),
     listIncidents: new ListIncidents(access, repositories.incidents),
     getIncident: new GetIncident(access, repositories),
+    getIncidentTimeline: new GetIncidentTimeline(access, repositories),
     updateIncident: new UpdateIncident(access, unitOfWork),
     deleteIncident: new DeleteIncident(access, repositories.incidents, repositories.investigations),
     createInvestigation: new CreateInvestigation(access, unitOfWork),
     listInvestigations: new ListInvestigations(access, repositories.investigations),
     getInvestigation: new GetInvestigation(access, repositories),
     updateInvestigation: new UpdateInvestigation(access, unitOfWork),
-    deleteInvestigation: new DeleteInvestigation(access, repositories.investigations),
+    deleteInvestigation: new DeleteInvestigation(access, unitOfWork),
     ingestEvents: new IngestEventsAsMachine(new EventIngestionService(unitOfWork)),
     listEvents: new ListEvents(access, repositories.events),
     getEvent: new GetEvent(access, repositories.events),

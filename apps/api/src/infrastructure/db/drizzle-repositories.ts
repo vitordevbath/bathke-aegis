@@ -13,6 +13,7 @@ import { TelemetryEvent } from '../../domain/telemetry-event.js';
 import { PairingChallenge } from '../../domain/pairing-challenge.js';
 import { MachineCredential } from '../../domain/machine-credential.js';
 import { Alert } from '../../domain/alert.js';
+import { IncidentActivity } from '../../domain/incident-activity.js';
 import { offsetOf, type Page } from '../../application/pagination.js';
 import type {
   AlertListFilter,
@@ -24,6 +25,7 @@ import type {
   EventRepository,
   HostListFilter,
   HostRepository,
+  IncidentActivityRepository,
   IncidentListFilter,
   IncidentRepository,
   InvestigationListFilter,
@@ -33,6 +35,7 @@ import type {
   PairingChallengeRepository,
   Repositories,
   StoredEvent,
+  StoredIncidentActivity,
   UnitOfWork,
   UserRepository,
   WorkspaceMembership,
@@ -50,6 +53,7 @@ import {
   detectionRules,
   events,
   hosts,
+  incidentActivities,
   incidentDetectionRules,
   incidentHosts,
   incidents,
@@ -635,6 +639,17 @@ class DrizzleInvestigationRepository implements InvestigationRepository {
     return rows.length > 0;
   }
 
+  async listForIncident(workspaceId: string, incidentId: string): Promise<Investigation[]> {
+    const rows = await this.db
+      .select({ investigation: investigations })
+      .from(investigationIncidents)
+      .innerJoin(investigations, eq(investigationIncidents.investigationId, investigations.id))
+      .where(and(eq(investigations.workspaceId, workspaceId), eq(investigationIncidents.incidentId, incidentId)))
+      .orderBy(desc(investigations.createdAt), desc(investigations.id));
+    const incidentsOf = await this.incidentsOf(rows.map((row) => row.investigation.id));
+    return rows.map((row) => this.toEntity(row.investigation, incidentsOf));
+  }
+
   private async insertIncidents(investigationId: string, incidentIds: readonly string[], createdAt: Date): Promise<void> {
     if (incidentIds.length === 0) return;
     await this.db.insert(investigationIncidents).values(incidentIds.map((incidentId) => ({ investigationId, incidentId, createdAt })));
@@ -714,6 +729,18 @@ class DrizzleEventRepository implements EventRepository {
     return { items: rows.map((row) => this.toStored(row)), total: totals?.total ?? 0, page: filter.page, pageSize: filter.pageSize };
   }
 
+  async listForHostsBetween(workspaceId: string, hostIds: readonly string[], from: Date, to: Date, limit: number): Promise<StoredEvent[]> {
+    if (hostIds.length === 0 || limit <= 0) return [];
+    const rows = await this.db
+      .select({ event: events, hostDisplayName: hosts.displayName })
+      .from(events)
+      .innerJoin(hosts, eq(events.hostId, hosts.id))
+      .where(and(eq(events.workspaceId, workspaceId), inArray(events.hostId, [...hostIds]), gte(events.occurredAt, from), lte(events.occurredAt, to)))
+      .orderBy(asc(events.occurredAt), asc(events.id))
+      .limit(limit);
+    return rows.map((row) => this.toStored(row));
+  }
+
   async existsForHost(hostId: string): Promise<boolean> {
     const rows = await this.db.select({ id: events.id }).from(events).where(eq(events.hostId, hostId)).limit(1);
     return rows.length > 0;
@@ -776,6 +803,14 @@ class DrizzleAlertRepository implements AlertRepository {
     return row ? this.toStored(row) : null;
   }
 
+  async listForIncident(workspaceId: string, incidentId: string, limit: number): Promise<StoredAlert[]> {
+    const rows = await this.joined()
+      .where(and(eq(alerts.workspaceId, workspaceId), eq(alerts.incidentId, incidentId)))
+      .orderBy(asc(alerts.occurredAt), asc(alerts.id))
+      .limit(limit);
+    return rows.map((row) => this.toStored(row));
+  }
+
   async existsForRule(ruleId: string): Promise<boolean> {
     const rows = await this.db.select({ id: alerts.id }).from(alerts).where(eq(alerts.ruleId, ruleId)).limit(1);
     return rows.length > 0;
@@ -802,6 +837,31 @@ class DrizzleAlertRepository implements AlertRepository {
       eventType: event.event.type,
       eventSummary: event.summary,
     };
+  }
+}
+
+class DrizzleIncidentActivityRepository implements IncidentActivityRepository {
+  constructor(private readonly db: Executor) {}
+
+  async insertMany(items: readonly IncidentActivity[]): Promise<void> {
+    if (items.length === 0) return;
+    await this.db.insert(incidentActivities).values(
+      items.map((item) => {
+        const { fields, ...snapshot } = item.toSnapshot();
+        return { ...snapshot, fields: fields ? [...fields] : null };
+      }),
+    );
+  }
+
+  async listForIncident(workspaceId: string, incidentId: string): Promise<StoredIncidentActivity[]> {
+    const rows = await this.db
+      .select({ activity: incidentActivities, actorName: users.name })
+      .from(incidentActivities)
+      .leftJoin(users, eq(incidentActivities.actorUserId, users.id))
+      .where(and(eq(incidentActivities.workspaceId, workspaceId), eq(incidentActivities.incidentId, incidentId)))
+      // Entries of one change share a timestamp; MySQL orders an ENUM by its declared position, which is the logical order.
+      .orderBy(asc(incidentActivities.createdAt), asc(incidentActivities.kind), asc(incidentActivities.id));
+    return rows.map((row) => ({ activity: IncidentActivity.restore(row.activity), actorName: row.actorName }));
   }
 }
 
@@ -957,6 +1017,7 @@ export function createDrizzleRepositories(db: Executor): Repositories {
     pairingChallenges: new DrizzlePairingChallengeRepository(db),
     machineCredentials: new DrizzleMachineCredentialRepository(db),
     alerts: new DrizzleAlertRepository(db),
+    incidentActivities: new DrizzleIncidentActivityRepository(db),
   };
 }
 

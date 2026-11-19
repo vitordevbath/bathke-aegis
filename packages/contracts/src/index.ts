@@ -143,3 +143,4 @@ export {
   type EventResponse,
 } from './events.js';
 export { AlertListQuerySchema, type AlertListQuery, type AlertResponse } from './alerts.js';
+export type { IncidentActivityResponse, IncidentTimelineInvestigation, IncidentTimelineResponse } from './incident-timeline.js';
