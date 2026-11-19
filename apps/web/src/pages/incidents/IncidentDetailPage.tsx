@@ -9,6 +9,7 @@ import { ORIGIN_LABELS, STATUS_LABELS } from '../../features/incidents/incident-
 import { toStatusRequest, useDeleteIncident, useIncident, useUpdateIncident } from '../../features/incidents/incidents-api';
 import { RuleStatusBadge } from '../../features/rules/RuleStatusBadge';
 import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { RelatedAlerts } from '../../features/alerts/RelatedAlerts';
 import { ApiError } from '../../lib/api-client';
 import { IncidentNotFound } from './IncidentNotFound';
 
@@ -96,6 +97,7 @@ export function IncidentDetailPage() {
           </section>
         </div>
         <div className="detail-grid__side">
+          {activeWorkspace && data.origin === 'DETECTION_ENGINE' && <RelatedAlerts workspaceId={activeWorkspace.id} incidentId={data.id} />}
           <section className="surface" aria-labelledby="hosts-title">
             <h2 id="hosts-title" className="section-title">
               Hosts envolvidos · {data.hostCount}
@@ -128,7 +130,7 @@ export function IncidentDetailPage() {
                 ))}
               </ul>
             )}
-            <p className="muted small">Relação registrada manualmente; regras ainda não são executadas.</p>
+            <p className="muted small">Nenhuma regra relacionada a este incidente.</p>
           </section>
           <section className="surface" aria-labelledby="record-title">
             <h2 id="record-title" className="section-title">

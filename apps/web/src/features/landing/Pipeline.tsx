@@ -23,7 +23,7 @@ const STEPS = [
   {
     title: 'Investigar',
     lit: [3, 4],
-    body: 'No painel, os eventos dão contexto aos incidentes, e os incidentes são agrupados em investigações que só se encerram com uma conclusão escrita por uma pessoa.',
+    body: 'As regras habilitadas avaliam cada evento na hora em que ele chega. Um evento que casa vira um alerta, e alertas da mesma regra no mesmo host se juntam num incidente, que uma pessoa investiga e encerra com uma conclusão escrita.',
   },
 ] as const;
 

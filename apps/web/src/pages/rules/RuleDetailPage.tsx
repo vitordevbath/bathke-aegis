@@ -8,6 +8,7 @@ import { SeverityBadge } from '../../components/SeverityBadge';
 import { CATEGORY_LABELS, MATCH_CONNECTOR, MATCH_LABELS, SCOPE_LABELS, describeCondition } from '../../features/rules/rule-labels';
 import { toRequest, useDeleteRule, useRule, useUpdateRule } from '../../features/rules/rules-api';
 import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { RelatedAlerts } from '../../features/alerts/RelatedAlerts';
 import { ApiError } from '../../lib/api-client';
 import { RuleNotFound } from './RuleNotFound';
 
@@ -85,6 +86,7 @@ export function RuleDetailPage() {
           </section>
         </div>
         <div className="detail-grid__side">
+          {activeWorkspace && <RelatedAlerts workspaceId={activeWorkspace.id} ruleId={data.id} />}
           <section className="surface" aria-labelledby="scope-title">
             <h2 id="scope-title" className="section-title">
               Escopo · {SCOPE_LABELS[data.scope]}
