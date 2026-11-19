@@ -3,9 +3,22 @@ import { HOST_PRESENCE_POLICY, type HostResponse } from '@aegis/contracts';
 import { useEventList } from '../events/events-api';
 import { CONNECTION_STATE_HINTS, CONNECTION_STATE_LABELS, formatDateTime } from './host-format';
 import { HOST_REFRESH_MS } from './hosts-api';
+import { formatRelative } from '../../lib/relative-time';
 
 const NOT_REPORTED = 'Não informado pelo Collector';
 const seconds = (ms: number) => Math.round(ms / 1000);
+
+/** Exact instant, plus "há X minutos" while it is recent (past a week the relative form is the date itself). */
+function LastSeen({ iso }: { readonly iso: string }) {
+  const exact = formatDateTime(iso);
+  const relative = formatRelative(iso);
+  return (
+    <>
+      {exact}
+      {relative !== exact && <span className="muted small"> · {relative}</span>}
+    </>
+  );
+}
 
 /**
  * What the platform knows about this host's Collector, from server facts only:
@@ -16,6 +29,8 @@ export function HostCollectorSummary({ workspaceId, host }: { readonly workspace
   const events = useEventList(workspaceId, { page: 1, pageSize: 1, hostId: host.id }, { refetchInterval: HOST_REFRESH_MS });
   const latest = events.data?.items[0];
   const os = [host.osName, host.osVersion].filter(Boolean).join(' ');
+  // This Collector version reports none of these: one line instead of three repeated "not reported" values.
+  const identified = Boolean(host.hostname || os || host.architecture);
 
   return (
     <section className="surface" aria-labelledby="collector-title">
@@ -33,7 +48,9 @@ export function HostCollectorSummary({ workspaceId, host }: { readonly workspace
         </div>
         <div>
           <dt>Último heartbeat</dt>
-          <dd>{host.lastSeenAt ? formatDateTime(host.lastSeenAt) : 'Nunca'}</dd>
+          <dd>
+            {host.lastSeenAt ? <LastSeen iso={host.lastSeenAt} /> : 'Nunca'}
+          </dd>
         </div>
         <div>
           <dt>Eventos recebidos</dt>
@@ -42,19 +59,24 @@ export function HostCollectorSummary({ workspaceId, host }: { readonly workspace
             {latest && <span className="muted small"> · último ocorrido em {formatDateTime(latest.occurredAt)}</span>}
           </dd>
         </div>
-        <div>
-          <dt>Hostname</dt>
-          <dd>{host.hostname ?? NOT_REPORTED}</dd>
-        </div>
-        <div>
-          <dt>Sistema operacional</dt>
-          <dd>{os || NOT_REPORTED}</dd>
-        </div>
-        <div>
-          <dt>Arquitetura</dt>
-          <dd>{host.architecture ?? NOT_REPORTED}</dd>
-        </div>
+        {identified && (
+          <>
+            <div>
+              <dt>Hostname</dt>
+              <dd>{host.hostname ?? NOT_REPORTED}</dd>
+            </div>
+            <div>
+              <dt>Sistema operacional</dt>
+              <dd>{os || NOT_REPORTED}</dd>
+            </div>
+            <div>
+              <dt>Arquitetura</dt>
+              <dd>{host.architecture ?? NOT_REPORTED}</dd>
+            </div>
+          </>
+        )}
       </dl>
+      {!identified && <p className="muted small facts-note">Hostname, sistema operacional e arquitetura ainda não são informados pelo Collector.</p>}
       <p className="muted small facts-note">{CONNECTION_STATE_HINTS[host.connectionState]}</p>
       {events.data && events.data.pagination.total > 0 && (
         <p className="small facts-note">

@@ -500,3 +500,8 @@ a { color: inherit; text-decoration: none; }
   .topbar .nav__link { text-align: center; padding: var(--space-2) var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .account__avatar { width: 1.75rem; height: 1.75rem; }
 }
+
+/* ── BF 08.5: host detail uses the desktop width ───────────────────── */
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.detail-grid__main, .detail-grid__side { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+@media (max-width: 960px) { .detail-grid { grid-template-columns: minmax(0, 1fr); } }

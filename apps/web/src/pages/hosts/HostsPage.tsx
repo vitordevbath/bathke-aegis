@@ -3,9 +3,10 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { EmptyState } from '../../components/EmptyState';
 import { Pagination } from '../../components/Pagination';
 import { HostStatusBadge } from '../../features/hosts/HostStatusBadge';
-import { formatDate } from '../../features/hosts/host-format';
+import { formatDate, formatDateTime } from '../../features/hosts/host-format';
 import { useHostList } from '../../features/hosts/hosts-api';
 import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { formatRelative } from '../../lib/relative-time';
 import { HOSTS_PAGE_SIZE, readListParams } from './host-route-params';
 
 /** Paginated, searchable list. Page and search live in the URL (refresh, share, back/forward). */
@@ -123,7 +124,15 @@ export function HostsPage() {
                 </span>
                 <span className="host-row__meta">
                   <HostStatusBadge state={host.connectionState} />
-                  <span className="host-row__telemetry">{host.lastSeenAt ? null : 'Nenhuma telemetria recebida'}</span>
+                  <span className="host-row__telemetry">
+                    {host.lastSeenAt ? (
+                      <time dateTime={host.lastSeenAt} title={formatDateTime(host.lastSeenAt)}>
+                        Visto {formatRelative(host.lastSeenAt)}
+                      </time>
+                    ) : (
+                      'Nenhuma telemetria recebida'
+                    )}
+                  </span>
                 </span>
                 <span className="host-row__date">Criado em {formatDate(host.createdAt)}</span>
               </Link>
