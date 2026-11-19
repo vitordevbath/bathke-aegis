@@ -234,12 +234,12 @@ describe('active workspace', () => {
 });
 
 describe('dashboard', () => {
-  it('shows the real number of registered hosts from pagination.total', async () => {
-    const fetchMock = mockApi({ ...signedIn(), [`GET ${HOSTS}`]: () => page([host(1)], { pageSize: 1, total: 3, totalPages: 3 }) });
+  it('shows hosts online over the real total from pagination.total', async () => {
+    const fetchMock = mockApi({ ...signedIn(), [`GET ${HOSTS}`]: () => page([host(1)], { pageSize: 100, total: 3, totalPages: 1 }) });
     renderApp('/dashboard');
 
-    const card = (await screen.findByText('Hosts cadastrados')).closest('.metric') as HTMLElement;
-    await waitFor(() => expect(within(card).getByText('3')).toBeTruthy());
-    expect(calledUrls(fetchMock, 'GET', HOSTS)).toEqual([`${HOSTS}?page=1&pageSize=1`]);
+    const card = (await screen.findByText('Hosts online')).closest('.metric') as HTMLElement;
+    await waitFor(() => expect(within(card).getByText('0/3')).toBeTruthy());
+    expect(calledUrls(fetchMock, 'GET', HOSTS)).toEqual([`${HOSTS}?page=1&pageSize=100`]);
   });
 });

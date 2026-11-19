@@ -21,8 +21,7 @@ describe('protected routes', () => {
     renderApp('/dashboard');
 
     expect(await screen.findByRole('heading', { name: 'Olá, Ana' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Workspace de Ana Teste' })).toBeTruthy();
-    expect(screen.getByText('Proprietário')).toBeTruthy();
+    expect(screen.getByText('Workspace de Ana Teste · Pessoal · Proprietário')).toBeTruthy();
     const [, init] = fetchMock.mock.calls.find(([url]) => url === '/api/users/me') ?? [];
     expect((init?.headers as Record<string, string>)['Authorization']).toBe(`Bearer ${FAKE_TOKEN}`);
   });
