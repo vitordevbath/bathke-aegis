@@ -168,6 +168,10 @@ class InMemoryMembershipRepository implements MembershipRepository {
   async listForUser(userId: string): Promise<WorkspaceMembership[]> {
     return [...this.store.memberships.values()]
       .filter((membership) => membership.userId === userId)
+      .sort((a, b) => {
+        const personal = (m: MembershipSnapshot) => (this.store.workspaces.get(m.workspaceId)?.kind === 'personal' ? 0 : 1);
+        return personal(a) - personal(b) || a.createdAt.getTime() - b.createdAt.getTime();
+      })
       .flatMap((membership) => {
         const workspace = this.store.workspaces.get(membership.workspaceId);
         return workspace ? [{ workspace: Workspace.restore(workspace), membership: Membership.restore(membership) }] : [];

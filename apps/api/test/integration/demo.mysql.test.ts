@@ -48,7 +48,10 @@ describe.skipIf(!TEST_DATABASE_URL)('AEGIS DEMO against MySQL (integration)', ()
       ['demo', 'VIEWER'],
     ]);
     const later = await register();
-    expect((await workspacesOf(later)).find((workspace) => workspace.kind === 'demo')?.id).toBe(demo.workspaceId);
+    const laterWorkspaces = await workspacesOf(later);
+    // Same transaction, possibly the same millisecond: the personal workspace still comes first.
+    expect(laterWorkspaces[0]?.kind).toBe('personal');
+    expect(laterWorkspaces.find((workspace) => workspace.kind === 'demo')?.id).toBe(demo.workspaceId);
   });
 
   it('runs a simulated cycle through the real heartbeat and ingestion paths, without duplicates', async () => {

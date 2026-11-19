@@ -49,6 +49,7 @@ export interface MembershipRepository {
   insert(membership: Membership): Promise<void>;
   /** The user's membership in that workspace, or null if they are not a member. */
   find(userId: string, workspaceId: string): Promise<Membership | null>;
+  /** The personal workspace first, then the others by membership date (ADR-052). */
   listForUser(userId: string): Promise<WorkspaceMembership[]>;
   /** Gives `role` in the workspace to every user without a membership there; returns how many were added. Idempotent. */
   grantToUsersWithout(workspaceId: string, role: MembershipRole, now: Date): Promise<number>;

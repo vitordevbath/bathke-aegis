@@ -40,7 +40,7 @@ export const DEMO_HOSTS: readonly DemoHostSpec[] = [
     key: 'server',
     displayName: 'aegis-server',
     description:
-      'Host real: a máquina que executa esta instância do Aegis. Fica Não pareado até o operador gerar um código com `npm run demo:pairing-code` e executar o Aegis Collector nela.',
+      'Host real, opcional: a máquina que executa esta instância do Aegis. Só recebe dados se o operador do servidor parear o Aegis Collector nela de propósito; o operador pode revogar a qualquer momento. Envia apenas boot e estado de serviços (Event Contract v1).',
     simulated: false,
     services: [],
   },

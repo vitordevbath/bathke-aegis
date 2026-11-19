@@ -13,7 +13,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/infrastructure/db/migrate.ts",
-    "demo:pairing-code": "tsx src/cli/demo-pairing-code.ts"
+    "demo:pairing-code": "tsx src/cli/demo-pairing-code.ts",
+    "demo:revoke-server": "tsx src/cli/demo-revoke-server.ts"
   },
   "dependencies": {
     "@aegis/contracts": "^0.0.0",

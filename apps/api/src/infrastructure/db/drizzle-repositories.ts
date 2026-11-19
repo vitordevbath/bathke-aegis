@@ -175,7 +175,8 @@ class DrizzleMembershipRepository implements MembershipRepository {
       .from(memberships)
       .innerJoin(workspaces, eq(memberships.workspaceId, workspaces.id))
       .where(eq(memberships.userId, userId))
-      .orderBy(asc(memberships.createdAt), asc(workspaces.name));
+      // The personal workspace always comes first, then the others (e.g. AEGIS DEMO) by when access was given.
+      .orderBy(sql`${workspaces.kind} = 'personal' DESC`, asc(memberships.createdAt), asc(workspaces.name));
     return rows.map((row) => ({ workspace: Workspace.restore(row.workspace), membership: Membership.restore(row.membership) }));
   }
 }

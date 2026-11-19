@@ -33,7 +33,7 @@ try {
     ].join('\n'),
   );
 } catch (error) {
-  // Already paired (409): the operator unpairs the Collector on the server (`aegis-collector unpair`) or keeps it.
+  // Already paired (409): revoke first with `npm run demo:revoke-server`.
   process.stderr.write(`Não foi possível gerar o código: ${error instanceof Error ? error.message : 'erro desconhecido'}\n`);
   exitCode = 1;
 } finally {
