@@ -60,7 +60,7 @@ Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 | MySQL + Drizzle: usuários, workspaces, hosts, regras, incidentes, investigações, eventos, identidade de máquina e relações com migrations versionadas | **IMPLEMENTADO** |
 | Autenticação (Argon2id + JWT), usuário, workspace pessoal + membership OWNER | **IMPLEMENTADO** |
 | Hosts CRUD por workspace (cadastro manual, paginação, busca), workspace ativo | **IMPLEMENTADO** |
-| Detection Rules CRUD (regras declarativas v1, escopo por host) — configuração, ainda não executadas | **IMPLEMENTADO** |
+| Detection Rules CRUD (regras declarativas v1, escopo por host), avaliadas pelo motor de detecção | **IMPLEMENTADO** |
 | Incidents CRUD — registro manual com ciclo de vida, hosts envolvidos e regras relacionadas | **IMPLEMENTADO** |
 | Investigations CRUD — caso humano que agrupa incidentes; encerrar exige conclusão e torna a investigação somente leitura | **IMPLEMENTADO** |
 | Event Contract v1 + Event Store: ingestão em lote idempotente (credencial de máquina) e navegador `/eventos` somente leitura | **IMPLEMENTADO** |
@@ -68,7 +68,8 @@ Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 | Aegis Collector (Rust): pareamento, heartbeat (Online/Offline derivado), eventos SYSTEM (boot, serviços systemd), fila SQLite persistente com reenvio idempotente | **IMPLEMENTADO** (BF 08; validado no Fedora 44; E2E com o binário real no CI) |
 | AEGIS DEMO: workspace somente leitura para toda conta, hosts simulados ao vivo e host real opcional (`aegis-server`) | **IMPLEMENTADO** (ADR-052) |
 | Motor de detecção (regras avaliadas em cada evento), alertas imutáveis e correlação automática em incidentes | **IMPLEMENTADO** (BF 10, ADR-053) |
-| Timeline e grafo de investigação, IA, workspaces compartilhados | **PLANEJADO** |
+| Reconstrução do incidente: histórico imutável (abertura, status, severidade, edições, investigações), linha do tempo com alertas e eventos ao redor, grafo de relações | **IMPLEMENTADO** (BF 11, ADR-054) |
+| Workspaces compartilhados | **PLANEJADO** |
 | Camada de telemetria eBPF, eventos PROCESS e NETWORK | **PLANEJADO** |
 | Aegis Verified Core (Ada/SPARK), experimentos x86-64 | **PLANEJADO** |
 | Análise assistida por IA (API externa) | **PLANEJADO** |

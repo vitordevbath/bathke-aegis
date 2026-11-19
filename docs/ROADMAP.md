@@ -10,7 +10,7 @@
 | 05 | Aegis Collector | Agente Rust: buffering, batching, envio autenticado | DONE (BF 08) — CLI Rust em primeiro plano (pair, run, status, replace-credential, unpair), credencial local `0600`, heartbeat com ONLINE/OFFLINE derivado, eventos SYSTEM (boot e serviços systemd), fila SQLite persistente e limitada, reenvio idempotente; validado no Fedora e no CI (E2E com o binário real). PROCESS/NETWORK dependem da fase 06 |
 | 06 | eBPF Telemetry | Probes Aya: exec/exit, parent/child, arquivo, rede (sem payload) | TODO (Linux) |
 | 07 | Detection Engine | Avaliação de regras sobre eventos | DONE (BF 10, ADR-053) — regras habilitadas avaliadas na transação de ingestão; alertas imutáveis (`alerts`, migration 0012) |
-| 08 | Correlation & Incidents | Agrupamento de alertas em incidentes, timeline | PARTIAL — correlação automática por regra e host em janela de 30 min, incidentes `DETECTION_ENGINE` (BF 10, ADR-053); timeline e grafo: TODO |
+| 08 | Correlation & Incidents | Agrupamento de alertas em incidentes, timeline | DONE — correlação automática por regra e host em janela de 30 min, incidentes `DETECTION_ENGINE` (BF 10, ADR-053); histórico imutável do incidente, linha do tempo com alertas e eventos ao redor e grafo de relações (BF 11, ADR-054, migration 0013) |
 | 09 | Aegis Verified Core | Ada/SPARK + GNATprove para transições e severidade | TODO (Linux) |
 | 10 | x86-64 Experiments | NASM + benchmarks vs referência | TODO (Linux) |
 | 11 | AI Assistance | Resumo/triagem de incidentes via API externa | TODO |
