@@ -20,6 +20,7 @@ import type { DeleteDetectionRule } from '../../application/use-cases/detection-
 import type { CreateIncident } from '../../application/use-cases/incidents/create-incident.js';
 import type { ListIncidents } from '../../application/use-cases/incidents/list-incidents.js';
 import type { GetIncident } from '../../application/use-cases/incidents/get-incident.js';
+import type { GetIncidentTimeline } from '../../application/use-cases/incidents/get-incident-timeline.js';
 import type { UpdateIncident } from '../../application/use-cases/incidents/update-incident.js';
 import type { DeleteIncident } from '../../application/use-cases/incidents/delete-incident.js';
 import type { CreateInvestigation } from '../../application/use-cases/investigations/create-investigation.js';
@@ -73,6 +74,7 @@ export interface AppDependencies {
   readonly createIncident: CreateIncident;
   readonly listIncidents: ListIncidents;
   readonly getIncident: GetIncident;
+  readonly getIncidentTimeline: GetIncidentTimeline;
   readonly updateIncident: UpdateIncident;
   readonly deleteIncident: DeleteIncident;
   readonly createInvestigation: CreateInvestigation;
@@ -150,6 +152,7 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
     createIncident: dependencies.createIncident,
     listIncidents: dependencies.listIncidents,
     getIncident: dependencies.getIncident,
+    getIncidentTimeline: dependencies.getIncidentTimeline,
     updateIncident: dependencies.updateIncident,
     deleteIncident: dependencies.deleteIncident,
   });

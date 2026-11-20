@@ -1,4 +1,5 @@
 import type { Alert } from '../../domain/alert.js';
+import type { IncidentActivity } from '../../domain/incident-activity.js';
 import type { Cpf, Email } from '@aegis/domain';
 import type { User } from '../../domain/user.js';
 import type { Workspace, WorkspaceKind } from '../../domain/workspace.js';
@@ -163,6 +164,8 @@ export interface InvestigationRepository {
   /** Relations are removed by cascade. Returns false when no such investigation exists in that workspace. */
   deleteInWorkspace(workspaceId: string, investigationId: string): Promise<boolean>;
   isIncidentInvestigated(incidentId: string): Promise<boolean>;
+  /** Investigations that group the incident, newest first. */
+  listForIncident(workspaceId: string, incidentId: string): Promise<Investigation[]>;
 }
 
 export interface EventListFilter extends PageRequest {
@@ -192,6 +195,8 @@ export interface EventRepository {
   findInWorkspace(workspaceId: string, eventId: string): Promise<StoredEvent | null>;
   /** Timeline: `occurredAt` DESC, then `id` DESC. */
   listInWorkspace(workspaceId: string, filter: EventListFilter): Promise<Page<StoredEvent>>;
+  /** Events of those hosts with `from <= occurredAt <= to`, oldest first, at most `limit` (incident timeline context). */
+  listForHostsBetween(workspaceId: string, hostIds: readonly string[], from: Date, to: Date, limit: number): Promise<StoredEvent[]>;
   existsForHost(hostId: string): Promise<boolean>;
 }
 
@@ -264,7 +269,22 @@ export interface AlertRepository {
   /** Newest first: `createdAt` DESC, then `id` DESC. */
   listInWorkspace(workspaceId: string, filter: AlertListFilter): Promise<Page<StoredAlert>>;
   findInWorkspace(workspaceId: string, alertId: string): Promise<StoredAlert | null>;
+  /** Alerts correlated into the incident, oldest event first (`occurredAt` ASC, then `id`), at most `limit`. */
+  listForIncident(workspaceId: string, incidentId: string, limit: number): Promise<StoredAlert[]>;
   existsForRule(ruleId: string): Promise<boolean>;
+}
+
+/** An activity entry plus the current name of the user who caused it (null when not a user, or no longer one). */
+export interface StoredIncidentActivity {
+  readonly activity: IncidentActivity;
+  readonly actorName: string | null;
+}
+
+/** Append-only (ADR-054): entries are inserted with the change they describe and read back per incident. */
+export interface IncidentActivityRepository {
+  insertMany(activities: readonly IncidentActivity[]): Promise<void>;
+  /** Oldest first: `createdAt` ASC, then the order of `INCIDENT_ACTIVITY_KINDS`, then `id`. */
+  listForIncident(workspaceId: string, incidentId: string): Promise<StoredIncidentActivity[]>;
 }
 
 export interface Repositories {
@@ -279,6 +299,7 @@ export interface Repositories {
   readonly pairingChallenges: PairingChallengeRepository;
   readonly machineCredentials: MachineCredentialRepository;
   readonly alerts: AlertRepository;
+  readonly incidentActivities: IncidentActivityRepository;
 }
 
 /**

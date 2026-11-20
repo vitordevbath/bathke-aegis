@@ -154,7 +154,7 @@ describe('investigation use cases', () => {
       ).rejects.toBeInstanceOf(InvalidStateError);
     }
     expect(persistence.store.investigations.get(investigation.id)).toEqual(closed);
-    await new DeleteInvestigation(access, persistence.repositories.investigations).execute(a.user, a.workspaceId, investigation.id);
+    await new DeleteInvestigation(access, persistence.unitOfWork).execute(a.user, a.workspaceId, investigation.id);
     expect(persistence.store.investigations.size).toBe(0);
   });
 
@@ -177,10 +177,10 @@ describe('investigation use cases', () => {
     await expect(update().execute(viewer.user, owner.workspaceId, investigation.id, details({ incidentIds: [incident.id] }), 'IN_PROGRESS')).rejects.toBeInstanceOf(
       ForbiddenError,
     );
-    await expect(new DeleteInvestigation(access, investigations).execute(viewer.user, owner.workspaceId, investigation.id)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(new DeleteInvestigation(access, persistence.unitOfWork).execute(viewer.user, owner.workspaceId, investigation.id)).rejects.toBeInstanceOf(ForbiddenError);
     await expect(get.execute(outsider.user, owner.workspaceId, investigation.id)).rejects.toBeInstanceOf(NotFoundError);
     // The outsider's own workspace with the owner's investigation id: still 404.
-    await expect(new DeleteInvestigation(access, investigations).execute(outsider.user, outsider.workspaceId, investigation.id)).rejects.toBeInstanceOf(
+    await expect(new DeleteInvestigation(access, persistence.unitOfWork).execute(outsider.user, outsider.workspaceId, investigation.id)).rejects.toBeInstanceOf(
       NotFoundError,
     );
     expect(persistence.store.investigations.get(investigation.id)?.status).toBe('OPEN');

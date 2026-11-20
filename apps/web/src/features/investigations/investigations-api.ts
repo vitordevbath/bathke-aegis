@@ -8,6 +8,7 @@ import type {
   UpdateInvestigationRequest,
 } from '@aegis/contracts';
 import { apiRequest } from '../../lib/api-client';
+import { incidentTimelineKeys } from '../incidents/timeline/timeline-api';
 
 export interface InvestigationListParams {
   readonly page: number;
@@ -48,10 +49,17 @@ export function useInvestigation(workspaceId: string | undefined, investigationI
   });
 }
 
-/** Lists are summaries; a write only needs to refresh them (the detail is set from the response). */
+/**
+ * Lists are summaries; a write only needs to refresh them (the detail is set from the response), plus
+ * the incident timelines, whose history records links and closings (ADR-054).
+ */
 function useInvalidateInvestigationLists(workspaceId: string) {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: [...investigationKeys.all(workspaceId), 'list'] });
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: [...investigationKeys.all(workspaceId), 'list'] }),
+      queryClient.invalidateQueries({ queryKey: incidentTimelineKeys.all(workspaceId) }),
+    ]);
 }
 
 export function useCreateInvestigation(workspaceId: string) {

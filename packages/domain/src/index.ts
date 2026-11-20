@@ -159,3 +159,17 @@ export {
   type NormalizedEventV1,
 } from './event-contract.js';
 export { CORRELATION_WINDOW_MS, eventFieldValue, matchesDetection } from './detection-engine.js';
+export {
+  INCIDENT_ACTIVITY_KINDS,
+  INCIDENT_ACTIVITY_ACTORS,
+  INCIDENT_DETAIL_FIELDS,
+  INCIDENT_DETAIL_FIELD_LABELS,
+  INCIDENT_TIMELINE_LIMITS,
+  diffIncident,
+  diffInvestigationLinks,
+  type IncidentActivityKind,
+  type IncidentActivityActor,
+  type IncidentDetailField,
+  type IncidentActivityState,
+  type IncidentChange,
+} from './incident-activity.js';

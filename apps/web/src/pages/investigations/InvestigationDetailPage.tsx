@@ -147,7 +147,7 @@ export function InvestigationDetailPage() {
           <ConfirmAction
             triggerLabel="Excluir"
             title="Excluir esta investigação?"
-            description="Neste estágio o registro é removido definitivamente, junto com os vínculos com incidentes. Os incidentes continuam registrados."
+            description="O registro é removido definitivamente, junto com os vínculos com incidentes. Os incidentes continuam registrados, e o histórico de cada um guarda que saiu desta investigação."
             confirmLabel="Excluir investigação"
             pendingLabel="Excluindo…"
             onConfirm={async () => {

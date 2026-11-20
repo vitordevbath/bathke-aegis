@@ -5,6 +5,7 @@ import {
   UpdateIncidentRequestSchema,
   type CreateIncidentCommand,
   type IncidentResponse,
+  type IncidentTimelineResponse,
   type IncidentSummary,
   type PaginatedResponse,
 } from '@aegis/contracts';
@@ -15,8 +16,9 @@ import type { ListIncidents } from '../../../application/use-cases/incidents/lis
 import type { GetIncident } from '../../../application/use-cases/incidents/get-incident.js';
 import type { UpdateIncident } from '../../../application/use-cases/incidents/update-incident.js';
 import type { DeleteIncident } from '../../../application/use-cases/incidents/delete-incident.js';
+import type { GetIncidentTimeline } from '../../../application/use-cases/incidents/get-incident-timeline.js';
 import { authenticate, currentUserOf } from '../authenticate.js';
-import { toIncidentResponse, toIncidentSummary, toPaginatedResponse } from '../mappers.js';
+import { toIncidentResponse, toIncidentSummary, toIncidentTimelineResponse, toPaginatedResponse } from '../mappers.js';
 import { WorkspaceParamsSchema, paramsOf, resourceParamsSchema } from '../route-params.js';
 
 export interface IncidentsRouteOptions {
@@ -24,6 +26,7 @@ export interface IncidentsRouteOptions {
   readonly createIncident: CreateIncident;
   readonly listIncidents: ListIncidents;
   readonly getIncident: GetIncident;
+  readonly getIncidentTimeline: GetIncidentTimeline;
   readonly updateIncident: UpdateIncident;
   readonly deleteIncident: DeleteIncident;
 }
@@ -66,6 +69,12 @@ export const incidentsRoute: FastifyPluginAsync<IncidentsRouteOptions> = async (
   app.get('/workspaces/:workspaceId/incidents/:incidentId', async (request): Promise<IncidentResponse> => {
     const { workspaceId, incidentId } = paramsOf(IncidentParamsSchema, request);
     return toIncidentResponse(await options.getIncident.execute(currentUserOf(request), workspaceId, incidentId));
+  });
+
+  /** Read-only reconstruction of the incident (ADR-054): history, alerts, nearby events, investigations. */
+  app.get('/workspaces/:workspaceId/incidents/:incidentId/timeline', async (request): Promise<IncidentTimelineResponse> => {
+    const { workspaceId, incidentId } = paramsOf(IncidentParamsSchema, request);
+    return toIncidentTimelineResponse(await options.getIncidentTimeline.execute(currentUserOf(request), workspaceId, incidentId));
   });
 
   app.put('/workspaces/:workspaceId/incidents/:incidentId', async (request): Promise<IncidentResponse> => {

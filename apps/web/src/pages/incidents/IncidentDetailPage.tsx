@@ -10,6 +10,7 @@ import { toStatusRequest, useDeleteIncident, useIncident, useUpdateIncident } fr
 import { RuleStatusBadge } from '../../features/rules/RuleStatusBadge';
 import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
 import { RelatedAlerts } from '../../features/alerts/RelatedAlerts';
+import { IncidentReconstruction } from '../../features/incidents/timeline/IncidentReconstruction';
 import { ApiError } from '../../lib/api-client';
 import { IncidentNotFound } from './IncidentNotFound';
 
@@ -162,6 +163,8 @@ export function IncidentDetailPage() {
         </div>
       </div>
 
+      {activeWorkspace && <IncidentReconstruction workspaceId={activeWorkspace.id} incidentId={data.id} />}
+
       {canManage && (
         <div className="detail-actions">
           {!closed && (
@@ -172,7 +175,7 @@ export function IncidentDetailPage() {
           <ConfirmAction
             triggerLabel="Excluir"
             title="Excluir este incidente?"
-            description="Nesta etapa o registro é removido definitivamente, junto com as relações com hosts e regras. Hosts e regras continuam cadastrados."
+            description="O registro é removido definitivamente, junto com o histórico e as relações com hosts e regras. Hosts, regras e alertas continuam cadastrados."
             confirmLabel="Excluir incidente"
             pendingLabel="Excluindo…"
             onConfirm={async () => {

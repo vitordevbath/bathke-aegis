@@ -20,12 +20,12 @@ const WORKS_TODAY = [
   'Linha do tempo de eventos imutável, com ingestão idempotente',
   'Motor de detecção que avalia cada evento recebido com as regras habilitadas',
   'Alertas permanentes, correlacionados automaticamente em incidentes',
+  'Reconstrução de cada incidente: linha do tempo com histórico imutável e grafo de relações',
   'AEGIS DEMO: workspace somente leitura que toda conta recebe, com hosts simulados e um host real',
 ] as const;
 
 const IN_PROGRESS = [
   'Eventos de processo e de rede via eBPF',
-  'Linha do tempo e grafo de relações para investigações',
   'Ciclo de vida de incidentes verificado formalmente com Ada/SPARK',
   'TLS no Nginx e hospedagem pública da demonstração',
 ] as const;

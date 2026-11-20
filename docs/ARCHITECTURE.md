@@ -108,6 +108,21 @@ Incidents têm duas origens: `MANUAL` (criados por uma pessoa, relações escolh
 segue o mesmo ciclo de vida do domínio nos dois casos; o trabalho humano acontece no incidente.
 Ver ADR-024 a ADR-027.
 
+Cada incidente tem um **histórico imutável** (tabela `incident_activities`, migration 0013, BF 11,
+ADR-054): abertura (por uma pessoa ou pelo motor), mudança de status, de severidade e dos demais
+campos, entrada, saída e conclusão de investigações. Cada entrada é escrita na mesma transação da
+mudança que descreve; editar sem mudar nada não registra nada. `GET …/incidents/:id/timeline` junta
+esse histórico aos alertas do incidente, aos eventos dos hosts envolvidos ao redor dele (de 15 min
+antes do primeiro fato até a resolução, com limite) e às investigações atuais. O painel desenha a
+**linha do tempo** e o **grafo de relações** (SVG próprio, sem biblioteca) a partir dessa única leitura.
+
+```
+incidents 1 ── N incident_activities (id, workspace_id FK CASCADE, incident_id FK CASCADE, kind,
+       actor USER | DETECTION_ENGINE | HISTORY_BACKFILL, actor_user_id FK SET NULL,
+       from_value, to_value, investigation_id FK SET NULL, investigation_title, fields JSON, created_at)
+       INDEX (incident_id, created_at, id) — sem caminho de update ou delete próprio
+```
+
 Investigations são **casos humanos** que agrupam um ou mais incidentes do mesmo workspace
 (N:N: um incidente pode estar em várias investigações). Não criam telemetria, não executam
 regras, não geram alertas e não controlam hosts. A conclusão é escrita por uma pessoa; não
@@ -116,8 +131,8 @@ há IA. Um incidente agrupado não pode ser excluído (409). Ver ADR-028 a ADR-0
 Events (CURRENT, BF 06) são **fatos técnicos imutáveis** observados em um host, no formato
 OS-independente do Event Contract v1 ([EVENTOS.md](EVENTOS.md)). Desde o BF 08 o Aegis Collector envia
 eventos SYSTEM reais; a ingestão exige uma credencial de máquina (BF 07) e chama o
-`EventIngestionService`, que não conhece HTTP, JWT nem credenciais. Nada avalia eventos: regras não
-rodam, alertas e incidentes automáticos não existem. Ver ADR-032 a ADR-036, ADR-042 e ADR-045.
+`EventIngestionService`, que não conhece HTTP, JWT nem credenciais; na mesma transação, o motor de
+detecção avalia os eventos novos (BF 10). Ver ADR-032 a ADR-036, ADR-042, ADR-045 e ADR-053.
 
 ```
 workspaces 1 ── N events (id UUID, workspace_id FK CASCADE, host_id FK RESTRICT, source_event_id,

@@ -3,6 +3,7 @@ import { Alert } from '../domain/alert.js';
 import type { DetectionRule } from '../domain/detection-rule.js';
 import type { Host } from '../domain/host.js';
 import { Incident } from '../domain/incident.js';
+import { IncidentActivity } from '../domain/incident-activity.js';
 import type { TelemetryEvent } from '../domain/telemetry-event.js';
 import type { Repositories } from './ports/repositories.js';
 
@@ -58,6 +59,7 @@ export class DetectionEngine {
             now,
           );
           await repositories.incidents.insert(incident);
+          await repositories.incidentActivities.insertMany([IncidentActivity.opened(incident, { kind: 'DETECTION_ENGINE' }, now)]);
           incidentId = incident.id;
         }
         incidentOfRule.set(rule.id, incidentId);

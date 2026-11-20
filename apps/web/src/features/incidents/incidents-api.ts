@@ -13,6 +13,7 @@ import { apiRequest } from '../../lib/api-client';
 import { hostKeys } from '../hosts/hosts-api';
 import { ruleKeys } from '../rules/rules-api';
 import { investigationKeys } from '../investigations/investigations-api';
+import { incidentTimelineKeys } from './timeline/timeline-api';
 
 export interface IncidentListParams {
   readonly page: number;
@@ -69,6 +70,7 @@ function useInvalidateIncidents(workspaceId: string) {
       queryClient.invalidateQueries({ queryKey: hostKeys.all(workspaceId) }),
       queryClient.invalidateQueries({ queryKey: ruleKeys.all(workspaceId) }),
       queryClient.invalidateQueries({ queryKey: investigationKeys.all(workspaceId) }),
+      queryClient.invalidateQueries({ queryKey: incidentTimelineKeys.all(workspaceId) }),
     ]);
 }
 
