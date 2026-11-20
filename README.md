@@ -52,11 +52,12 @@ Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 
 | Componente | Status |
 | --- | --- |
-| Aegis Web (React + TS + Vite): site público, `/login`, `/cadastro`, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes`, `/investigacoes`, `/eventos` | **IMPLEMENTADO** |
-| Aegis API (Fastify + TS): health, autenticação, `/users/me`, CRUDs por workspace, eventos, pareamento (`/agent/pair`), credenciais, heartbeat e ingestão por máquina | **IMPLEMENTADO** |
+| Aegis Web (React + TS + Vite): site público, `/login`, `/cadastro`, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes` (com reconstrução: linha do tempo e grafo), `/investigacoes`, `/eventos`, `/alertas` | **IMPLEMENTADO** |
+| Aegis API (Fastify + TS): health, autenticação, `/users/me`, CRUDs por workspace, eventos, motor de detecção, alertas, timeline do incidente, pareamento (`/agent/pair`), credenciais, heartbeat e ingestão por máquina | **IMPLEMENTADO** |
 | `@aegis/contracts` (schemas Zod), `@aegis/domain` (Email, CPF, política de senha, severidade, regras de host/incidente/investigação, Event Contract, identidade de máquina, erros) | **IMPLEMENTADO** |
 | Aegis MCP (7 ferramentas, secret guard) | **IMPLEMENTADO** (base) |
 | Docker Compose + Nginx (somente Nginx exposto, redes internas) | **IMPLEMENTADO** (teste automatizado `npm run test:infra` no CI) |
+| HTTPS opcional: TLS 1.2/1.3, HSTS, HTTP → HTTPS, Let's Encrypt ou autoassinado (`compose.tls.yaml`, [guia](docs/HOSPEDAGEM.md)) | **IMPLEMENTADO** (BF 12, ADR-055; verificado no `test:infra`) |
 | MySQL + Drizzle: usuários, workspaces, hosts, regras, incidentes, investigações, eventos, identidade de máquina e relações com migrations versionadas | **IMPLEMENTADO** |
 | Autenticação (Argon2id + JWT), usuário, workspace pessoal + membership OWNER | **IMPLEMENTADO** |
 | Hosts CRUD por workspace (cadastro manual, paginação, busca), workspace ativo | **IMPLEMENTADO** |
@@ -85,6 +86,9 @@ Aegis Collector ─┘                  └── /api/  ──► api (Fastify)
 
 O navegador usa JWT de usuário; o Collector usa credencial de máquina com escopo
 (`events:ingest`, `host:heartbeat`). Os dois contextos de autenticação são separados.
+
+Com `compose.tls.yaml` o Nginx também escuta em HTTPS e a porta HTTP só redireciona; veja
+[docs/HOSPEDAGEM.md](docs/HOSPEDAGEM.md).
 
 Redes: `aegis_edge` (nginx), `aegis_application` (nginx, web, api — interna),
 `aegis_data` (api, mysql — interna). Detalhes em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

@@ -21,13 +21,14 @@ const WORKS_TODAY = [
   'Motor de detecção que avalia cada evento recebido com as regras habilitadas',
   'Alertas permanentes, correlacionados automaticamente em incidentes',
   'Reconstrução de cada incidente: linha do tempo com histórico imutável e grafo de relações',
+  'HTTPS com TLS 1.2/1.3 e HSTS no Nginx, com certificado próprio ou Let’s Encrypt',
   'AEGIS DEMO: workspace somente leitura que toda conta recebe, com hosts simulados e um host real',
 ] as const;
 
 const IN_PROGRESS = [
   'Eventos de processo e de rede via eBPF',
   'Ciclo de vida de incidentes verificado formalmente com Ada/SPARK',
-  'TLS no Nginx e hospedagem pública da demonstração',
+  'Hospedagem pública da demonstração',
 ] as const;
 
 /** Fraction of the hero scrolled away, shared with the WebGL field without re-rendering React. */

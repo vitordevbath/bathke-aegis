@@ -15,7 +15,7 @@ describe('Cpf', () => {
   });
 
   it('renders the formatted mask', () => {
-    expect(Cpf.create('12345678909').formatted).toBe('123.456.789-09');
+    expect(Cpf.format('12345678909')).toBe('123.456.789-09');
     expect(Cpf.format('1234567')).toBe('123.456.7');
     expect(Cpf.format('123456789099999')).toBe('123.456.789-09');
   });

@@ -43,7 +43,7 @@ export const ARCHITECTURE: readonly ArchitectureComponent[] = [
     summary:
       'MySQL 8.4 (Compose service on internal network aegis_data), 14 versioned migrations (0000–0013) applied by the one-shot migrate service. Tables: users, workspaces, memberships, hosts, detection_rules, detection_rule_targets, incidents, incident_hosts, incident_detection_rules, investigations, investigation_incidents, events (append-only), pairing_challenges, machine_credentials, rate_limit_counters (persistent pairing limits, HMAC-hashed client addresses), alerts (immutable, one per rule and event, ADR-053), incident_activities (immutable incident history, ADR-054)',
   },
-  { name: 'Nginx', path: 'infra/nginx', status: 'CURRENT', summary: 'Single published port; / to web, /api/ to api; strict CSP and security headers; the API trusts exactly this one proxy hop' },
+  { name: 'Nginx', path: 'infra/nginx', status: 'CURRENT', summary: 'Single published port by default; / to web, /api/ to api; strict CSP and security headers from one shared snippet; optional HTTPS via compose.tls.yaml (TLS 1.2/1.3, HSTS, HTTP only redirects, Let\'s Encrypt or self-signed, ADR-055); the API trusts exactly this one proxy hop' },
   {
     name: 'Aegis Collector',
     path: 'native/aegis-collector',

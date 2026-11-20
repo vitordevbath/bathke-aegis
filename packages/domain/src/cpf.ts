@@ -12,7 +12,7 @@ function checkDigit(digits: readonly number[]): number {
 }
 
 /**
- * Brazilian CPF. Stored as 11 digits only; `formatted` renders the
+ * Brazilian CPF. Stored as 11 digits only; `Cpf.format` renders the
  * `000.000.000-00` mask. Validation checks the input shape, rejects
  * repeated-digit sequences and verifies both check digits.
  */
@@ -45,10 +45,6 @@ export class Cpf {
   /** 11 digits, no separators — the persisted form. */
   get value(): string {
     return this.digits;
-  }
-
-  get formatted(): string {
-    return Cpf.format(this.digits);
   }
 
   /** Masks up to 11 digits progressively (`123.456.789-09`); useful for input fields. */

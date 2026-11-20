@@ -32,3 +32,6 @@ gnatprove/
 *.swp
 .DS_Store
 Thumbs.db
+
+# TLS material (compose.tls.yaml, ADR-055): certificates and Let's Encrypt state
+certs/

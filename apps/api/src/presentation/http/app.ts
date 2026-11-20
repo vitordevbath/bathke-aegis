@@ -2,6 +2,7 @@ import type { GetAlert, ListAlerts } from '../../application/use-cases/alerts/li
 import { alertsRoute } from './routes/alerts.route.js';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
+import { persistentRateLimitStore } from './persistent-rate-limit.js';
 import type { RegisterUser } from '../../application/use-cases/register-user.js';
 import type { AuthenticateUser } from '../../application/use-cases/authenticate-user.js';
 import type { ResolveAuthenticatedUser } from '../../application/use-cases/resolve-authenticated-user.js';
@@ -116,9 +117,9 @@ export async function buildApp(dependencies: AppDependencies, options: FastifySe
   app.decorateRequest('currentUser', null);
   app.decorateRequest('machineAuth', null);
 
-  // In-memory, per-route limits only (opt-in via route config) for login, register, ingestion and
-  // heartbeat. The unauthenticated pairing endpoint uses persistent counters instead (ADR-046).
-  await app.register(rateLimit, { global: false });
+  // Per-route limits (opt-in via route config) for login, register, ingestion and heartbeat, kept in
+  // the same persistent counters as pairing: shared by every instance, kept across restarts (ADR-051).
+  await app.register(rateLimit, { global: false, store: persistentRateLimitStore(dependencies.rateLimits) });
 
   await app.register(healthRoute);
   await app.register(authRoute, {

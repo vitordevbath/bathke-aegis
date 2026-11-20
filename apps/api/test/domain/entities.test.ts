@@ -71,7 +71,6 @@ describe('Workspace', () => {
     const owner = newUser();
     const workspace = Workspace.createPersonal(owner);
     expect(workspace.kind).toBe('personal');
-    expect(workspace.isPersonal).toBe(true);
     expect(workspace.name).toBe('Workspace de Ana Teste');
     expect(workspace.name).not.toContain('@');
     expect(workspace.id).not.toBe(owner.id);
@@ -89,11 +88,11 @@ describe('Membership', () => {
     const workspace = Workspace.createPersonal(owner);
     const membership = Membership.grantOwner(owner, workspace);
     expect(membership).toMatchObject({ userId: owner.id, workspaceId: workspace.id, role: 'OWNER' });
-    expect(membership.isOwner).toBe(true);
+    expect(membership.canManageResources).toBe(true);
   });
 
-  it('distinguishes non-owner roles', () => {
+  it('denies resource management to non-owner roles', () => {
     const restored = Membership.restore({ userId: 'u', workspaceId: 'w', role: 'VIEWER', createdAt: new Date() });
-    expect(restored.isOwner).toBe(false);
+    expect(restored.canManageResources).toBe(false);
   });
 });
