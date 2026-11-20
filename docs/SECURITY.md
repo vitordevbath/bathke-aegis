@@ -37,7 +37,7 @@ configurável e removível.
 - **Cadastro:** responde 409 para email/CPF já cadastrados (exigência funcional). Isso permite descobrir se um email existe; a mitigação é o rate limit em `/auth/register`.
 - **JWT:** ver ADR-016. Rotas protegidas exigem `Authorization: Bearer`, verificam assinatura/expiração/claims e recarregam o usuário (inexistente → 401).
 - **Autorização:** o usuário só lê/edita a si mesmo (`/users/me`); identidade vem do token; `id`/`userId`/`email` no corpo são rejeitados. Não existe conta universal, superusuário ou bypass.
-- **Rate limiting:** `@fastify/rate-limit` em memória, por IP, `AUTH_RATE_LIMIT_MAX` (padrão 10/min) em `/auth/login` e `/auth/register`. A API confia em exatamente um proxy (Nginx) para obter o IP do cliente. Uma instância só; sem store distribuído.
+- **Rate limiting:** `@fastify/rate-limit` por IP, `AUTH_RATE_LIMIT_MAX` (padrão 10/min) em `/auth/login` e `/auth/register`, com contadores persistentes em MySQL compartilhados entre instâncias (ADR-051). A API confia em exatamente um proxy (Nginx) para obter o IP do cliente.
 - **Dados expostos:** respostas usam mapeamento explícito (`mappers.ts`); `password_hash` nunca sai da API. CPF é retornado apenas ao próprio usuário.
 - **Logs:** Fastify registra método/URL/status, nunca corpo nem cabeçalhos. Erros inesperados são logados só com tipo, código e stack frames — a mensagem de drivers pode conter parâmetros (hash, CPF) e é descartada. Respostas de erro nunca contêm stack trace ou SQL.
 - **Token no navegador:** localStorage por exigência acadêmica (ADR-017), com CSP estrita no Nginx.
@@ -122,7 +122,7 @@ configurável e removível.
 
 ### Limitações conhecidas
 
-- Login, cadastro, ingestão e heartbeat têm rate limit em memória: zera quando a API reinicia e não é compartilhado entre instâncias (o do pareamento é persistente, ADR-046).
+- Rate limit por IP: quem compartilha IP (NAT, rede de laboratório) divide o mesmo limite. Se o MySQL estiver indisponível, as rotas limitadas respondem erro em vez de passar sem limite (ADR-051).
 - Quem compartilha IP com um atacante pode ter o pareamento pausado até a janela expirar. Trocar o `JWT_SECRET` zera os contadores persistentes.
 - Logout é local; tokens emitidos continuam válidos até expirar (sem revogação).
 - Troca de senha não invalida sessões existentes.
