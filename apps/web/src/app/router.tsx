@@ -4,15 +4,17 @@ import { AuthProvider } from '../features/auth/AuthContext';
 import { GuestRoute, ProtectedRoute } from '../features/auth/route-guards';
 import { AppShell } from '../components/AppShell';
 import { PageLoader } from '../components/PageLoader';
+import { RouteErrorPage } from '../components/RouteErrorPage';
+import { loadWithReload } from '../lib/chunk-recovery';
 import { WorkspaceProvider } from '../features/workspaces/WorkspaceContext';
 import { ManagerOnly } from '../features/workspaces/ManagerOnly';
 import { DashboardPage } from '../pages/DashboardPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
-/** Code-splits CRUD screens: each resource's pages load on first visit. */
+/** Code-splits screens: each loads on first visit, recovering once from files renamed by a new build. */
 function page<M extends Record<string, ComponentType>>(load: () => Promise<M>, name: keyof M & string) {
-  return async () => ({ Component: (await load())[name] });
+  return async () => ({ Component: (await loadWithReload(load))[name] });
 }
 
 /** Exported separately so tests can mount the same tree in a memory router. */
@@ -20,6 +22,8 @@ export const routes: RouteObject[] = [
   {
     // Shown while a lazily loaded route is fetched on first navigation.
     hydrateFallbackElement: <PageLoader />,
+    // A screen that fails to load or render gets a way forward, never the router's developer message.
+    errorElement: <RouteErrorPage />,
     element: (
       <AuthProvider>
         <Outlet />
