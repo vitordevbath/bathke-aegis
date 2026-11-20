@@ -7,7 +7,7 @@ import { InvestigationLifecycleActions } from '../../features/investigations/Inv
 import { InvestigationStatusBadge } from '../../features/investigations/InvestigationStatusBadge';
 import { STATUS_LABELS } from '../../features/investigations/investigation-labels';
 import { toStatusRequest, useDeleteInvestigation, useInvestigation, useUpdateInvestigation } from '../../features/investigations/investigations-api';
-import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
 import { ApiError } from '../../lib/api-client';
 import { InvestigationNotFound } from './InvestigationNotFound';
 
@@ -16,6 +16,7 @@ const messageOf = (error: unknown, fallback: string) =>
   error instanceof ApiError && error.status >= 400 && error.status < 500 && error.code !== 'UNKNOWN' ? error.message : fallback;
 
 export function InvestigationDetailPage() {
+  const canManage = useCanManage();
   const { investigationId = '' } = useParams();
   const { activeWorkspace } = useWorkspace();
   const navigate = useNavigate();
@@ -136,24 +137,26 @@ export function InvestigationDetailPage() {
         </div>
       </div>
 
-      <div className="detail-actions">
-        {!closed && (
-          <Link to={`/investigacoes/${data.id}/editar`} className="button">
-            Editar
-          </Link>
-        )}
-        <ConfirmAction
-          triggerLabel="Excluir"
-          title="Excluir esta investigação?"
-          description="Neste estágio o registro é removido definitivamente, junto com os vínculos com incidentes. Os incidentes continuam registrados."
-          confirmLabel="Excluir investigação"
-          pendingLabel="Excluindo…"
-          onConfirm={async () => {
-            await deleteInvestigation.mutateAsync();
-            navigate('/investigacoes', { replace: true });
-          }}
-        />
-      </div>
+      {canManage && (
+        <div className="detail-actions">
+          {!closed && (
+            <Link to={`/investigacoes/${data.id}/editar`} className="button">
+              Editar
+            </Link>
+          )}
+          <ConfirmAction
+            triggerLabel="Excluir"
+            title="Excluir esta investigação?"
+            description="Neste estágio o registro é removido definitivamente, junto com os vínculos com incidentes. Os incidentes continuam registrados."
+            confirmLabel="Excluir investigação"
+            pendingLabel="Excluindo…"
+            onConfirm={async () => {
+              await deleteInvestigation.mutateAsync();
+              navigate('/investigacoes', { replace: true });
+            }}
+          />
+        </div>
+      )}
       {deleteInvestigation.isError && (
         <p className="notice notice--error" role="alert">
           {messageOf(deleteInvestigation.error, 'Não foi possível excluir a investigação agora. Tente novamente.')}

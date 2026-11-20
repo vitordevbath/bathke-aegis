@@ -1,7 +1,7 @@
 import { ConflictError, type Cpf, type Email } from '@aegis/domain';
 import { User, type UserSnapshot } from '../../src/domain/user.js';
-import { Workspace, type WorkspaceSnapshot } from '../../src/domain/workspace.js';
-import { Membership, type MembershipSnapshot } from '../../src/domain/membership.js';
+import { Workspace, type WorkspaceKind, type WorkspaceSnapshot } from '../../src/domain/workspace.js';
+import { Membership, type MembershipRole, type MembershipSnapshot } from '../../src/domain/membership.js';
 import { Host, type HostSnapshot } from '../../src/domain/host.js';
 import { DetectionRule, type DetectionRuleSnapshot } from '../../src/domain/detection-rule.js';
 import { Incident, type IncidentSnapshot } from '../../src/domain/incident.js';
@@ -127,6 +127,13 @@ class InMemoryWorkspaceRepository implements WorkspaceRepository {
   async insert(workspace: Workspace): Promise<void> {
     this.store.workspaces.set(workspace.id, workspace.toSnapshot());
   }
+
+  async findFirstOfKind(kind: WorkspaceKind): Promise<Workspace | null> {
+    const [first] = [...this.store.workspaces.values()]
+      .filter((workspace) => workspace.kind === kind)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
+    return first ? Workspace.restore(first) : null;
+  }
 }
 
 class InMemoryMembershipRepository implements MembershipRepository {
@@ -146,9 +153,25 @@ class InMemoryMembershipRepository implements MembershipRepository {
     return snapshot ? Membership.restore(snapshot) : null;
   }
 
+  async grantToUsersWithout(workspaceId: string, role: MembershipRole, now: Date): Promise<number> {
+    if (!this.store.workspaces.has(workspaceId)) throw new Error('foreign key constraint fails');
+    let added = 0;
+    for (const userId of this.store.users.keys()) {
+      const key = `${userId}:${workspaceId}`;
+      if (this.store.memberships.has(key)) continue;
+      this.store.memberships.set(key, { userId, workspaceId, role, createdAt: now });
+      added += 1;
+    }
+    return added;
+  }
+
   async listForUser(userId: string): Promise<WorkspaceMembership[]> {
     return [...this.store.memberships.values()]
       .filter((membership) => membership.userId === userId)
+      .sort((a, b) => {
+        const personal = (m: MembershipSnapshot) => (this.store.workspaces.get(m.workspaceId)?.kind === 'personal' ? 0 : 1);
+        return personal(a) - personal(b) || a.createdAt.getTime() - b.createdAt.getTime();
+      })
       .flatMap((membership) => {
         const workspace = this.store.workspaces.get(membership.workspaceId);
         return workspace ? [{ workspace: Workspace.restore(workspace), membership: Membership.restore(membership) }] : [];

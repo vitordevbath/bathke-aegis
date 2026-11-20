@@ -1,3 +1,4 @@
+import { useCanManage } from '../workspaces/WorkspaceContext';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { InvestigationStatus } from '@aegis/contracts';
 import { INVESTIGATION_LIMITS, closingConclusionProblem } from '@aegis/domain';
@@ -18,7 +19,7 @@ interface InvestigationLifecycleActionsProps {
  * small panel to confirm the conclusion: closing without one is blocked here
  * with the same rule the API enforces. Renders nothing once CLOSED.
  */
-export function InvestigationLifecycleActions({ available, conclusion, pending, onTransition }: InvestigationLifecycleActionsProps) {
+function InvestigationLifecycleActionsForm({ available, conclusion, pending, onTransition }: InvestigationLifecycleActionsProps) {
   const [closing, setClosing] = useState(false);
   const [draft, setDraft] = useState(conclusion ?? '');
   const [problem, setProblem] = useState<string | null>(null);
@@ -85,4 +86,10 @@ export function InvestigationLifecycleActions({ available, conclusion, pending, 
       )}
     </>
   );
+}
+
+/** Viewers (e.g. AEGIS DEMO) see the status, not the transitions; the API refuses them anyway. */
+export function InvestigationLifecycleActions(props: InvestigationLifecycleActionsProps) {
+  if (!useCanManage()) return <p className="muted small">Somente leitura neste workspace.</p>;
+  return <InvestigationLifecycleActionsForm {...props} />;
 }

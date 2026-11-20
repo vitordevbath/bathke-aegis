@@ -9,13 +9,14 @@ import { CorrelationNotice } from '../../features/incidents/CorrelationNotice';
 import { IncidentStatusBadge } from '../../features/incidents/IncidentStatusBadge';
 import { ORIGIN_LABELS, STATUS_LABELS } from '../../features/incidents/incident-labels';
 import { useIncidentList } from '../../features/incidents/incidents-api';
-import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
 import { SEVERITY_LABELS } from '../../lib/severity';
 import { INCIDENTS_PAGE_SIZE, readIncidentListParams, writeIncidentListParams, type IncidentListUrlState } from './incident-route-params';
 
 const count = (value: number, one: string, many: string) => `${value} ${value === 1 ? one : many}`;
 
 export function IncidentsPage() {
+  const canManage = useCanManage();
   const { activeWorkspace } = useWorkspace();
   const [searchParams, setSearchParams] = useSearchParams();
   const state = readIncidentListParams(searchParams);
@@ -53,9 +54,11 @@ export function IncidentsPage() {
             </p>
           )}
         </div>
-        <Link to="/incidentes/novo" className="button button--primary">
-          Novo incidente
-        </Link>
+        {canManage && (
+          <Link to="/incidentes/novo" className="button button--primary">
+            Novo incidente
+          </Link>
+        )}
       </header>
 
       <CorrelationNotice />
@@ -141,9 +144,11 @@ export function IncidentsPage() {
           title="Nenhum incidente registrado."
           description="Incidentes podem ser registrados manualmente enquanto o mecanismo automático de correlação ainda não está ativo."
           action={
-            <Link to="/incidentes/novo" className="button button--primary">
-              Novo incidente
-            </Link>
+            canManage ? (
+              <Link to="/incidentes/novo" className="button button--primary">
+                Novo incidente
+              </Link>
+            ) : undefined
           }
         />
       )}

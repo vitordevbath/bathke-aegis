@@ -10,13 +10,14 @@ export function failingOn(unitOfWork: UnitOfWork, table: 'workspaces' | 'members
         };
         const sabotaged: Repositories =
           table === 'workspaces'
-            ? { ...repositories, workspaces: { insert: boom } }
+            ? { ...repositories, workspaces: { insert: boom, findFirstOfKind: (kind) => repositories.workspaces.findFirstOfKind(kind) } }
             : {
                 ...repositories,
                 memberships: {
                   insert: boom,
                   find: (userId, workspaceId) => repositories.memberships.find(userId, workspaceId),
                   listForUser: (id) => repositories.memberships.listForUser(id),
+                  grantToUsersWithout: (workspaceId, role, now) => repositories.memberships.grantToUsersWithout(workspaceId, role, now),
                 },
               };
         return work(sabotaged);

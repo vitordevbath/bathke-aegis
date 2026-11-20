@@ -5,6 +5,7 @@ import { GuestRoute, ProtectedRoute } from '../features/auth/route-guards';
 import { AppShell } from '../components/AppShell';
 import { PageLoader } from '../components/PageLoader';
 import { WorkspaceProvider } from '../features/workspaces/WorkspaceContext';
+import { ManagerOnly } from '../features/workspaces/ManagerOnly';
 import { DashboardPage } from '../pages/DashboardPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
@@ -47,31 +48,36 @@ export const routes: RouteObject[] = [
             children: [
               { path: '/dashboard', element: <DashboardPage /> },
               { path: '/perfil', element: <ProfilePage /> },
-              // Create and edit are separate screens (rubric), sharing HostForm.
+              // Create and edit are separate screens (rubric), sharing the forms; managers only; viewers (e.g. AEGIS DEMO) get an explanation (ADR-052).
+              {
+                element: <ManagerOnly />,
+                children: [
+                  { path: '/hosts/novo', lazy: page(() => import('../pages/hosts/CreateHostPage'), 'CreateHostPage') },
+                  { path: '/hosts/:hostId/editar', lazy: page(() => import('../pages/hosts/EditHostPage'), 'EditHostPage') },
+                  { path: '/regras/nova', lazy: page(() => import('../pages/rules/CreateRulePage'), 'CreateRulePage') },
+                  { path: '/regras/:ruleId/editar', lazy: page(() => import('../pages/rules/EditRulePage'), 'EditRulePage') },
+                  { path: '/incidentes/novo', lazy: page(() => import('../pages/incidents/CreateIncidentPage'), 'CreateIncidentPage') },
+                  { path: '/incidentes/:incidentId/editar', lazy: page(() => import('../pages/incidents/EditIncidentPage'), 'EditIncidentPage') },
+                  { path: '/investigacoes/nova', lazy: page(() => import('../pages/investigations/CreateInvestigationPage'), 'CreateInvestigationPage') },
+                  {
+                    path: '/investigacoes/:investigationId/editar',
+                    lazy: page(() => import('../pages/investigations/EditInvestigationPage'), 'EditInvestigationPage'),
+                  },
+                ],
+              },
               { path: '/hosts', lazy: page(() => import('../pages/hosts/HostsPage'), 'HostsPage') },
-              { path: '/hosts/novo', lazy: page(() => import('../pages/hosts/CreateHostPage'), 'CreateHostPage') },
               { path: '/hosts/:hostId', lazy: page(() => import('../pages/hosts/HostDetailPage'), 'HostDetailPage') },
-              { path: '/hosts/:hostId/editar', lazy: page(() => import('../pages/hosts/EditHostPage'), 'EditHostPage') },
               // Read-only telemetry: list and detail, no create or edit screens (events are immutable).
               { path: '/eventos', lazy: page(() => import('../pages/events/EventsPage'), 'EventsPage') },
               { path: '/eventos/:eventId', lazy: page(() => import('../pages/events/EventDetailPage'), 'EventDetailPage') },
               { path: '/regras', lazy: page(() => import('../pages/rules/RulesPage'), 'RulesPage') },
-              { path: '/regras/nova', lazy: page(() => import('../pages/rules/CreateRulePage'), 'CreateRulePage') },
               { path: '/regras/:ruleId', lazy: page(() => import('../pages/rules/RuleDetailPage'), 'RuleDetailPage') },
-              { path: '/regras/:ruleId/editar', lazy: page(() => import('../pages/rules/EditRulePage'), 'EditRulePage') },
               { path: '/incidentes', lazy: page(() => import('../pages/incidents/IncidentsPage'), 'IncidentsPage') },
-              { path: '/incidentes/novo', lazy: page(() => import('../pages/incidents/CreateIncidentPage'), 'CreateIncidentPage') },
               { path: '/incidentes/:incidentId', lazy: page(() => import('../pages/incidents/IncidentDetailPage'), 'IncidentDetailPage') },
-              { path: '/incidentes/:incidentId/editar', lazy: page(() => import('../pages/incidents/EditIncidentPage'), 'EditIncidentPage') },
               { path: '/investigacoes', lazy: page(() => import('../pages/investigations/InvestigationsPage'), 'InvestigationsPage') },
-              { path: '/investigacoes/nova', lazy: page(() => import('../pages/investigations/CreateInvestigationPage'), 'CreateInvestigationPage') },
               {
                 path: '/investigacoes/:investigationId',
                 lazy: page(() => import('../pages/investigations/InvestigationDetailPage'), 'InvestigationDetailPage'),
-              },
-              {
-                path: '/investigacoes/:investigationId/editar',
-                lazy: page(() => import('../pages/investigations/EditInvestigationPage'), 'EditInvestigationPage'),
               },
             ],
           },

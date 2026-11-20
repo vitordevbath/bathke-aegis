@@ -66,6 +66,7 @@ Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 | Event Contract v1 + Event Store: ingestão em lote idempotente (credencial de máquina) e navegador `/eventos` somente leitura | **IMPLEMENTADO** |
 | Pareamento por código de uso único (cancelável), credenciais de máquina com escopo, rotação, revogação confirmada na transação e histórico; painel no detalhe do host | **IMPLEMENTADO** |
 | Aegis Collector (Rust): pareamento, heartbeat (Online/Offline derivado), eventos SYSTEM (boot, serviços systemd), fila SQLite persistente com reenvio idempotente | **IMPLEMENTADO** (BF 08; validado no Fedora 44; E2E com o binário real no CI) |
+| AEGIS DEMO: workspace somente leitura para toda conta, hosts simulados ao vivo e host real opcional (`aegis-server`) | **IMPLEMENTADO** (ADR-052) |
 | Detection Engine (execução das regras), alertas, correlação automática, IA, workspaces compartilhados | **PLANEJADO** |
 | Camada de telemetria eBPF, eventos PROCESS e NETWORK | **PLANEJADO** |
 | Aegis Verified Core (Ada/SPARK), experimentos x86-64 | **PLANEJADO** |

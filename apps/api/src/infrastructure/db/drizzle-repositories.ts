@@ -1,10 +1,10 @@
-import { and, asc, count, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNull, like, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { MySql2PreparedQueryHKT, MySql2QueryResultHKT } from 'drizzle-orm/mysql2';
 import { ConflictError, type Cpf, type Email } from '@aegis/domain';
 import { User } from '../../domain/user.js';
-import { Workspace } from '../../domain/workspace.js';
-import { Membership } from '../../domain/membership.js';
+import { Workspace, type WorkspaceKind } from '../../domain/workspace.js';
+import { Membership, type MembershipRole } from '../../domain/membership.js';
 import { Host } from '../../domain/host.js';
 import { DetectionRule } from '../../domain/detection-rule.js';
 import { Incident } from '../../domain/incident.js';
@@ -136,6 +136,11 @@ class DrizzleWorkspaceRepository implements WorkspaceRepository {
   async insert(workspace: Workspace): Promise<void> {
     await this.db.insert(workspaces).values(workspace.toSnapshot());
   }
+
+  async findFirstOfKind(kind: WorkspaceKind): Promise<Workspace | null> {
+    const [row] = await this.db.select().from(workspaces).where(eq(workspaces.kind, kind)).orderBy(asc(workspaces.createdAt), asc(workspaces.id)).limit(1);
+    return row ? Workspace.restore(row) : null;
+  }
 }
 
 class DrizzleMembershipRepository implements MembershipRepository {
@@ -154,13 +159,24 @@ class DrizzleMembershipRepository implements MembershipRepository {
     return row ? Membership.restore(row) : null;
   }
 
+  async grantToUsersWithout(workspaceId: string, role: MembershipRole, now: Date): Promise<number> {
+    // One INSERT … SELECT: users that already have a membership there are skipped by the anti-join.
+    const [result] = await this.db.execute(sql`
+      INSERT INTO ${memberships} (user_id, workspace_id, role, created_at)
+      SELECT ${users.id}, ${workspaceId}, ${role}, ${now}
+      FROM ${users}
+      WHERE NOT EXISTS (SELECT 1 FROM ${memberships} m WHERE m.user_id = ${users.id} AND m.workspace_id = ${workspaceId})`);
+    return (result as unknown as { affectedRows?: number }).affectedRows ?? 0;
+  }
+
   async listForUser(userId: string): Promise<WorkspaceMembership[]> {
     const rows = await this.db
       .select({ workspace: workspaces, membership: memberships })
       .from(memberships)
       .innerJoin(workspaces, eq(memberships.workspaceId, workspaces.id))
       .where(eq(memberships.userId, userId))
-      .orderBy(asc(memberships.createdAt), asc(workspaces.name));
+      // The personal workspace always comes first, then the others (e.g. AEGIS DEMO) by when access was given.
+      .orderBy(sql`${workspaces.kind} = 'personal' DESC`, asc(memberships.createdAt), asc(workspaces.name));
     return rows.map((row) => ({ workspace: Workspace.restore(row.workspace), membership: Membership.restore(row.membership) }));
   }
 }

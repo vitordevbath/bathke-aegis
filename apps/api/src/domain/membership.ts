@@ -1,7 +1,7 @@
 import type { User } from './user.js';
 import type { Workspace } from './workspace.js';
 
-/** Only OWNER has behavior in this phase; the others are reserved for workspace sharing. */
+/** OWNER manages resources; VIEWER only reads (AEGIS DEMO, ADR-052); ADMIN/ANALYST are reserved for workspace sharing. */
 export type MembershipRole = 'OWNER' | 'ADMIN' | 'ANALYST' | 'VIEWER';
 
 export interface MembershipSnapshot {
@@ -22,6 +22,11 @@ export class Membership {
 
   static grantOwner(user: User, workspace: Workspace, now: Date = new Date()): Membership {
     return new Membership(user.id, workspace.id, 'OWNER', now);
+  }
+
+  /** Read-only access, e.g. every account in the AEGIS DEMO workspace (ADR-052). */
+  static grantViewer(user: User, workspace: Workspace, now: Date = new Date()): Membership {
+    return new Membership(user.id, workspace.id, 'VIEWER', now);
   }
 
   static restore(snapshot: MembershipSnapshot): Membership {

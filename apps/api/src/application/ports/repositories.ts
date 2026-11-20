@@ -1,7 +1,7 @@
 import type { Cpf, Email } from '@aegis/domain';
 import type { User } from '../../domain/user.js';
-import type { Workspace } from '../../domain/workspace.js';
-import type { Membership } from '../../domain/membership.js';
+import type { Workspace, WorkspaceKind } from '../../domain/workspace.js';
+import type { Membership, MembershipRole } from '../../domain/membership.js';
 import type { Host } from '../../domain/host.js';
 import type { DetectionRule } from '../../domain/detection-rule.js';
 import type { Incident } from '../../domain/incident.js';
@@ -35,6 +35,8 @@ export interface UserRepository {
 
 export interface WorkspaceRepository {
   insert(workspace: Workspace): Promise<void>;
+  /** The oldest workspace of that kind, if any (used for the single AEGIS DEMO workspace). */
+  findFirstOfKind(kind: WorkspaceKind): Promise<Workspace | null>;
 }
 
 /** A workspace together with the role a given user holds in it. */
@@ -47,7 +49,10 @@ export interface MembershipRepository {
   insert(membership: Membership): Promise<void>;
   /** The user's membership in that workspace, or null if they are not a member. */
   find(userId: string, workspaceId: string): Promise<Membership | null>;
+  /** The personal workspace first, then the others by membership date (ADR-052). */
   listForUser(userId: string): Promise<WorkspaceMembership[]>;
+  /** Gives `role` in the workspace to every user without a membership there; returns how many were added. Idempotent. */
+  grantToUsersWithout(workspaceId: string, role: MembershipRole, now: Date): Promise<number>;
 }
 
 export interface HostListFilter extends PageRequest {

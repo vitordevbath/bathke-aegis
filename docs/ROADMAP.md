@@ -16,7 +16,7 @@
 | 11 | AI Assistance | Resumo/triagem de incidentes via API externa | TODO |
 | 12 | Observability | Métricas, logs estruturados, tracing | TODO |
 | 13 | Hardening | TLS, rate limiting, headers, revisão de segurança | PARTIAL — headers/CSP (BF 00–05), revogação confirmada na transação e rate limit de pareamento persistente (BF 08); TLS no Nginx e limites persistentes nas demais rotas: TODO |
-| 14 | Presentation / Demo | Workspace AEGIS DEMO, demonstração de pareamento em laboratório, roteiro mapeado à rubrica | PARTIAL — roteiro reproduzível Fedora → Collector → API → Web em [LINUX_SETUP.md](LINUX_SETUP.md#aegis-collector--demonstração-no-fedora) (BF 08); site público e painel focado em atenção (BF 08.5, ADR-050); workspace AEGIS DEMO: TODO |
+| 14 | Presentation / Demo | Workspace AEGIS DEMO, demonstração de pareamento em laboratório, roteiro mapeado à rubrica | PARTIAL — roteiro reproduzível Fedora → Collector → API → Web em [LINUX_SETUP.md](LINUX_SETUP.md#aegis-collector--demonstração-no-fedora) (BF 08); site público e painel focado em atenção (BF 08.5, ADR-050); workspace AEGIS DEMO somente leitura, simulado ao vivo, com host real opcional (BF 09, ADR-052) |
 
 ## Primeiro MVP operacional (BF 08)
 
@@ -29,7 +29,7 @@ Fedora → Rust Collector → credencial de máquina → heartbeat + eventos SYS
 histórico, cancelamento de código); Rust Collector; heartbeat; eventos SYSTEM.
 
 **Futuro:** eBPF; eventos PROCESS; eventos NETWORK; execução das Detection Rules; Alerts; correlação
-automática; resposta remota; arquivamento de hosts; workspace AEGIS DEMO; IA.
+automática; resposta remota; arquivamento de hosts; IA.
 
 ## Pendência acadêmica identificada no BF 05.6
 

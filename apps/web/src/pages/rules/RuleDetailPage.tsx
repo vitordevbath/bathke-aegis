@@ -7,11 +7,12 @@ import { RuleStatusBadge } from '../../features/rules/RuleStatusBadge';
 import { SeverityBadge } from '../../components/SeverityBadge';
 import { CATEGORY_LABELS, MATCH_CONNECTOR, MATCH_LABELS, SCOPE_LABELS, describeCondition } from '../../features/rules/rule-labels';
 import { toRequest, useDeleteRule, useRule, useUpdateRule } from '../../features/rules/rules-api';
-import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
 import { ApiError } from '../../lib/api-client';
 import { RuleNotFound } from './RuleNotFound';
 
 export function RuleDetailPage() {
+  const canManage = useCanManage();
   const { ruleId = '' } = useParams();
   const { activeWorkspace } = useWorkspace();
   const navigate = useNavigate();
@@ -127,25 +128,27 @@ export function RuleDetailPage() {
         </div>
       </div>
 
-      <div className="detail-actions">
-        <Link to={`/regras/${data.id}/editar`} className="button">
-          Editar
-        </Link>
-        <button type="button" className="button" disabled={updateRule.isPending} onClick={toggle}>
-          {data.enabled ? 'Desabilitar' : 'Habilitar'}
-        </button>
-        <ConfirmAction
-          triggerLabel="Excluir"
-          title="Excluir esta regra?"
-          description="A regra e a lista de hosts alvo serão removidas. Os hosts continuam cadastrados."
-          confirmLabel="Excluir regra"
-          pendingLabel="Excluindo…"
-          onConfirm={async () => {
-            await deleteRule.mutateAsync();
-            navigate('/regras', { replace: true });
-          }}
-        />
-      </div>
+      {canManage && (
+        <div className="detail-actions">
+          <Link to={`/regras/${data.id}/editar`} className="button">
+            Editar
+          </Link>
+          <button type="button" className="button" disabled={updateRule.isPending} onClick={toggle}>
+            {data.enabled ? 'Desabilitar' : 'Habilitar'}
+          </button>
+          <ConfirmAction
+            triggerLabel="Excluir"
+            title="Excluir esta regra?"
+            description="A regra e a lista de hosts alvo serão removidas. Os hosts continuam cadastrados."
+            confirmLabel="Excluir regra"
+            pendingLabel="Excluindo…"
+            onConfirm={async () => {
+              await deleteRule.mutateAsync();
+              navigate('/regras', { replace: true });
+            }}
+          />
+        </div>
+      )}
       {(updateRule.isError || deleteRule.isError) && (
         <p className="notice notice--error" role="alert">
           {/* 409: the rule is related to incidents — the API message says what to do. */}

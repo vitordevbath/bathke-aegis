@@ -8,7 +8,7 @@ import { IncidentStatusBadge } from '../../features/incidents/IncidentStatusBadg
 import { ORIGIN_LABELS, STATUS_LABELS } from '../../features/incidents/incident-labels';
 import { toStatusRequest, useDeleteIncident, useIncident, useUpdateIncident } from '../../features/incidents/incidents-api';
 import { RuleStatusBadge } from '../../features/rules/RuleStatusBadge';
-import { useWorkspace } from '../../features/workspaces/WorkspaceContext';
+import { useCanManage, useWorkspace } from '../../features/workspaces/WorkspaceContext';
 import { ApiError } from '../../lib/api-client';
 import { IncidentNotFound } from './IncidentNotFound';
 
@@ -17,6 +17,7 @@ const messageOf = (error: unknown, fallback: string) =>
   error instanceof ApiError && error.status >= 400 && error.status < 500 && error.code !== 'UNKNOWN' ? error.message : fallback;
 
 export function IncidentDetailPage() {
+  const canManage = useCanManage();
   const { incidentId = '' } = useParams();
   const { activeWorkspace } = useWorkspace();
   const navigate = useNavigate();
@@ -157,24 +158,26 @@ export function IncidentDetailPage() {
         </div>
       </div>
 
-      <div className="detail-actions">
-        {!closed && (
-          <Link to={`/incidentes/${data.id}/editar`} className="button">
-            Editar
-          </Link>
-        )}
-        <ConfirmAction
-          triggerLabel="Excluir"
-          title="Excluir este incidente?"
-          description="Nesta etapa o registro é removido definitivamente, junto com as relações com hosts e regras. Hosts e regras continuam cadastrados."
-          confirmLabel="Excluir incidente"
-          pendingLabel="Excluindo…"
-          onConfirm={async () => {
-            await deleteIncident.mutateAsync();
-            navigate('/incidentes', { replace: true });
-          }}
-        />
-      </div>
+      {canManage && (
+        <div className="detail-actions">
+          {!closed && (
+            <Link to={`/incidentes/${data.id}/editar`} className="button">
+              Editar
+            </Link>
+          )}
+          <ConfirmAction
+            triggerLabel="Excluir"
+            title="Excluir este incidente?"
+            description="Nesta etapa o registro é removido definitivamente, junto com as relações com hosts e regras. Hosts e regras continuam cadastrados."
+            confirmLabel="Excluir incidente"
+            pendingLabel="Excluindo…"
+            onConfirm={async () => {
+              await deleteIncident.mutateAsync();
+              navigate('/incidentes', { replace: true });
+            }}
+          />
+        </div>
+      )}
       {deleteIncident.isError && (
         <p className="notice notice--error" role="alert">
           {messageOf(deleteIncident.error, 'Não foi possível excluir o incidente agora. Tente novamente.')}
