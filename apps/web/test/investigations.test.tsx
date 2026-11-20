@@ -372,15 +372,16 @@ describe('investigations elsewhere in the app', () => {
       [`GET /api/workspaces/${WS}/hosts`]: () => page([], { total: 0 }),
       [`GET /api/workspaces/${WS}/detection-rules`]: () => page([], { total: 0 }),
       [`GET ${INCIDENTS}`]: () => page([], { total: 0 }),
-      [`GET ${INVESTIGATIONS}`]: () => page([summary(investigation(1))], { total: 4, pageSize: 1, totalPages: 4 }),
+      [`GET ${INVESTIGATIONS}`]: (_body, url) =>
+        url.searchParams.get('status') === 'OPEN' ? page([summary(investigation(1))], { total: 4, pageSize: 1, totalPages: 4 }) : page([], { total: 1 }),
     });
     renderApp('/dashboard');
 
     const nav = await screen.findByRole('navigation', { name: 'Principal' });
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Painel', 'Hosts', 'Eventos', 'Regras', 'Incidentes', 'Investigações', 'Perfil']);
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Painel', 'Hosts', 'Eventos', 'Regras', 'Incidentes', 'Investigações']);
     expect(within(nav).getByRole('link', { name: 'Investigações' }).getAttribute('href')).toBe('/investigacoes');
-    const card = screen.getByText('Investigações', { selector: '.metric__label' }).closest('.metric');
-    await waitFor(() => expect(card?.textContent).toContain('4'));
+    const card = screen.getByText('Investigações ativas', { selector: '.metric__label' }).closest('.metric');
+    await waitFor(() => expect(card?.textContent).toContain('5'));
   });
 
   it('explains the 409 when deleting an incident grouped by an investigation', async () => {

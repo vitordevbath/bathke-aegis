@@ -231,3 +231,9 @@
 **Decisão:** refina o ADR-006. `native/aegis-collector` passa a CURRENT e tem jobs próprios no CI: `rust` (`cargo fmt --check`, `clippy -D warnings`, `test`, `build --release`, artefato) e `collector-e2e` (o binário desse job contra a stack Compose isolada, com verificação de layout em Chrome headless). Os jobs `typescript` e `infrastructure` não dependem de Rust; as imagens Docker do Core excluem `native/` (`.dockerignore`). O Collector é executado explicitamente pelo usuário, em primeiro plano; não há instalador, serviço systemd ou persistência automática.
 **Motivo:** o fluxo Fedora → Collector → API → Web é o MVP operacional e precisa de prova contínua com o binário real; o Core continua construível e testável sem toolchain nativa.
 **Consequência:** eBPF, SPARK e NASM seguem como Aegis Labs, fora do CI principal.
+
+## ADR-050 — Site público com WebGL próprio, carregado sob demanda
+**Decisão:** aplica o ADR-015. O hero do site público desenha curvas de nível de um campo de ruído num shader WebGL 2 escrito no projeto (`apps/web/src/features/landing/`), sem Three.js: um triângulo de tela cheia e um fragment shader. O canvas é decorativo (`aria-hidden`), pausa fora da tela ou em aba oculta, limita a densidade de pixels a 1,5, renderiza um quadro parado com `prefers-reduced-motion` e, sem WebGL 2, a página mantém um fundo em CSS. O movimento ligado ao scroll escreve variáveis CSS via CSSOM (permitido pela CSP `style-src 'self'`). A rota `/` é carregada sob demanda, com CSS próprio (`landing.css`). A tipografia Geist (`@fontsource-variable/geist`, `geist-mono`) é servida pelo próprio app, porque a CSP bloqueia fontes externas.
+**Motivo:** um conceito visual único e leve, sem dependência 3D para uma única cena; o painel continua sem custo de WebGL.
+**Consequência:** o bundle do painel não inclui o código nem o CSS do site público. Visualizações 3D de dados reais, se vierem, reavaliam o uso de uma biblioteca.
+

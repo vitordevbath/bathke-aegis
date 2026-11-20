@@ -182,16 +182,24 @@ movimento e efeitos (ADR-015).
 Acabamento visual de produto moderno e preciso — referência de **nível** de
 qualidade semelhante à Linear, sem copiar sua identidade.
 
-Planejado: React, TypeScript, WebGL, Three.js / React Three Fiber se fizer sentido,
-animações e transições com função, profundidade, tipografia forte, visualização de
-rede/hosts, identidade Aegis própria.
+Implementado (BF 08.5, ADR-050): campo topográfico em WebGL 2 próprio (sem Three.js),
+com uma lente que segue o cursor; tipografia Geist empacotada localmente; prévia do
+painel que "assenta" com o scroll; fluxo Parear → Observar → Entregar → Investigar
+guiado pelo scroll; a lista do que o Aegis não coleta; e uma seção que separa o que
+funciona hoje do que está em construção. Respeita `prefers-reduced-motion`, a CSP
+estrita e carrega sob demanda, fora do bundle do painel.
+
+Planejado: visualização de rede/hosts com dados reais.
 
 ### Aplicação autenticada
 
 Mais contida. Prioridades: legibilidade, densidade de informação, desempenho,
 hierarquia, navegação rápida, grafos, timelines, tabelas e estados claros.
 Animações apenas quando apoiam o entendimento — o dashboard operacional não é uma
-página de vitrine.
+página de vitrine. No BF 08.5: o painel começa pelo que precisa de atenção
+(incidentes ativos por severidade, hosts sem comunicação, eventos recentes, estado
+real do Collector), o perfil fica no botão de conta e a troca de tela usa um
+crossfade curto (View Transitions API, onde houver suporte).
 
 ### Evitar (ambas)
 

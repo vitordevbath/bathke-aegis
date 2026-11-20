@@ -76,8 +76,7 @@ describe('events list (read-only)', () => {
     renderApp('/eventos');
 
     expect(await screen.findByText('Nenhum evento recebido.')).toBeTruthy();
-    expect(screen.getByText(/Eventos aparecerão aqui quando telemetria for enviada ao Aegis/)).toBeTruthy();
-    expect(screen.getByText(/Nenhum Collector está pareado ainda/)).toBeTruthy();
+    expect(screen.getByText(/quando um Collector pareado envia telemetria/)).toBeTruthy();
     expect(screen.queryByRole('link', { name: /Novo/ })).toBeNull();
     expect(screen.queryByText(/ativo|online/i)).toBeNull();
   });
@@ -220,7 +219,7 @@ describe('events elsewhere in the app', () => {
     renderApp('/dashboard');
 
     const nav = await screen.findByRole('navigation', { name: 'Principal' });
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Painel', 'Hosts', 'Eventos', 'Regras', 'Incidentes', 'Investigações', 'Perfil']);
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Painel', 'Hosts', 'Eventos', 'Regras', 'Incidentes', 'Investigações']);
     const card = screen.getByText('Eventos armazenados').closest('.metric');
     await waitFor(() => expect(card?.textContent).toContain('1234'));
     expect(screen.queryByText(/por minuto/i)).toBeNull();

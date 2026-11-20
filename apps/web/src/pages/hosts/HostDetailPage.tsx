@@ -32,7 +32,7 @@ export function HostDetailPage() {
   const data = host.data;
 
   return (
-    <main className="content content--narrow">
+    <main className="content content--wide">
       <nav aria-label="Trilha" className="breadcrumb">
         <Link to="/hosts">Hosts</Link>
         <span aria-hidden="true">/</span>
@@ -53,29 +53,34 @@ export function HostDetailPage() {
         </p>
       )}
 
-      {activeWorkspace && <HostCollectorSummary workspaceId={activeWorkspace.id} host={data} />}
+      <div className="detail-grid">
+        <div className="detail-grid__main">
+          {activeWorkspace && <HostCollectorSummary workspaceId={activeWorkspace.id} host={data} />}
 
-      {activeWorkspace && <HostPairingPanel workspaceId={activeWorkspace.id} hostId={data.id} canManage={activeWorkspace.role === 'OWNER'} />}
-
-      <section className="surface" aria-labelledby="record-title">
-        <h2 id="record-title" className="section-title">
-          Cadastro
-        </h2>
-        <dl className="facts">
-          <div>
-            <dt>Workspace</dt>
-            <dd>{activeWorkspace?.name}</dd>
-          </div>
-          <div>
-            <dt>Criado em</dt>
-            <dd>{formatDateTime(data.createdAt)}</dd>
-          </div>
-          <div>
-            <dt>Atualizado em</dt>
-            <dd>{formatDateTime(data.updatedAt)}</dd>
-          </div>
-        </dl>
-      </section>
+          <section className="surface" aria-labelledby="record-title">
+            <h2 id="record-title" className="section-title">
+              Cadastro
+            </h2>
+            <dl className="facts">
+              <div>
+                <dt>Workspace</dt>
+                <dd>{activeWorkspace?.name}</dd>
+              </div>
+              <div>
+                <dt>Criado em</dt>
+                <dd>{formatDateTime(data.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>Atualizado em</dt>
+                <dd>{formatDateTime(data.updatedAt)}</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+        <div className="detail-grid__side">
+          {activeWorkspace && <HostPairingPanel workspaceId={activeWorkspace.id} hostId={data.id} canManage={activeWorkspace.role === 'OWNER'} />}
+        </div>
+      </div>
 
       <div className="detail-actions">
         <Link to={`/hosts/${data.id}/editar`} className="button">

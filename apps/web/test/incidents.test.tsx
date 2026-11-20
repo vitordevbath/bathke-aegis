@@ -361,13 +361,15 @@ describe('incidents elsewhere in the app', () => {
       ...signedIn(),
       [`GET ${HOSTS}`]: () => page([], { total: 0 }),
       [`GET ${RULES}`]: () => page([], { total: 0 }),
-      [`GET ${INCIDENTS}`]: () => page([summary(incident(1))], { total: 3, pageSize: 1, totalPages: 3 }),
+      // Active = OPEN + INVESTIGATING, each counted by its own query.
+      [`GET ${INCIDENTS}`]: (_body, url) =>
+        url.searchParams.get('status') === 'OPEN' ? page([summary(incident(1))], { total: 3, totalPages: 1 }) : page([], { total: 2 }),
     });
     renderApp('/dashboard');
 
     expect((await screen.findByRole('link', { name: 'Incidentes' })).getAttribute('href')).toBe('/incidentes');
-    const card = (await screen.findByText('Incidentes registrados')).closest('.metric');
-    await waitFor(() => expect(card?.textContent).toContain('3'));
+    const card = (await screen.findByText('Incidentes ativos')).closest('.metric');
+    await waitFor(() => expect(card?.textContent).toContain('5'));
   });
 
   it('explains the 409 when deleting a rule related to an incident', async () => {

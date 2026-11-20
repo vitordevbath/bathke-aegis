@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { AUTH_TOKEN_KEY } from '../src/lib/auth-storage';
 import { FAKE_TOKEN, ME, mockApi, renderApp, requestBody } from './render-app';
 
@@ -21,8 +21,7 @@ describe('protected routes', () => {
     renderApp('/dashboard');
 
     expect(await screen.findByRole('heading', { name: 'Olá, Ana' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Workspace de Ana Teste' })).toBeTruthy();
-    expect(screen.getByText('Proprietário')).toBeTruthy();
+    expect(screen.getByText('Workspace de Ana Teste · Pessoal · Proprietário')).toBeTruthy();
     const [, init] = fetchMock.mock.calls.find(([url]) => url === '/api/users/me') ?? [];
     expect((init?.headers as Record<string, string>)['Authorization']).toBe(`Bearer ${FAKE_TOKEN}`);
   });
@@ -179,7 +178,8 @@ describe('profile', () => {
     const body = requestBody(fetchMock, 'PUT', '/api/users/me') as Record<string, unknown>;
     expect(body).not.toHaveProperty('email');
     expect(body).toMatchObject({ name: 'Ana Atualizada', cpf: '123.456.789-09' });
-    await waitFor(() => expect(screen.getAllByText('Ana Atualizada').length).toBeGreaterThan(0));
+    // The header reflects the new name (account button label) without a reload.
+    expect(await screen.findByRole('link', { name: 'Perfil de Ana Atualizada' })).toBeTruthy();
   });
 
   it('requires the current password and a matching confirmation to change the password', async () => {

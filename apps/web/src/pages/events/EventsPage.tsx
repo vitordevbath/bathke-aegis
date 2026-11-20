@@ -47,9 +47,9 @@ export function EventsPage() {
       </header>
 
       <div className="toolbar">
-        <div className="filters">
+        <div className="filters filters--bar">
           <label className="filter">
-            <span className="visually-hidden">Host</span>
+            <span className="filter__label">Host</span>
             <select value={state.hostId ?? ''} onChange={(event) => update({ hostId: event.target.value || undefined })}>
               <option value="">Todos os hosts</option>
               {(hosts.data?.items ?? []).map((host) => (
@@ -60,7 +60,7 @@ export function EventsPage() {
             </select>
           </label>
           <label className="filter">
-            <span className="visually-hidden">Categoria</span>
+            <span className="filter__label">Categoria</span>
             <select
               value={state.category ?? ''}
               onChange={(event) => update({ category: (event.target.value || undefined) as EventListUrlState['category'], eventType: undefined })}
@@ -74,7 +74,7 @@ export function EventsPage() {
             </select>
           </label>
           <label className="filter">
-            <span className="visually-hidden">Tipo</span>
+            <span className="filter__label">Tipo</span>
             <select value={state.eventType ?? ''} onChange={(event) => update({ eventType: (event.target.value || undefined) as EventListUrlState['eventType'] })}>
               <option value="">Todos os tipos</option>
               {types.map((type) => (
@@ -85,11 +85,11 @@ export function EventsPage() {
             </select>
           </label>
           <label className="filter filter--date">
-            <span>De</span>
+            <span className="filter__label">De</span>
             <input type="datetime-local" value={state.from} onChange={(event) => update({ from: event.target.value })} />
           </label>
           <label className="filter filter--date">
-            <span>Até</span>
+            <span className="filter__label">Até</span>
             <input type="datetime-local" value={state.to} onChange={(event) => update({ to: event.target.value })} />
           </label>
           {filtered && (
@@ -115,7 +115,7 @@ export function EventsPage() {
       {data && total === 0 && !filtered && (
         <EmptyState
           title="Nenhum evento recebido."
-          description="Eventos aparecerão aqui quando telemetria for enviada ao Aegis. Nenhum Collector está pareado ainda; nesta etapa, eventos só chegam pela API de ingestão de laboratório."
+          description="Os eventos aparecem aqui quando um Collector pareado envia telemetria. Pareie um host na tela de Hosts e execute o Collector nele."
         />
       )}
       {data && total === 0 && filtered && <EmptyState title="Nenhum evento encontrado." description="Ajuste os filtros." />}

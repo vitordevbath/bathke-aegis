@@ -19,7 +19,7 @@ export const ARCHITECTURE: readonly ArchitectureComponent[] = [
     path: 'apps/web',
     status: 'CURRENT',
     summary:
-      'React + TypeScript + Vite SPA: login/cadastro, /dashboard, /perfil, CRUD screens for /hosts, /regras, /incidentes, /investigacoes, read-only /eventos; host detail shows Collector communication state, last heartbeat, events received, pairing code (generate/cancel), credential rotation/revocation and credential history',
+      'React + TypeScript + Vite SPA: public site at / (own WebGL 2 contour field, lazily loaded chunk, ADR-050), login/cadastro, attention-first /dashboard (active incidents by severity, hosts without communication, recent events, Collector state derived from heartbeats), /perfil via the account button, CRUD screens for /hosts, /regras, /incidentes, /investigacoes, read-only /eventos; host detail shows Collector communication state, last heartbeat, events received, pairing code (generate/cancel), credential rotation/revocation and credential history',
   },
   {
     name: 'Aegis API',
