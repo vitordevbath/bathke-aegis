@@ -36,7 +36,7 @@ export function RuleDetailPage() {
   const toggle = () => updateRule.mutate(toRequest(data, { enabled: !data.enabled }));
 
   return (
-    <main className="content content--narrow">
+    <main className="content content--wide">
       <nav aria-label="Trilha" className="breadcrumb">
         <Link to="/regras">Regras</Link>
         <span aria-hidden="true">/</span>
@@ -61,67 +61,71 @@ export function RuleDetailPage() {
       )}
       <EngineNotice />
 
-      <section className="surface" aria-labelledby="conditions-title">
-        <h2 id="conditions-title" className="section-title">
-          Condições · {MATCH_LABELS[data.definition.match]}
-        </h2>
-        <ol className="condition-summary">
-          {data.definition.conditions.map((condition, index) => (
-            <li key={`${condition.field}-${index}`}>
-              <span className="condition__connector" aria-hidden="true">
-                {index === 0 ? 'SE' : MATCH_CONNECTOR[data.definition.match]}
-              </span>
-              {describeCondition(condition)}
-            </li>
-          ))}
-        </ol>
-        <details className="definition-preview">
-          <summary>Visualizar definição</summary>
-          <pre>{JSON.stringify(data.definition, null, 2)}</pre>
-        </details>
-      </section>
-
-      <section className="surface" aria-labelledby="scope-title">
-        <h2 id="scope-title" className="section-title">
-          Escopo · {SCOPE_LABELS[data.scope]}
-        </h2>
-        {data.scope === 'ALL_HOSTS' ? (
-          <p className="muted small">Vale para todos os hosts deste workspace.</p>
-        ) : (
-          <ul className="target-summary">
-            {data.targets.map((target) => (
-              <li key={target.hostId}>
-                <Link to={`/hosts/${target.hostId}`}>{target.displayName}</Link>
-                <HostStatusBadge state={target.connectionState} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="surface" aria-labelledby="meta-title">
-        <h2 id="meta-title" className="section-title">
-          Cadastro
-        </h2>
-        <dl className="facts">
-          <div>
-            <dt>Categoria</dt>
-            <dd>{CATEGORY_LABELS[data.eventCategory]}</dd>
-          </div>
-          <div>
-            <dt>Versão da definição</dt>
-            <dd>v{data.definition.version}</dd>
-          </div>
-          <div>
-            <dt>Criada em</dt>
-            <dd>{formatDateTime(data.createdAt)}</dd>
-          </div>
-          <div>
-            <dt>Atualizada em</dt>
-            <dd>{formatDateTime(data.updatedAt)}</dd>
-          </div>
-        </dl>
-      </section>
+      <div className="detail-grid">
+        <div className="detail-grid__main">
+          <section className="surface" aria-labelledby="conditions-title">
+            <h2 id="conditions-title" className="section-title">
+              Condições · {MATCH_LABELS[data.definition.match]}
+            </h2>
+            <ol className="condition-summary">
+              {data.definition.conditions.map((condition, index) => (
+                <li key={`${condition.field}-${index}`}>
+                  <span className="condition__connector" aria-hidden="true">
+                    {index === 0 ? 'SE' : MATCH_CONNECTOR[data.definition.match]}
+                  </span>
+                  {describeCondition(condition)}
+                </li>
+              ))}
+            </ol>
+            <details className="definition-preview">
+              <summary>Visualizar definição</summary>
+              <pre>{JSON.stringify(data.definition, null, 2)}</pre>
+            </details>
+          </section>
+        </div>
+        <div className="detail-grid__side">
+          <section className="surface" aria-labelledby="scope-title">
+            <h2 id="scope-title" className="section-title">
+              Escopo · {SCOPE_LABELS[data.scope]}
+            </h2>
+            {data.scope === 'ALL_HOSTS' ? (
+              <p className="muted small">Vale para todos os hosts deste workspace.</p>
+            ) : (
+              <ul className="target-summary">
+                {data.targets.map((target) => (
+                  <li key={target.hostId}>
+                    <Link to={`/hosts/${target.hostId}`}>{target.displayName}</Link>
+                    <HostStatusBadge state={target.connectionState} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section className="surface" aria-labelledby="meta-title">
+            <h2 id="meta-title" className="section-title">
+              Cadastro
+            </h2>
+            <dl className="facts">
+              <div>
+                <dt>Categoria</dt>
+                <dd>{CATEGORY_LABELS[data.eventCategory]}</dd>
+              </div>
+              <div>
+                <dt>Versão da definição</dt>
+                <dd>v{data.definition.version}</dd>
+              </div>
+              <div>
+                <dt>Criada em</dt>
+                <dd>{formatDateTime(data.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>Atualizada em</dt>
+                <dd>{formatDateTime(data.updatedAt)}</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      </div>
 
       <div className="detail-actions">
         <Link to={`/regras/${data.id}/editar`} className="button">

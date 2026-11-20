@@ -41,7 +41,7 @@ export function IncidentDetailPage() {
   const closed = data.status === 'CLOSED';
 
   return (
-    <main className="content content--narrow">
+    <main className="content content--wide">
       <nav aria-label="Trilha" className="breadcrumb">
         <Link to="/incidentes">Incidentes</Link>
         <span aria-hidden="true">/</span>
@@ -65,95 +65,97 @@ export function IncidentDetailPage() {
         </p>
       )}
 
-      <section className="surface rule-section" aria-labelledby="lifecycle-title">
-        <h2 id="lifecycle-title" className="section-title">
-          Status · {STATUS_LABELS[data.status]}
-        </h2>
-        {closed ? (
-          <p className="muted small">Encerrado é definitivo: o incidente fica somente leitura.</p>
-        ) : (
-          <IncidentLifecycleActions
-            status={data.status}
-            available={data.availableTransitions}
-            pending={updateIncident.isPending}
-            onTransition={(status) => updateIncident.mutate(toStatusRequest(data, status))}
-          />
-        )}
-        {updateIncident.isError && (
-          <p className="notice notice--error" role="alert">
-            {messageOf(updateIncident.error, 'Não foi possível alterar o status agora. Tente novamente.')}
-          </p>
-        )}
-      </section>
-
-      <section className="surface" aria-labelledby="description-title">
-        <h2 id="description-title" className="section-title">
-          Descrição
-        </h2>
-        {data.description ? <p className="plain-text">{data.description}</p> : <p className="muted small">Sem descrição.</p>}
-      </section>
-
-      <section className="surface" aria-labelledby="hosts-title">
-        <h2 id="hosts-title" className="section-title">
-          Hosts envolvidos · {data.hostCount}
-        </h2>
-        <ul className="target-summary">
-          {data.hosts.map((host) => (
-            <li key={host.hostId}>
-              <Link to={`/hosts/${host.hostId}`}>{host.displayName}</Link>
-              <HostStatusBadge state={host.connectionState} />
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="surface" aria-labelledby="rules-title">
-        <h2 id="rules-title" className="section-title">
-          Regras relacionadas · {data.ruleCount}
-        </h2>
-        {data.detectionRules.length === 0 ? (
-          <p className="muted small">Nenhuma regra relacionada.</p>
-        ) : (
-          <ul className="target-summary">
-            {data.detectionRules.map((rule) => (
-              <li key={rule.ruleId}>
-                <Link to={`/regras/${rule.ruleId}`}>{rule.name}</Link>
-                <span className="badges">
-                  <SeverityBadge severity={rule.severity} />
-                  <RuleStatusBadge enabled={rule.enabled} />
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="muted small">Relação registrada manualmente; regras ainda não são executadas.</p>
-      </section>
-
-      <section className="surface" aria-labelledby="record-title">
-        <h2 id="record-title" className="section-title">
-          Registro
-        </h2>
-        <dl className="facts">
-          <div>
-            <dt>Origem</dt>
-            <dd>{ORIGIN_LABELS[data.origin]}</dd>
-          </div>
-          <div>
-            <dt>Criado em</dt>
-            <dd>{formatDateTime(data.createdAt)}</dd>
-          </div>
-          <div>
-            <dt>Atualizado em</dt>
-            <dd>{formatDateTime(data.updatedAt)}</dd>
-          </div>
-          {data.resolvedAt && (
-            <div>
-              <dt>Resolvido em</dt>
-              <dd>{formatDateTime(data.resolvedAt)}</dd>
-            </div>
-          )}
-        </dl>
-      </section>
+      <div className="detail-grid">
+        <div className="detail-grid__main">
+          <section className="surface rule-section" aria-labelledby="lifecycle-title">
+            <h2 id="lifecycle-title" className="section-title">
+              Status · {STATUS_LABELS[data.status]}
+            </h2>
+            {closed ? (
+              <p className="muted small">Encerrado é definitivo: o incidente fica somente leitura.</p>
+            ) : (
+              <IncidentLifecycleActions
+                status={data.status}
+                available={data.availableTransitions}
+                pending={updateIncident.isPending}
+                onTransition={(status) => updateIncident.mutate(toStatusRequest(data, status))}
+              />
+            )}
+            {updateIncident.isError && (
+              <p className="notice notice--error" role="alert">
+                {messageOf(updateIncident.error, 'Não foi possível alterar o status agora. Tente novamente.')}
+              </p>
+            )}
+          </section>
+          <section className="surface" aria-labelledby="description-title">
+            <h2 id="description-title" className="section-title">
+              Descrição
+            </h2>
+            {data.description ? <p className="plain-text">{data.description}</p> : <p className="muted small">Sem descrição.</p>}
+          </section>
+        </div>
+        <div className="detail-grid__side">
+          <section className="surface" aria-labelledby="hosts-title">
+            <h2 id="hosts-title" className="section-title">
+              Hosts envolvidos · {data.hostCount}
+            </h2>
+            <ul className="target-summary">
+              {data.hosts.map((host) => (
+                <li key={host.hostId}>
+                  <Link to={`/hosts/${host.hostId}`}>{host.displayName}</Link>
+                  <HostStatusBadge state={host.connectionState} />
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="surface" aria-labelledby="rules-title">
+            <h2 id="rules-title" className="section-title">
+              Regras relacionadas · {data.ruleCount}
+            </h2>
+            {data.detectionRules.length === 0 ? (
+              <p className="muted small">Nenhuma regra relacionada.</p>
+            ) : (
+              <ul className="target-summary">
+                {data.detectionRules.map((rule) => (
+                  <li key={rule.ruleId}>
+                    <Link to={`/regras/${rule.ruleId}`}>{rule.name}</Link>
+                    <span className="badges">
+                      <SeverityBadge severity={rule.severity} />
+                      <RuleStatusBadge enabled={rule.enabled} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="muted small">Relação registrada manualmente; regras ainda não são executadas.</p>
+          </section>
+          <section className="surface" aria-labelledby="record-title">
+            <h2 id="record-title" className="section-title">
+              Registro
+            </h2>
+            <dl className="facts">
+              <div>
+                <dt>Origem</dt>
+                <dd>{ORIGIN_LABELS[data.origin]}</dd>
+              </div>
+              <div>
+                <dt>Criado em</dt>
+                <dd>{formatDateTime(data.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>Atualizado em</dt>
+                <dd>{formatDateTime(data.updatedAt)}</dd>
+              </div>
+              {data.resolvedAt && (
+                <div>
+                  <dt>Resolvido em</dt>
+                  <dd>{formatDateTime(data.resolvedAt)}</dd>
+                </div>
+              )}
+            </dl>
+          </section>
+        </div>
+      </div>
 
       <div className="detail-actions">
         {!closed && (

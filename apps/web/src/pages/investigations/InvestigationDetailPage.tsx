@@ -40,7 +40,7 @@ export function InvestigationDetailPage() {
   const closed = data.status === 'CLOSED';
 
   return (
-    <main className="content content--narrow">
+    <main className="content content--wide">
       <nav aria-label="Trilha" className="breadcrumb">
         <Link to="/investigacoes">Investigações</Link>
         <span aria-hidden="true">/</span>
@@ -58,81 +58,83 @@ export function InvestigationDetailPage() {
         </p>
       )}
 
-      <section className="surface rule-section" aria-labelledby="lifecycle-title">
-        <h2 id="lifecycle-title" className="section-title">
-          Status · {STATUS_LABELS[data.status]}
-        </h2>
-        {closed ? (
-          <p className="muted small">Encerrada é definitivo: a investigação fica somente leitura.</p>
-        ) : (
-          <InvestigationLifecycleActions
-            // Remount after each save so the closing panel starts from the stored draft.
-            key={data.updatedAt}
-            available={data.availableTransitions}
-            conclusion={data.conclusion}
-            pending={updateInvestigation.isPending}
-            onTransition={(status, conclusion) => updateInvestigation.mutate(toStatusRequest(data, status, conclusion ?? data.conclusion))}
-          />
-        )}
-        {updateInvestigation.isError && (
-          <p className="notice notice--error" role="alert">
-            {messageOf(updateInvestigation.error, 'Não foi possível alterar o status agora. Tente novamente.')}
-          </p>
-        )}
-      </section>
-
-      <section className="surface" aria-labelledby="description-title">
-        <h2 id="description-title" className="section-title">
-          Descrição
-        </h2>
-        {data.description ? <p className="plain-text">{data.description}</p> : <p className="muted small">Sem descrição.</p>}
-      </section>
-
-      <section className="surface" aria-labelledby="incidents-title">
-        <h2 id="incidents-title" className="section-title">
-          Incidentes relacionados · {data.incidentCount}
-        </h2>
-        <ul className="target-summary">
-          {data.incidents.map((incident) => (
-            <li key={incident.incidentId}>
-              <Link to={`/incidentes/${incident.incidentId}`}>{incident.title}</Link>
-              <span className="badges">
-                <SeverityBadge severity={incident.severity} />
-                <IncidentStatusBadge status={incident.status} />
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="surface" aria-labelledby="conclusion-title">
-        <h2 id="conclusion-title" className="section-title">
-          {closed ? 'Conclusão' : 'Conclusão preliminar'}
-        </h2>
-        {data.conclusion ? <p className="plain-text">{data.conclusion}</p> : <p className="muted small">Ainda não definida.</p>}
-      </section>
-
-      <section className="surface" aria-labelledby="record-title">
-        <h2 id="record-title" className="section-title">
-          Registro
-        </h2>
-        <dl className="facts">
-          <div>
-            <dt>Criada em</dt>
-            <dd>{formatDateTime(data.createdAt)}</dd>
-          </div>
-          <div>
-            <dt>Atualizada em</dt>
-            <dd>{formatDateTime(data.updatedAt)}</dd>
-          </div>
-          {data.closedAt && (
-            <div>
-              <dt>Encerrada em</dt>
-              <dd>{formatDateTime(data.closedAt)}</dd>
-            </div>
-          )}
-        </dl>
-      </section>
+      <div className="detail-grid">
+        <div className="detail-grid__main">
+          <section className="surface rule-section" aria-labelledby="lifecycle-title">
+            <h2 id="lifecycle-title" className="section-title">
+              Status · {STATUS_LABELS[data.status]}
+            </h2>
+            {closed ? (
+              <p className="muted small">Encerrada é definitivo: a investigação fica somente leitura.</p>
+            ) : (
+              <InvestigationLifecycleActions
+                // Remount after each save so the closing panel starts from the stored draft.
+                key={data.updatedAt}
+                available={data.availableTransitions}
+                conclusion={data.conclusion}
+                pending={updateInvestigation.isPending}
+                onTransition={(status, conclusion) => updateInvestigation.mutate(toStatusRequest(data, status, conclusion ?? data.conclusion))}
+              />
+            )}
+            {updateInvestigation.isError && (
+              <p className="notice notice--error" role="alert">
+                {messageOf(updateInvestigation.error, 'Não foi possível alterar o status agora. Tente novamente.')}
+              </p>
+            )}
+          </section>
+          <section className="surface" aria-labelledby="description-title">
+            <h2 id="description-title" className="section-title">
+              Descrição
+            </h2>
+            {data.description ? <p className="plain-text">{data.description}</p> : <p className="muted small">Sem descrição.</p>}
+          </section>
+          <section className="surface" aria-labelledby="conclusion-title">
+            <h2 id="conclusion-title" className="section-title">
+              {closed ? 'Conclusão' : 'Conclusão preliminar'}
+            </h2>
+            {data.conclusion ? <p className="plain-text">{data.conclusion}</p> : <p className="muted small">Ainda não definida.</p>}
+          </section>
+        </div>
+        <div className="detail-grid__side">
+          <section className="surface" aria-labelledby="incidents-title">
+            <h2 id="incidents-title" className="section-title">
+              Incidentes relacionados · {data.incidentCount}
+            </h2>
+            <ul className="target-summary">
+              {data.incidents.map((incident) => (
+                <li key={incident.incidentId}>
+                  <Link to={`/incidentes/${incident.incidentId}`}>{incident.title}</Link>
+                  <span className="badges">
+                    <SeverityBadge severity={incident.severity} />
+                    <IncidentStatusBadge status={incident.status} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="surface" aria-labelledby="record-title">
+            <h2 id="record-title" className="section-title">
+              Registro
+            </h2>
+            <dl className="facts">
+              <div>
+                <dt>Criada em</dt>
+                <dd>{formatDateTime(data.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>Atualizada em</dt>
+                <dd>{formatDateTime(data.updatedAt)}</dd>
+              </div>
+              {data.closedAt && (
+                <div>
+                  <dt>Encerrada em</dt>
+                  <dd>{formatDateTime(data.closedAt)}</dd>
+                </div>
+              )}
+            </dl>
+          </section>
+        </div>
+      </div>
 
       <div className="detail-actions">
         {!closed && (
