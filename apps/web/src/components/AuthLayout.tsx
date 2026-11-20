@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Brand } from './Brand';
+import { StudioMark } from './StudioMark';
 import { SignalField } from '../features/landing/SignalField';
 import '../styles/auth.css';
 
@@ -29,6 +30,7 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
           <p className="auth2__footer">{footer}</p>
         </section>
         <p className="auth2__legal">Use apenas em máquinas próprias ou explicitamente autorizadas.</p>
+        <StudioMark floating />
       </div>
       <aside className="auth2__art" aria-hidden="true">
         <SignalField scroll={still} />
