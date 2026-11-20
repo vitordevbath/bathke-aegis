@@ -85,6 +85,13 @@
       "when": 1794766148816,
       "tag": "0011_rate_limit_counters",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1795093284843,
+      "tag": "0012_alerts",
+      "breakpoints": true
     }
   ]
 }

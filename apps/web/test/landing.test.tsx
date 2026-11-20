@@ -43,7 +43,9 @@ describe('public site', () => {
     const status = screen.getByRole('heading', { name: /O que funciona hoje/ }).closest('section') as HTMLElement;
     const planned = within(status).getByRole('heading', { name: 'Em construção' }).parentElement as HTMLElement;
     expect(within(planned).getByText(/eBPF/)).toBeTruthy();
-    expect(within(planned).getByText(/Motor que executa as regras/)).toBeTruthy();
+    expect(within(planned).getByText(/Ada\/SPARK/)).toBeTruthy();
+    const works = within(status).getByRole('heading', { name: 'Funciona hoje' }).parentElement as HTMLElement;
+    expect(within(works).getByText(/Motor de detecção/)).toBeTruthy();
     // The WebGL backdrop is decorative and absent without WebGL (jsdom): the page still reads in full.
     expect(document.querySelector('canvas.signal-field')?.getAttribute('aria-hidden')).toBe('true');
   });

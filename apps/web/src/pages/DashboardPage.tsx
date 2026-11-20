@@ -13,6 +13,7 @@ import { useIncidentList } from '../features/incidents/incidents-api';
 import { IncidentStatusBadge } from '../features/incidents/IncidentStatusBadge';
 import { useInvestigationList } from '../features/investigations/investigations-api';
 import { useEventList } from '../features/events/events-api';
+import { useAlertList } from '../features/alerts/alerts-api';
 import { useRuleList } from '../features/rules/rules-api';
 import { TYPE_LABELS } from '../features/events/event-labels';
 import { ROLE_LABELS, WORKSPACE_KIND_LABELS } from '../features/auth/labels';
@@ -50,6 +51,9 @@ export function DashboardPage() {
   // first MAX_PAGE_SIZE hosts, which covers the personal and laboratory workspaces of this phase.
   const hosts = useHostList(workspaceId, { page: 1, pageSize: MAX_PAGE_SIZE });
   const rules = useRuleTotal(workspaceId);
+  const enabledRules = useRuleList(workspaceId, { page: 1, pageSize: 1, enabled: true }).data?.pagination.total;
+  const alerts = useAlertList(workspaceId, { page: 1, pageSize: 1 }, { refetchInterval: 30_000 });
+  const latestAlert = alerts.data?.items[0];
   const open = useIncidentList(workspaceId, { page: 1, pageSize: MAX_PAGE_SIZE, status: 'OPEN' });
   const investigating = useIncidentList(workspaceId, { page: 1, pageSize: MAX_PAGE_SIZE, status: 'INVESTIGATING' });
   const openInvestigations = useInvestigationList(workspaceId, { page: 1, pageSize: 1, status: 'OPEN' });
@@ -70,7 +74,8 @@ export function DashboardPage() {
   const components: SystemComponent[] = [
     { name: 'API', state: apiState },
     { name: 'Collector', state: collectorState(hostItems) },
-    { name: 'Motor de detecção', state: 'not-configured' },
+    // The engine runs on every ingestion; it has something to do only when at least one rule is enabled (ADR-053).
+    { name: 'Motor de detecção', state: enabledRules === undefined ? 'checking' : enabledRules > 0 ? 'online' : 'not-configured' },
     { name: 'IA', state: 'not-configured' },
   ];
   const firstName = user?.name.split(' ')[0] ?? '';
@@ -104,10 +109,10 @@ export function DashboardPage() {
         />
         <MetricCard label="Investigações ativas" value={activeInvestigations ?? '—'} hint="Abertas ou em andamento" to="/investigacoes" />
         <MetricCard
-          label="Eventos armazenados"
-          value={events.data ? events.data.pagination.total : '—'}
-          hint={latestEvent ? `Último ${formatRelative(latestEvent.occurredAt)}` : 'Nenhum evento recebido'}
-          to="/eventos"
+          label="Alertas"
+          value={alerts.data ? alerts.data.pagination.total : '—'}
+          hint={latestAlert ? `Último ${formatRelative(latestAlert.createdAt)}` : latestEvent ? 'Nenhuma regra casou ainda' : 'Nenhum evento recebido'}
+          to="/alertas"
         />
       </section>
 
@@ -142,7 +147,7 @@ export function DashboardPage() {
           <section className="surface panel" aria-labelledby="events-title">
             <header className="panel__header">
               <h2 id="events-title" className="section-title">
-                Eventos recentes
+                Eventos recentes{events.data ? ` · ${events.data.pagination.total}` : ''}
               </h2>
               <Link className="inline-link small" to="/eventos">
                 Ver todos
@@ -207,8 +212,9 @@ export function DashboardPage() {
               ))}
             </ul>
             <p className="muted small panel__foot">
-              {rules !== undefined ? `${rules} regra${rules === 1 ? '' : 's'} configurada${rules === 1 ? '' : 's'}; ` : ''}o motor de detecção ainda não avalia
-              eventos.
+              {enabledRules !== undefined && rules !== undefined
+                ? `${enabledRules} de ${rules} regra${rules === 1 ? '' : 's'} habilitada${enabledRules === 1 ? '' : 's'}, avaliada${enabledRules === 1 ? '' : 's'} em cada evento recebido.`
+                : 'Regras habilitadas são avaliadas em cada evento recebido.'}
             </p>
           </section>
         </div>

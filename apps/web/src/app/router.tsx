@@ -70,6 +70,9 @@ export const routes: RouteObject[] = [
               // Read-only telemetry: list and detail, no create or edit screens (events are immutable).
               { path: '/eventos', lazy: page(() => import('../pages/events/EventsPage'), 'EventsPage') },
               { path: '/eventos/:eventId', lazy: page(() => import('../pages/events/EventDetailPage'), 'EventDetailPage') },
+              // Read-only, produced by the detection engine (ADR-053).
+              { path: '/alertas', lazy: page(() => import('../pages/alerts/AlertsPage'), 'AlertsPage') },
+              { path: '/alertas/:alertId', lazy: page(() => import('../pages/alerts/AlertDetailPage'), 'AlertDetailPage') },
               { path: '/regras', lazy: page(() => import('../pages/rules/RulesPage'), 'RulesPage') },
               { path: '/regras/:ruleId', lazy: page(() => import('../pages/rules/RuleDetailPage'), 'RuleDetailPage') },
               { path: '/incidentes', lazy: page(() => import('../pages/incidents/IncidentsPage'), 'IncidentsPage') },

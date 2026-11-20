@@ -1,4 +1,5 @@
-import { ConflictError, type Cpf, type Email } from '@aegis/domain';
+import { Alert, type AlertSnapshot } from '../../src/domain/alert.js';
+import { ConflictError, type Cpf, type DetectionEventCategory, type Email } from '@aegis/domain';
 import { User, type UserSnapshot } from '../../src/domain/user.js';
 import { Workspace, type WorkspaceKind, type WorkspaceSnapshot } from '../../src/domain/workspace.js';
 import { Membership, type MembershipRole, type MembershipSnapshot } from '../../src/domain/membership.js';
@@ -12,6 +13,9 @@ import { MachineCredential, type MachineCredentialSnapshot } from '../../src/dom
 import { offsetOf, type Page } from '../../src/application/pagination.js';
 import type { RateLimitCount, RateLimitStore } from '../../src/application/ports/rate-limit-store.js';
 import type {
+  AlertListFilter,
+  AlertRepository,
+  StoredAlert,
   DetectionRuleListFilter,
   DetectionRuleRepository,
   EventListFilter,
@@ -49,6 +53,7 @@ export class InMemoryStore {
   events = new Map<string, TelemetryEventSnapshot>();
   pairingChallenges = new Map<string, PairingChallengeSnapshot>();
   machineCredentials = new Map<string, MachineCredentialSnapshot>();
+  alerts = new Map<string, AlertSnapshot>();
 
   clone(): InMemoryStore {
     const copy = new InMemoryStore();
@@ -62,6 +67,7 @@ export class InMemoryStore {
     copy.events = new Map(this.events);
     copy.pairingChallenges = new Map(this.pairingChallenges);
     copy.machineCredentials = new Map(this.machineCredentials);
+    copy.alerts = new Map(this.alerts);
     return copy;
   }
 
@@ -76,6 +82,7 @@ export class InMemoryStore {
     this.events = other.events;
     this.pairingChallenges = other.pairingChallenges;
     this.machineCredentials = other.machineCredentials;
+    this.alerts = other.alerts;
   }
 }
 
@@ -273,6 +280,13 @@ class InMemoryDetectionRuleRepository implements DetectionRuleRepository {
     }
   }
 
+  async listEnabledFor(workspaceId: string, category: DetectionEventCategory): Promise<DetectionRule[]> {
+    return [...this.store.detectionRules.values()]
+      .filter((rule) => rule.workspaceId === workspaceId && rule.eventCategory === category && rule.enabled)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+      .map((snapshot) => DetectionRule.restore(snapshot));
+  }
+
   async insert(rule: DetectionRule): Promise<void> {
     const snapshot = rule.toSnapshot();
     this.assertForeignKeys(snapshot);
@@ -318,6 +332,7 @@ class InMemoryDetectionRuleRepository implements DetectionRuleRepository {
   }
 
   async deleteInWorkspace(workspaceId: string, ruleId: string): Promise<boolean> {
+    if ([...this.store.alerts.values()].some((alert) => alert.ruleId === ruleId)) throw new Error('foreign key constraint fails (restrict)');
     const current = this.store.detectionRules.get(ruleId);
     if (!current || current.workspaceId !== workspaceId) return false;
     // Mirrors ON DELETE RESTRICT on incident_detection_rules.detection_rule_id.
@@ -388,6 +403,8 @@ class InMemoryIncidentRepository implements IncidentRepository {
   }
 
   async deleteInWorkspace(workspaceId: string, incidentId: string): Promise<boolean> {
+    // alerts.incident_id ON DELETE SET NULL
+    for (const [id, alert] of this.store.alerts) if (alert.incidentId === incidentId && alert.workspaceId === workspaceId) this.store.alerts.set(id, { ...alert, incidentId: null });
     const current = this.store.incidents.get(incidentId);
     if (!current || current.workspaceId !== workspaceId) return false;
     // Mirrors ON DELETE RESTRICT on investigation_incidents.incident_id.
@@ -629,6 +646,69 @@ class InMemoryMachineCredentialRepository implements MachineCredentialRepository
   }
 }
 
+/** Same contract as the SQL adapter (ADR-053): unique (rule, event), joins for names, newest first. */
+class InMemoryAlertRepository implements AlertRepository {
+  constructor(private readonly store: InMemoryStore) {}
+
+  async insertMany(items: readonly Alert[]): Promise<void> {
+    for (const alert of items) {
+      const snapshot = alert.toSnapshot();
+      if (!this.store.detectionRules.has(snapshot.ruleId) || !this.store.events.has(snapshot.eventId) || !this.store.hosts.has(snapshot.hostId)) {
+        throw new Error('foreign key constraint fails');
+      }
+      if ([...this.store.alerts.values()].some((other) => other.ruleId === snapshot.ruleId && other.eventId === snapshot.eventId)) {
+        throw new Error('duplicate alert');
+      }
+      this.store.alerts.set(snapshot.id, snapshot);
+    }
+  }
+
+  async findCorrelatedIncident(workspaceId: string, ruleId: string, hostId: string, since: Date): Promise<string | null> {
+    const latest = [...this.store.alerts.values()]
+      .filter((alert) => alert.workspaceId === workspaceId && alert.ruleId === ruleId && alert.hostId === hostId && alert.createdAt >= since && alert.incidentId)
+      .filter((alert) => ['OPEN', 'INVESTIGATING'].includes(this.store.incidents.get(alert.incidentId ?? '')?.status ?? ''))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))[0];
+    return latest?.incidentId ?? null;
+  }
+
+  async listInWorkspace(workspaceId: string, filter: AlertListFilter): Promise<Page<StoredAlert>> {
+    const matching = [...this.store.alerts.values()]
+      .filter(
+        (alert) =>
+          alert.workspaceId === workspaceId &&
+          (!filter.severity || alert.severity === filter.severity) &&
+          (!filter.ruleId || alert.ruleId === filter.ruleId) &&
+          (!filter.hostId || alert.hostId === filter.hostId) &&
+          (!filter.incidentId || alert.incidentId === filter.incidentId),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id));
+    const start = (filter.page - 1) * filter.pageSize;
+    return { items: matching.slice(start, start + filter.pageSize).map((alert) => this.toStored(alert)), total: matching.length, page: filter.page, pageSize: filter.pageSize };
+  }
+
+  async findInWorkspace(workspaceId: string, alertId: string): Promise<StoredAlert | null> {
+    const alert = this.store.alerts.get(alertId);
+    return alert && alert.workspaceId === workspaceId ? this.toStored(alert) : null;
+  }
+
+  async existsForRule(ruleId: string): Promise<boolean> {
+    return [...this.store.alerts.values()].some((alert) => alert.ruleId === ruleId);
+  }
+
+  private toStored(snapshot: AlertSnapshot): StoredAlert {
+    const event = TelemetryEvent.restore(this.store.events.get(snapshot.eventId) as TelemetryEventSnapshot);
+    const incident = snapshot.incidentId ? this.store.incidents.get(snapshot.incidentId) : undefined;
+    return {
+      alert: Alert.restore(snapshot),
+      ruleName: this.store.detectionRules.get(snapshot.ruleId)?.name ?? '',
+      hostDisplayName: this.store.hosts.get(snapshot.hostId)?.displayName ?? '',
+      incidentTitle: incident?.title ?? null,
+      eventType: event.event.type,
+      eventSummary: event.summary,
+    };
+  }
+}
+
 export function repositoriesFor(store: InMemoryStore): Repositories {
   return {
     users: new InMemoryUserRepository(store),
@@ -641,6 +721,7 @@ export function repositoriesFor(store: InMemoryStore): Repositories {
     events: new InMemoryEventRepository(store),
     pairingChallenges: new InMemoryPairingChallengeRepository(store),
     machineCredentials: new InMemoryMachineCredentialRepository(store),
+    alerts: new InMemoryAlertRepository(store),
   };
 }
 

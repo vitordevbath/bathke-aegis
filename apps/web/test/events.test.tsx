@@ -219,9 +219,9 @@ describe('events elsewhere in the app', () => {
     renderApp('/dashboard');
 
     const nav = await screen.findByRole('navigation', { name: 'Principal' });
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Painel', 'Hosts', 'Eventos', 'Regras', 'Incidentes', 'Investigações']);
-    const card = screen.getByText('Eventos armazenados').closest('.metric');
-    await waitFor(() => expect(card?.textContent).toContain('1234'));
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Painel', 'Hosts', 'Eventos', 'Alertas', 'Regras', 'Incidentes', 'Investigações']);
+    // The stored total now heads the "Eventos recentes" panel (the KPI slot shows alerts, ADR-053).
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Eventos recentes/ }).textContent).toContain('1234'));
     expect(screen.queryByText(/por minuto/i)).toBeNull();
   });
 });

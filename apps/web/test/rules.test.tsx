@@ -60,8 +60,8 @@ describe('rules list', () => {
     renderApp('/regras');
 
     expect(await screen.findByText('Nenhuma regra de detecção configurada.')).toBeTruthy();
-    expect(screen.getByText(/quando o motor de detecção estiver ativo/)).toBeTruthy();
-    expect(screen.getByRole('note').textContent).toContain('Motor de detecção ainda não conectado');
+    expect(screen.getByText(/o motor de detecção a avalia em cada evento recebido/)).toBeTruthy();
+    expect(screen.getByRole('note').textContent).toContain('Motor de detecção ativo');
   });
 
   it('lists severity (text, not just color), status, category and scope', async () => {

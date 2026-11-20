@@ -18,13 +18,16 @@ const WORKS_TODAY = [
   'Pareamento de máquinas com credenciais rotacionáveis e revogáveis',
   'Collector em Rust com heartbeat, eventos de sistema e fila persistente',
   'Linha do tempo de eventos imutável, com ingestão idempotente',
+  'Motor de detecção que avalia cada evento recebido com as regras habilitadas',
+  'Alertas permanentes, correlacionados automaticamente em incidentes',
   'AEGIS DEMO: workspace somente leitura que toda conta recebe, com hosts simulados e um host real',
 ] as const;
 
 const IN_PROGRESS = [
   'Eventos de processo e de rede via eBPF',
-  'Motor que executa as regras sobre os eventos',
-  'Alertas e correlação automática de incidentes',
+  'Linha do tempo e grafo de relações para investigações',
+  'Ciclo de vida de incidentes verificado formalmente com Ada/SPARK',
+  'TLS no Nginx e hospedagem pública da demonstração',
 ] as const;
 
 /** Fraction of the hero scrolled away, shared with the WebGL field without re-rendering React. */

@@ -96,12 +96,16 @@ investigation_incidents (investigation_id, incident_id FK RESTRICT → incidents
        PK (investigation, incident), INDEX (incident_id) — mínimo 1 por investigação; N:N
 ```
 
-Detection rules são **configuração**: ficam armazenadas e validadas, mas nada as avalia
-(sem ingestão de eventos, sem Detection Engine). Ver ADR-022 e ADR-023.
+Detection rules habilitadas são **avaliadas pelo motor de detecção** (BF 10, ADR-053) dentro da
+transação de ingestão, sobre cada evento novo da sua categoria e dos hosts do seu escopo. Um evento
+que casa gera um **alerta** (tabela `alerts`, migration 0012, imutável, único por regra e evento) e o
+alerta é correlacionado a um incidente `DETECTION_ENGINE`: o aberto ou em investigação do último alerta
+da mesma regra no mesmo host nos últimos 30 minutos, ou um novo. Regras desabilitadas continuam só
+configuração. Ver ADR-022, ADR-023 e ADR-053.
 
-Incidents são **registros manuais**: o servidor sempre grava `origin = MANUAL`, o status
-segue o ciclo de vida do domínio e as relações com hosts e regras são escolhidas pelo usuário.
-Não existem Event, Alert nem Correlation Engine; nada cria incidentes automaticamente.
+Incidents têm duas origens: `MANUAL` (criados por uma pessoa, relações escolhidas por ela) e
+`DETECTION_ENGINE` (abertos pelo motor de detecção, com o host e a regra do alerta, ADR-053). O status
+segue o mesmo ciclo de vida do domínio nos dois casos; o trabalho humano acontece no incidente.
 Ver ADR-024 a ADR-027.
 
 Investigations são **casos humanos** que agrupam um ou mais incidentes do mesmo workspace

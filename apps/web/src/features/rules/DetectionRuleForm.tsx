@@ -113,7 +113,7 @@ export function DetectionRuleForm({ workspaceId, defaultValues, submitLabel, pen
         <label className="switch">
           <input type="checkbox" {...register('enabled')} />
           <span>Habilitada</span>
-          <small className="field__hint">Pronta para uso quando o motor de detecção estiver ativo.</small>
+          <small className="field__hint">Avaliada em cada evento recebido da categoria escolhida.</small>
         </label>
       </section>
 

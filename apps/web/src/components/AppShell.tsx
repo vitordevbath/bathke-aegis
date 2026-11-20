@@ -9,6 +9,7 @@ const DESTINATIONS = [
   { to: '/dashboard', label: 'Painel' },
   { to: '/hosts', label: 'Hosts' },
   { to: '/eventos', label: 'Eventos' },
+  { to: '/alertas', label: 'Alertas' },
   { to: '/regras', label: 'Regras' },
   { to: '/incidentes', label: 'Incidentes' },
   { to: '/investigacoes', label: 'Investigações' },
@@ -24,7 +25,7 @@ export function initialsOf(name: string | undefined): string {
 }
 
 /**
- * Layout of the authenticated area: brand, the six work areas, workspace, account and sign-out.
+ * Layout of the authenticated area: brand, the seven work areas, workspace, account and sign-out.
  * The profile is reached from the account button rather than a seventh navigation item.
  * Route changes use the View Transitions API where the browser supports it (a short crossfade).
  */

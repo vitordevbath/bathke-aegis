@@ -141,7 +141,7 @@ Nenhum. A confirmação literal contra a rubrica primária depende de uma cópia
 
 #### AEGIS EXPERIMENTAL — PLANNED, fora do PASS acadêmico atual
 
-O Event Contract v1, o Event Store e a ingestão de laboratório existem desde o BF 06 (ver [EVENTOS.md](EVENTOS.md)); deles, só o registro de definições e a suíte de contrato do repositório entram como evidência acadêmica (SOLID O e L). O pareamento e as credenciais de máquina (BF 07) e o Aegis Collector em Rust com heartbeat, eventos SYSTEM e fila persistente (BF 08) existem, mas não contam como evidência acadêmica: nenhum status acima mudou por causa deles. eBPF/Aya, eventos PROCESS/NETWORK, Detection Engine, Alerts e correlação automática, IA, Ada/SPARK e Assembly continuam planejados e não contam como evidência.
+O Event Contract v1, o Event Store e a ingestão de laboratório existem desde o BF 06 (ver [EVENTOS.md](EVENTOS.md)); deles, só o registro de definições e a suíte de contrato do repositório entram como evidência acadêmica (SOLID O e L). O pareamento e as credenciais de máquina (BF 07) e o Aegis Collector em Rust com heartbeat, eventos SYSTEM e fila persistente (BF 08) existem, mas não contam como evidência acadêmica: nenhum status acima mudou por causa deles. O motor de detecção, os alertas e a correlação automática (BF 10, ADR-053) também existem e também não alteram nenhum status. eBPF/Aya, eventos PROCESS/NETWORK, IA, Ada/SPARK e Assembly continuam planejados e não contam como evidência.
 
 Evidências do BF 08, para rastreabilidade (fora da matriz acadêmica): `native/aegis-collector` (61 testes unitários + 14 de integração, `cargo clippy -D warnings`), `apps/api/test/http/heartbeat.test.ts`, `apps/api/test/integration/{heartbeat-revocation,pairing-limits}.mysql.test.ts` (MySQL real), `apps/web/test/host-pairing.test.tsx`, `scripts/test-collector-e2e.mjs` (binário real contra a stack Compose + layout em Chrome headless), jobs `rust` e `collector-e2e` do CI.
 
@@ -151,8 +151,8 @@ CORE ACADÊMICO (PASS)                 AEGIS TELEMETRY
 ├── User (self-service)               ├── Pareamento e credenciais de máquina (CURRENT, BF 07)
                                       ├── Collector Rust: SYSTEM, heartbeat (CURRENT, BF 08)
                                       ├── eBPF · PROCESS/NETWORK (PLANNED)
-├── 4 CRUDs + paginação + relações    ├── Detection Engine · Alerts
-├── MySQL + migrations                ├── Correlation · incidentes automáticos
+├── 4 CRUDs + paginação + relações    ├── Detection Engine · Alerts (CURRENT, BF 10)
+├── MySQL + migrations                ├── Correlation · incidentes automáticos (CURRENT, BF 10)
 ├── Docker · Nginx · isolamento       ├── IA
 ├── AGENTS.md · 3 skills · MCP        └── SPARK · Assembly
 └── TypeScript strict / POO / camadas

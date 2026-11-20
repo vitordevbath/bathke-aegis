@@ -139,7 +139,7 @@ export function RulesPage() {
       {list.data && total === 0 && !filtered && (
         <EmptyState
           title="Nenhuma regra de detecção configurada."
-          description="Crie regras para preparar o Aegis para analisar eventos quando o motor de detecção estiver ativo."
+          description="Crie uma regra: o motor de detecção a avalia em cada evento recebido e gera alertas quando ela casar."
           action={
             canManage ? (
               <Link to="/regras/nova" className="button button--primary">

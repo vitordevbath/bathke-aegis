@@ -1,6 +1,7 @@
 import { EventIdConflictError, NotFoundError, ValidationError, validateEvent, type FieldIssue } from '@aegis/domain';
 import { TelemetryEvent, type EventOrigin } from '../domain/telemetry-event.js';
 import type { Repositories, UnitOfWork } from './ports/repositories.js';
+import { DetectionEngine } from './detection-engine.js';
 
 /**
  * Lets the caller confirm, inside the ingestion transaction and after the host
@@ -13,6 +14,8 @@ export interface IngestionResult {
   readonly received: number;
   readonly inserted: number;
   readonly deduplicated: number;
+  /** Alerts raised by the detection engine for the new events (ADR-053). Not part of the HTTP response. */
+  readonly alertsRaised: number;
 }
 
 /**
@@ -31,6 +34,8 @@ export interface IngestionResult {
  *     batch is stored);
  *  3. the remaining new events are inserted together.
  *
+ * Then the detection engine evaluates the new events in the same transaction (ADR-053).
+ *
  * `confirmSource`, when given, runs right after the host lock, so a source
  * revoked by a writer that serializes on the same lock cannot commit events.
  */
@@ -38,6 +43,7 @@ export class EventIngestionService {
   constructor(
     private readonly unitOfWork: UnitOfWork,
     private readonly clock: () => Date = () => new Date(),
+    private readonly detection: DetectionEngine = new DetectionEngine(),
   ) {}
 
   async ingest(origin: EventOrigin, rawEvents: readonly unknown[], confirmSource?: SourceConfirmation): Promise<IngestionResult> {
@@ -70,7 +76,9 @@ export class EventIngestionService {
         }
       });
       await repositories.events.insertMany(fresh);
-      return { received: events.length, inserted: fresh.length, deduplicated: events.length - fresh.length };
+      // Same transaction: the new events, their alerts and any incident they open commit together (ADR-053).
+      const alertsRaised = await this.detection.evaluate(repositories, host, fresh, now);
+      return { received: events.length, inserted: fresh.length, deduplicated: events.length - fresh.length, alertsRaised };
     });
   }
 }

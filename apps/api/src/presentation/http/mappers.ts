@@ -1,4 +1,5 @@
 import type {
+  AlertResponse,
   DetectionRuleResponse,
   DetectionRuleSummary,
   EventResponse,
@@ -26,7 +27,7 @@ import type { Incident } from '../../domain/incident.js';
 import type { IncidentView } from '../../application/use-cases/incidents/incident-view.js';
 import type { Investigation } from '../../domain/investigation.js';
 import type { InvestigationView } from '../../application/use-cases/investigations/investigation-view.js';
-import type { StoredEvent } from '../../application/ports/repositories.js';
+import type { StoredAlert, StoredEvent } from '../../application/ports/repositories.js';
 import type { MachineCredential } from '../../domain/machine-credential.js';
 import type { HostPairingView } from '../../application/use-cases/machine-identity/get-host-pairing.js';
 
@@ -209,5 +210,20 @@ export function toHostPairingResponse({ pendingCode, credentials }: HostPairingV
     pendingCode: pendingCode ? { id: pendingCode.id, expiresAt: pendingCode.expiresAt.toISOString() } : null,
     activeCredential: items.find((credential) => credential.status === 'ACTIVE') ?? null,
     credentials: items,
+  };
+}
+
+/** Alerts carry names for display; the event itself is read through `/events/:id`. */
+export function toAlertResponse({ alert, ruleName, hostDisplayName, incidentTitle, eventType, eventSummary }: StoredAlert): AlertResponse {
+  return {
+    id: alert.id,
+    workspaceId: alert.workspaceId,
+    severity: alert.severity,
+    occurredAt: alert.occurredAt.toISOString(),
+    createdAt: alert.createdAt.toISOString(),
+    rule: { id: alert.ruleId, name: ruleName },
+    host: { id: alert.hostId, displayName: hostDisplayName },
+    event: { id: alert.eventId, type: eventType, summary: eventSummary },
+    incident: alert.incidentId && incidentTitle !== null ? { id: alert.incidentId, title: incidentTitle } : null,
   };
 }
