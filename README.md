@@ -52,8 +52,8 @@ Detalhes e pendências: [docs/RUBRICA.md](docs/RUBRICA.md).
 
 | Componente | Status |
 | --- | --- |
-| Aegis Web (React + TS + Vite): site público, `/login`, `/cadastro`, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes`, `/investigacoes`, `/eventos` | **IMPLEMENTADO** |
-| Aegis API (Fastify + TS): health, autenticação, `/users/me`, CRUDs por workspace, eventos, pareamento (`/agent/pair`), credenciais, heartbeat e ingestão por máquina | **IMPLEMENTADO** |
+| Aegis Web (React + TS + Vite): site público, `/login`, `/cadastro`, `/dashboard`, `/perfil`, `/hosts`, `/regras`, `/incidentes` (com reconstrução: linha do tempo e grafo), `/investigacoes`, `/eventos`, `/alertas` | **IMPLEMENTADO** |
+| Aegis API (Fastify + TS): health, autenticação, `/users/me`, CRUDs por workspace, eventos, motor de detecção, alertas, timeline do incidente, pareamento (`/agent/pair`), credenciais, heartbeat e ingestão por máquina | **IMPLEMENTADO** |
 | `@aegis/contracts` (schemas Zod), `@aegis/domain` (Email, CPF, política de senha, severidade, regras de host/incidente/investigação, Event Contract, identidade de máquina, erros) | **IMPLEMENTADO** |
 | Aegis MCP (7 ferramentas, secret guard) | **IMPLEMENTADO** (base) |
 | Docker Compose + Nginx (somente Nginx exposto, redes internas) | **IMPLEMENTADO** (teste automatizado `npm run test:infra` no CI) |
