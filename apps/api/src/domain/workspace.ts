@@ -45,10 +45,6 @@ export class Workspace extends Entity<string> {
     return new Workspace(snapshot.id, snapshot.name, snapshot.kind, snapshot.createdAt, snapshot.updatedAt);
   }
 
-  get isPersonal(): boolean {
-    return this.kind === 'personal';
-  }
-
   toSnapshot(): WorkspaceSnapshot {
     return { id: this.id, name: this.name, kind: this.kind, createdAt: this.createdAt, updatedAt: this.updatedAt };
   }

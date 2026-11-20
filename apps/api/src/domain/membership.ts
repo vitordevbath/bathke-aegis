@@ -33,10 +33,6 @@ export class Membership {
     return new Membership(snapshot.userId, snapshot.workspaceId, snapshot.role, snapshot.createdAt);
   }
 
-  get isOwner(): boolean {
-    return this.role === 'OWNER';
-  }
-
   /**
    * Create/update/delete workspace resources. Deny-by-default: only OWNER for
    * now; ADMIN/ANALYST/VIEWER get behavior when workspace sharing exists.
