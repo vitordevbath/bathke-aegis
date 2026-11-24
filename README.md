@@ -173,6 +173,21 @@ bash .aegis-local/status.sh      # estado dos dois Collectors e últimas linhas 
 bash .aegis-local/desligar.sh    # para os dois Collectors (a fila é preservada)
 ```
 
+### Mostrar a infraestrutura
+
+```bash
+docker compose ps                                   # só o nginx publica porta (0.0.0.0:8080->80)
+docker network ls --filter name=bathke-aegis        # aegis_edge, aegis_application, aegis_data
+docker network inspect bathke-aegis_aegis_data --format '{{.Internal}} {{range .Containers}}{{.Name}} {{end}}'
+docker compose exec -T api getent hosts mysql       # a API enxerga o banco
+docker compose exec -T nginx getent hosts mysql     # o Nginx não enxerga (sem resposta)
+curl -s http://localhost:8080/api/health            # a API responde através do Nginx
+curl -s -m 3 http://localhost:3000/health           # e não responde direto: não está exposta
+curl -sI http://localhost:8080/ | grep -iE "content-security|x-frame|x-content"
+docker volume ls --filter name=mysql_data           # o banco mora num volume nomeado
+docker compose logs --tail 20 api
+```
+
 ### Demonstração do motor de detecção
 
 Com uma regra **Sistema › Serviço · é igual a · `systemd-hostnamed.service`** habilitada:
