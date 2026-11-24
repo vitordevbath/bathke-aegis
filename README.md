@@ -119,6 +119,101 @@ infra/              Dockerfiles e Nginx
 docs/               documentação
 ```
 
+## Como rodar
+
+Tudo na pasta do projeto. Só precisa de Docker (e de Rust para compilar o Collector, uma vez).
+
+### 1. Subir a stack
+
+```bash
+cp .env.example .env              # só na primeira vez; troque as senhas e o JWT_SECRET
+docker compose up -d --build      # constrói e sobe nginx, web, api e mysql
+docker compose ps                 # só o nginx publica porta
+curl -s http://localhost:8080/api/health
+```
+
+Abra **http://localhost:8080**. Não use `npm run dev` para a demonstração: ele sobe uma versão de
+desenvolvimento fora do Docker, na porta 5173, que exige configuração própria.
+
+### 2. Monitorar uma máquina Linux com o Aegis Collector
+
+```bash
+(cd native/aegis-collector && cargo build --release)     # uma vez
+```
+
+1. No painel: **Hosts → Adicionar host**, abra o host e clique em **Parear Collector**. O código
+   aparece uma vez e vale 10 minutos.
+2. Na máquina, rode o comando abaixo **primeiro** e cole o código quando ele pedir (não aparece na tela):
+
+```bash
+./native/aegis-collector/target/release/aegis-collector pair --server http://localhost:8080
+./native/aegis-collector/target/release/aegis-collector run -v     # em primeiro plano; Ctrl+C para parar
+./native/aegis-collector/target/release/aegis-collector status     # pareamento, fila e último heartbeat
+./native/aegis-collector/target/release/aegis-collector unpair     # remove o pareamento local
+```
+
+Em menos de um minuto o host fica **Online** e o evento de inicialização aparece em **Eventos**.
+
+### 3. Parar
+
+```bash
+docker compose stop     # para sem apagar nada
+docker compose down     # remove os containers; o volume do banco continua (nunca use down -v)
+```
+
+### Atalhos do notebook da apresentação
+
+No notebook usado na apresentação existem scripts locais em `.aegis-local/` (fora do Git), criados no
+setup para rodar dois Collectors na mesma máquina: um para o workspace pessoal e outro que aparece no
+AEGIS DEMO como `aegis-server`.
+
+```bash
+bash .aegis-local/ligar.sh       # sobe a stack e os dois Collectors, sem duplicar
+bash .aegis-local/status.sh      # estado dos dois Collectors e últimas linhas de log
+bash .aegis-local/desligar.sh    # para os dois Collectors (a fila é preservada)
+```
+
+### Demonstração do motor de detecção
+
+Com uma regra **Sistema › Serviço · é igual a · `systemd-hostnamed.service`** habilitada:
+
+```bash
+hostnamectl status     # só lê informações, mas liga esse serviço por alguns segundos
+```
+
+Em menos de um minuto aparecem o alerta (**Alertas**), o incidente aberto pelo motor (**Incidentes**)
+e, no detalhe dele, a **Reconstrução** com a linha do tempo e o grafo.
+
+### Auditoria da rubrica
+
+```bash
+npm ci                     # uma vez, requer Node.js ≥ 22
+npm run audit:rubrica      # 35 verificações do back-end contra a stack rodando
+npm run test:infra         # stack isolada: Compose, volume, Nginx, redes e HTTPS
+```
+
+## Usando o Aegis
+
+| Conceito | O que é | Como se cria |
+| --- | --- | --- |
+| **Host** | Uma máquina monitorada | Hosts → Adicionar host, depois Parear Collector |
+| **Evento** | Um fato que a máquina relatou (boot, serviço mudou). Imutável | Chega sozinho pelo Collector |
+| **Regra** | O que você quer vigiar: categoria, condições, severidade e quais hosts | Regras → Nova regra |
+| **Alerta** | "A regra X casou com o evento Y". Imutável, um por regra e evento | O motor cria na hora em que o evento chega |
+| **Incidente** | O caso que uma pessoa precisa tratar | Automático (motor) ou Incidentes → Novo incidente |
+| **Investigação** | O trabalho de entender um ou mais incidentes, com conclusão escrita | Investigações → Nova investigação |
+
+**Ciclo do incidente:** Aberto → Em investigação → Resolvido → Encerrado. Um incidente resolvido pode
+voltar para investigação; encerrado é final. Alertas da mesma regra no mesmo host em até 30 minutos
+entram no mesmo incidente aberto.
+
+**Ciclo da investigação:** Aberta ⇄ Em andamento → Encerrada. Só encerra com uma conclusão de pelo
+menos 10 caracteres. Um incidente que está numa investigação não pode ser excluído.
+
+**Fluxo típico:** criar uma regra → o motor gera alertas e abre o incidente → **Iniciar investigação**
+no incidente → criar uma investigação agrupando os incidentes relacionados → escrever a conclusão e
+encerrar → resolver e encerrar o incidente. Cada passo fica no histórico do incidente (**Reconstrução**).
+
 ## Desenvolvimento
 
 Requisitos: Node.js ≥ 22, npm, Docker (opcional), Rust stable (somente para o Collector).
